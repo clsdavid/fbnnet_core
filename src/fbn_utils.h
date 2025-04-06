@@ -17,7 +17,8 @@ std::string mpaste(const std::vector<std::string>& x, const std::string& sep = "
 
 // Template for vector concatenation
 template <typename T>
-std::vector<T> concatenator(const std::vector<T>& a, const std::vector<T>& b);
+std::vector<T> concatenate(const std::vector<T>& a, const std::vector<T>& b);
+
 
 // Matrix operations
 py::array_t<double> mcbind(py::array_t<double> a, py::array_t<double> b);
@@ -55,24 +56,24 @@ py::array_t<double> substractM(py::array_t<double> m,
 int matchCount(py::array_t<double> m, 
              py::array_t<double> v);
 
-// ----- Template Implementations -----
-template <typename T>
-std::vector<T> concatenator(const std::vector<T>& a, const std::vector<T>& b) {
-    std::vector<T> out;
-    out.reserve(a.size() + b.size());
-    out.insert(out.end(), a.begin(), a.end());
-    out.insert(out.end(), b.begin(), b.end());
-    return out;
-}
+----- Template Implementations -----
+// template <typename T>
+// std::vector<T> concatenate(const std::vector<T>& a, const std::vector<T>& b) {
+//     std::vector<T> out;
+//     out.reserve(a.size() + b.size());
+//     out.insert(out.end(), a.begin(), a.end());
+//     out.insert(out.end(), b.begin(), b.end());
+//     return out;
+// }
 
-template <typename T>
-std::vector<T> vector_sort(std::vector<T> x, bool dsc) {
-    if (dsc) {
-        std::sort(x.rbegin(), x.rend());
-    } else {
-        std::sort(x.begin(), x.end());
-    }
-    return x;
-}
+// template <typename T>
+// std::vector<T> vector_sort(std::vector<T> x, bool dsc) {
+//     if (dsc) {
+//         std::sort(x.rbegin(), x.rend());
+//     } else {
+//         std::sort(x.begin(), x.end());
+//     }
+//     return x;
+// }
 
 #endif

@@ -242,8 +242,8 @@ py::dict getBasicMeasures(
   );
 }
 
-// -------------------- getGenePrababilities_basic --------------------
-py::list getGenePrababilities_basic(
+// -------------------- getGeneProbabilities_basic --------------------
+py::list getGeneProbabilities_basic(
   py::dict main_parameters_in_ref,
   const py::object& fixedgenestate,
   const std::vector<std::string>& target_gene,
@@ -253,7 +253,7 @@ py::list getGenePrababilities_basic(
 {
   // Helper functions needed in fbn_utils.h:
   // - a_in_b_index
-  // - concatenator
+  // - concatenate
   // - resizel
   // - orderByname
 
@@ -280,7 +280,7 @@ py::list getGenePrababilities_basic(
           // Remove overlapping elements
           // Implementation depends on list manipulation helpers
       } else {
-          conditional_genes = concatenator(conditional_genes, new_conditional_gene);
+          conditional_genes = concatenate(conditional_genes, new_conditional_gene);
       }
   }
 
@@ -367,9 +367,9 @@ py::dict getAdvancedMeasures(const py::dict& basic_measures) {
   return result;
 }
 
-// -------------------- getGenePrababilities_advanced --------------------
-py::dict getGenePrababilities_advanced(const py::list& getGenePrababilities_basic) {
-  int len = py::len(getGenePrababilities_basic);
+// -------------------- getGeneProbabilities_advanced --------------------
+py::dict getGeneProbabilities_advanced(const py::list& getGeneProbabilities_basic) {
+  int len = py::len(getGeneProbabilities_basic);
   py::list resultGroup(len);
   py::list targetCounts(len);
 
@@ -378,7 +378,7 @@ py::dict getGenePrababilities_advanced(const py::list& getGenePrababilities_basi
   bool first = true;
 
   for(int j=0; j<len; j++) {
-      py::dict basic = getGenePrababilities_basic[j].cast<py::dict>();
+      py::dict basic = getGeneProbabilities_basic[j].cast<py::dict>();
       py::dict advanced = getAdvancedMeasures(basic);
       
       // Store advanced measures
@@ -427,7 +427,7 @@ py::dict getGenePrababilities_advanced(const py::list& getGenePrababilities_basi
 }
 
 // -------------------- getGenePrababilities --------------------
-py::dict getGenePrababilities(
+py::dict getGeneProbabilities(
   py::dict main_parameters_in_ref,
   const py::object& fixedgenestate,
   const std::vector<std::string>& target_gene,
@@ -436,7 +436,7 @@ py::dict getGenePrababilities(
   const py::object& targetCounts = py::none()) 
 {
   // Get basic measures
-  py::list basic_measures = getGenePrababilities_basic(
+  py::list basic_measures = getGeneProbabilities_basic(
       main_parameters_in_ref,
       fixedgenestate,
       target_gene,
@@ -446,7 +446,7 @@ py::dict getGenePrababilities(
   );
 
   // Get advanced probabilities
-  py::dict probability = getGenePrababilities_advanced(basic_measures);
+  py::dict probability = getGeneProbabilities_advanced(basic_measures);
 
   if(probability.is_none()) {
       return py::dict();

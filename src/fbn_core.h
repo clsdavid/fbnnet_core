@@ -41,9 +41,9 @@ py::list getBasicMeasures(
 
 py::list getAdvancedMeasures(const py::list& basic_measures);
 
-py::list getGenePrababilities_advanced(const py::list& getGenePrababilities_basic);
+py::list getGeneProbabilities_advanced(const py::list& getGenePrababilities_basic);
 
-py::list getGenePrababilities_basic(
+py::list getGeneProbabilities_basic(
     py::dict main_parameters_in_ref,
     const py::object& fixedgenestate,
     std::vector<std::string> target_gene,
@@ -52,7 +52,7 @@ py::list getGenePrababilities_basic(
     const py::object& targetCounts = py::none()
 );
 
-py::list getGenePrababilities(
+py::list getGeneProbabilities(
     py::dict main_parameters_in_ref,
     const py::object& fixedgenestate,
     std::vector<std::string> target_gene,
