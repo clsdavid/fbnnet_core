@@ -83,5 +83,61 @@ class TestMathBindings(unittest.TestCase):
         print(result)
         self.assertEqual(result, 3)
 
+    def test_vector_sort(self):
+        # Test the vector_sort function
+        arr = np.array(["3", "1", "2"])
+        result = fbnnet_core.vector_sort(arr, True)
+        print(result)
+        self.assertTrue(result, ["1", "2", "3"])
+
+        result = fbnnet_core.vector_sort(arr, False)
+        print(result)
+        self.assertTrue(result, ["3", "2", "1"])
+
+    def test_convertStringIntoVector(self):
+        # Test the convertStringIntoVector function
+        result = fbnnet_core.convertStringIntoVector("A,B,S", 1, False)
+        print(result)
+        self.assertTrue(np.array_equal(result, ["A", ",", "B", ",", "S"]))
+
+        result = fbnnet_core.convertStringIntoVector("A,B,S", 1, True)
+        print(result)
+        self.assertTrue(np.array_equal(result, ["a", ",", "b", ",", "s"]))
+
+    def test_a_in_b(self):
+        # Test the a_in_b function
+        arr1 = np.array(["A", "B", "C"])
+        arr2 = np.array(["B", "C", "D"])
+        result = fbnnet_core.a_in_b(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [False, True, True]))
+
+    def test_a_in_b_index(self):
+        # Test the a_in_b_index function
+        arr1 = np.array(["A", "B", "C"])
+        arr2 = np.array(["B", "C", "D"])
+        result = fbnnet_core.a_in_b_index(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [0, 1]))
+
+    def test_resizel(self):
+        # Test the resizel function
+        arr = [1, 2, 3]
+        result = fbnnet_core.resizel(arr, 5)
+        print(result)
+        self.assertTrue(np.array_equal(result, [1, 2, 3, None, None]))
+
+        result = fbnnet_core.resizel(arr, 2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [1, 2]))
+
+    def test_orderByname(self):
+        # Test the orderByname function
+        dict = {"B": 2, "A": 1, "C": 3}
+        arr = np.array(["A", "C", "B"])
+        result = fbnnet_core.order_by_name(dict, arr)
+        print(result)
+        self.assertTrue(result, {"A": 1, "C": 3, "B": 2})
+
 if __name__ == "__main__":
     unittest.main()

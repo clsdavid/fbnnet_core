@@ -6,7 +6,8 @@
 #include <sstream>
 #include <vector>
 #include <string>
-
+#include <cctype>
+#include <unordered_map>
 namespace py = pybind11;
 
 // ----- Utility Functions -----
@@ -118,6 +119,7 @@ int countZeros(py::array_t<double> arr) {
 }
 
 // ... (Additional converted functions follow similar patterns)
+template <typename T>
 std::vector<T> vector_sort(std::vector<T> x, bool dsc = true) {
     if (dsc) {
         std::sort(x.rbegin(), x.rend());
@@ -126,17 +128,70 @@ std::vector<T> vector_sort(std::vector<T> x, bool dsc = true) {
     }
     return x;
 }
-std::vector<std::string> convertStringIntoVector(std::string value, int outputType = 1, bool lowerCase = false) {
-    std::vector<std::string> result;
-    std::istringstream iss(value);
-    std::string token;
-    while (std::getline(iss, token, ',')) {
-        if (lowerCase) {
-            std::transform(token.begin(), token.end(), token.begin(), ::tolower);
+std::vector<std::string> convertStringIntoVector(std::string value, int outputType, bool lowerCase) {
+    int len = value.length();
+    std::vector<std::string> res;
+    std::string t;
+    
+    for(int i = 0; i < len; i++) {
+        char v = value[i];
+        if(lowerCase) {
+            v = std::tolower(v);
         }
-        result.push_back(token);
+        if(v == ' ') {
+            if(t.length() > 0) {
+                res.push_back(t);
+                t.clear();
+            }
+            continue;
+        }
+
+        if(outputType == 1 || outputType == 0) {
+            if(v == '&' || v == ',' || v == '!') {
+                if(t.length() > 0) {
+                    res.push_back(t);
+                    t.clear();
+                }
+
+                if(outputType == 1) {
+                    t.push_back(v);
+                } else {
+                    if(v != '!') {
+                        t.push_back(v);
+                    }
+                }
+                res.push_back(t);
+                t.clear();
+                continue;
+            }
+
+            if(outputType == 1) {
+                t.push_back(v);
+            } else {
+                if(v != '!') {
+                    t.push_back(v);
+                }
+            }
+        } else {
+            if(v == '&' || v == ',') {
+                if(t.length() > 0) {
+                    res.push_back(t);
+                    t.clear();
+                }
+                t.push_back(v);
+                res.push_back(t);
+                t.clear();
+                continue;
+            }
+            t.push_back(v);
+        }
     }
-    return result;
+    
+    if(t.length() > 0) {
+        res.push_back(t);
+    }
+
+    return res;
 }
 std::vector<bool> a_in_b(const std::vector<std::string>& names1, const std::vector<std::string>& names2) {
     std::vector<bool> result(names1.size(), false);
@@ -166,18 +221,21 @@ py::list resizel(const py::list& x, int n) {
     }
     return result;
 }
-py::list orderByname(const py::list& x, const std::vector<std::string>& names) {
-    py::list result;
+py::dict orderByName(const py::dict& x, const std::vector<std::string>& names) {
+    py::dict y;
+    
+    // Reorder the dictionary based on the names vector
     for (const auto& name : names) {
-        for (const auto& item : x) {
-            if (item.cast<std::string>() == name) {
-                result.append(item);
-                break;
-            }
+        if (x.contains(name)) {
+            y[name.c_str()] = x[name.c_str()];
+        } else {
+            throw std::runtime_error("Key '" + name + "' not found in input dictionary");
         }
     }
-    return result;
+    
+    return y;
 }
+
 py::list removeEmptyElement(const py::list& x) {
     py::list result;
     for (const auto& item : x) {
@@ -242,5 +300,16 @@ PYBIND11_MODULE(fbnnet_core, m) {
     m.def("mrbind", &mrbind);
     m.def("isReallyNA", &isReallyNA);
     m.def("countZeros", &countZeros);
+    m.def("vector_sort", &vector_sort<std::string>);
+    m.def("convertStringIntoVector", &convertStringIntoVector);
+    m.def("a_in_b", &a_in_b);
+    m.def("a_in_b_index", &a_in_b_index);
+    m.def("resizel", &resizel);
+    m.def("order_by_name", &orderByName, 
+        "Reorder dictionary items according to specified names",
+        py::arg("x"), py::arg("names"));
+    m.def("removeEmptyElement", &removeEmptyElement);
+    m.def("substractM", &substractM);
+    m.def("matchCount", &matchCount);
     // ... Bind other functions
 }
