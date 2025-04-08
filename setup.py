@@ -14,4 +14,5 @@ ext_modules = [
 setup(
     name="fbnnet_core",
     ext_modules=ext_modules,
+    install_requires=["pybind11>=2.13", "statsmodels"], 
 )

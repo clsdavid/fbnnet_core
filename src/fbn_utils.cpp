@@ -245,7 +245,7 @@ py::list removeEmptyElement(const py::list& x) {
     }
     return result;
 }
-py::array_t<double> substractM(py::array_t<double> m, py::array_t<double> v) {
+py::array_t<double> subtractM(py::array_t<double> m, py::array_t<double> v) {
     auto m_buf = m.request(), v_buf = v.request();
     if (m_buf.ndim != 2 || v_buf.ndim != 1)
         throw std::runtime_error("Matrix and vector dimensions do not match");
@@ -267,25 +267,59 @@ py::array_t<double> substractM(py::array_t<double> m, py::array_t<double> v) {
     }
     return out;
 }
-int matchCount(py::array_t<double> m, py::array_t<double> v) {
-    auto m_buf = m.request(), v_buf = v.request();
-    if (m_buf.ndim != 2 || v_buf.ndim != 1)
-        throw std::runtime_error("Matrix and vector dimensions do not match");
-    if (m_buf.shape[1] != v_buf.shape[0])
-        throw std::runtime_error("Column count mismatch");
-
-    int count = 0;
-    double* m_ptr = static_cast<double*>(m_buf.ptr);
-    double* v_ptr = static_cast<double*>(v_buf.ptr);
+int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
+    // First perform the subtraction (reusing the previous subtractM function)
+    auto subtracted = subtractM(m, v);
     
-    for (size_t i = 0; i < m_buf.shape[0]; ++i) {
-        for (size_t j = 0; j < m_buf.shape[1]; ++j) {
-            if (m_ptr[i * m_buf.shape[1] + j] == v_ptr[j]) {
-                ++count;
-            }
+    // Get buffer info for the subtracted matrix
+    py::buffer_info sub_buf = subtracted.request();
+    if (sub_buf.ndim != 2)
+        throw std::runtime_error("Subtracted matrix must be 2-dimensional");
+    
+    size_t nrows = sub_buf.shape[0];
+    size_t ncols = sub_buf.shape[1];
+    double* sub_ptr = static_cast<double*>(sub_buf.ptr);
+    
+    // Calculate column sums
+    std::vector<double> col_sums(ncols, 0.0);
+    for (size_t col = 0; col < ncols; ++col) {
+        for (size_t row = 0; row < nrows; ++row) {
+            col_sums[col] += sub_ptr[col * nrows + row];
         }
     }
-    return count;
+    
+    // Count how many column sums are exactly 0
+    return std::count(col_sums.begin(), col_sums.end(), 0.0);
+}
+
+// add back the missing functions
+py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95) {
+    try {
+        // This for 2x2 table
+        // Import statsmodels
+        py::module statsmodels = py::module::import("statsmodels.stats.contingency_tables");
+        
+        // Reshape input to 2x2 table (SciPy/statsmodels expect this format)
+        py::array_t<double> table = x.attr("reshape")(std::make_tuple(2, 2));
+        
+        // Create a 2x2 contingency table object
+        py::object table_obj = statsmodels.attr("Table2x2")(table);
+        
+        // Perform Fisher's exact test
+        py::object result = table_obj.attr("test_nominal_association")();
+        
+        // Extract results (similar to R's fisher.test())
+        py::dict test_out;
+        test_out["p_value"] = result.attr("pvalue");
+        test_out["estimate"] = table_obj.attr("oddsratio");
+        test_out["conf_int"] = table_obj.attr("oddsratio_confint")(conf_level);
+        
+        return test_out;
+    } 
+    catch (const std::exception &e) {
+        // Handle errors (e.g., statsmodels not installed)
+        throw std::runtime_error("Error in fisher_test_cpp: " + std::string(e.what()));
+    }
 }
 
 // ----- PyBind11 Module Definition -----
@@ -309,7 +343,10 @@ PYBIND11_MODULE(fbnnet_core, m) {
         "Reorder dictionary items according to specified names",
         py::arg("x"), py::arg("names"));
     m.def("removeEmptyElement", &removeEmptyElement);
-    m.def("substractM", &substractM);
+    m.def("subtractM", &subtractM);
     m.def("matchCount", &matchCount);
+    m.def("fisher_test_cpp", &fisher_test_cpp,
+        "Perform Fisher's exact test (like R's fisher.test)",
+        py::arg("x"), py::arg("conf_level") = 0.95);
     // ... Bind other functions
 }

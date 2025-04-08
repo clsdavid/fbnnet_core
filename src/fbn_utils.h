@@ -51,10 +51,12 @@ py::list orderByname(const py::list& x,
 py::list removeEmptyElement(const py::list& x);
 
 // Matrix math operations
-py::array_t<double> substractM(py::array_t<double> m, 
+py::array_t<double> subtractM(py::array_t<double> m, 
                              py::array_t<double> v);
 int matchCount(py::array_t<double> m, 
              py::array_t<double> v);
+
+py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95);
 
 ----- Template Implementations -----
 // template <typename T>

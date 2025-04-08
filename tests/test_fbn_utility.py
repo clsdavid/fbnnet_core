@@ -139,5 +139,44 @@ class TestMathBindings(unittest.TestCase):
         print(result)
         self.assertTrue(result, {"A": 1, "C": 3, "B": 2})
 
+
+    def test_removeEmptyElement(self):
+        # Test the removeEmptyElements function
+        arr = ["A", "", "B", "C", ""]
+        result = fbnnet_core.removeEmptyElement(arr)
+        print(result)
+        self.assertTrue(result, ["A", "B", "C"])
+
+    def test_subtractM(self):
+        # Test the subtractM function
+        arr1 = np.array([[1, 2], [3, 4]])
+        arr2 = np.array([1,1,])
+        result = fbnnet_core.subtractM(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [[0, 1], [2, 3]]))
+
+    def test_matchCount(self):
+        # Test the matchCount function
+        arr1 = np.array([[1, 0, 1], [0, 1, 0], [1, 1, 0], [0, 1, 0]])
+        arr2 = np.array([0, 1, 0])
+        result = fbnnet_core.matchCount(arr1, arr2)
+        print(result)
+        self.assertTrue(result, 1)
+
+    def test_fisher_test_cpp(self):
+        # Example 2x2 table (flattened as in R)
+        table = np.array([10, 5, 20, 15], dtype=float)
+
+        # Call the C++ function (internally uses statsmodels)
+        result = fbnnet_core.fisher_test_cpp(table, conf_level=0.95)
+
+        print("P-value:", result["p_value"])
+        print("Odds ratio:", result["estimate"])
+        print("95% CI:", result["conf_int"])
+        self.assertTrue(result["p_value"] > 0.5287)
+        self.assertTrue(result["estimate"] == 1.5)
+        self.assertTrue(result["conf_int"][0] > 1.44)
+        self.assertTrue(result["conf_int"][1] > 1.5)
+
 if __name__ == "__main__":
     unittest.main()
