@@ -462,7 +462,7 @@ std::vector<std::string> splitExpression(const std::string& expression,
 }
 
 // ----- PyBind11 Module Definition -----
-PYBIND11_MODULE(fbnnet_core, m) {
+PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("to_string", &to_string);
     m.def("mpaste", &mpaste);
     m.def("dround", &dround);

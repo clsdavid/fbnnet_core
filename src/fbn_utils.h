@@ -72,24 +72,4 @@ std::vector<double> num_sort(std::vector<double> x, bool dsc);
 
 std::vector<std::string> splitExpression(const std::string& expression, int outputType, bool lowerCase = false)
 
------ Template Implementations -----
-// template <typename T>
-// std::vector<T> concatenate(const std::vector<T>& a, const std::vector<T>& b) {
-//     std::vector<T> out;
-//     out.reserve(a.size() + b.size());
-//     out.insert(out.end(), a.begin(), a.end());
-//     out.insert(out.end(), b.begin(), b.end());
-//     return out;
-// }
-
-// template <typename T>
-// std::vector<T> vector_sort(std::vector<T> x, bool dsc) {
-//     if (dsc) {
-//         std::sort(x.rbegin(), x.rend());
-//     } else {
-//         std::sort(x.begin(), x.end());
-//     }
-//     return x;
-// }
-
 #endif

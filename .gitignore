@@ -2,3 +2,4 @@
 
 build/
 fbnnet_core.egg-info/
+tests/__pycache__/

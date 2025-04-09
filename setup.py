@@ -5,6 +5,12 @@ import pybind11
 ext_modules = [
     Extension(
         "fbnnet_core",
+        ["src/fbn_core.cpp", "src/fbn_utils.cpp"],
+        include_dirs=[pybind11.get_include()],
+        language="c++"
+    ),
+    Extension(
+        "fbnnet_utils",
         ["src/fbn_utils.cpp"],
         include_dirs=[pybind11.get_include()],
         language="c++"
