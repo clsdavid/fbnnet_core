@@ -16,10 +16,10 @@ py::array_t<double> extractGeneStateFromTimeSeriesCube(
     const std::vector<py::array_t<double>>& timeSeriesCube,
     int temporal);
     
-py::array_t<double> extract_gene_states(
+py::dict extract_gene_states(
     py::array_t<double>& state_matrix,
     const std::vector<std::string>& target_genes,
-    const py::module& fbn_utils);
+    const std::vector<std::string>& row_names);
 
 ////////////////////////////////////////////////////////////////////////////////////
 // py::array_t<double> extractGeneStates(

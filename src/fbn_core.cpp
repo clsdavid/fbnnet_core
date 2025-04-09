@@ -5,7 +5,8 @@
 #include <string>
 #include <algorithm>
 #include <stdexcept>
-// #include "fbn_utils.h"
+
+
 
 namespace py = pybind11;
 
@@ -82,56 +83,57 @@ py::array_t<double> extract_gene_state_from_time_series_cube(
     );
 }
 
-// py::array_t<double> extract_gene_states(
-//     py::array_t<double>& state_matrix,
-//     const std::vector<std::string>& target_genes) 
-// {
-//     // Get matrix dimensions and data
-//     // auto buf = state_matrix.request();
-//     // double* data = static_cast<double*>(buf.ptr);
-//     // size_t num_samples = buf.shape[1];
+py::dict extract_gene_states(
+    py::array_t<double>& state_matrix,
+    const std::vector<std::string>& target_genes,
+    const std::vector<std::string>& row_names) 
+{
+    // Get matrix dimensions and data
+    auto buf = state_matrix.request();
+    double* data = static_cast<double*>(buf.ptr);
+    size_t num_genes = buf.shape[0];
+    size_t num_samples = buf.shape[1];
 
-//     // Get row names (assuming they're stored in an attribute)
-//     // py::object rownames = py::getattr(state_matrix, "rownames", py::none());
-//     // if(rownames.is_none()) {
-//     //     throw std::runtime_error("State matrix must have rownames attribute");
-//     // }
-//     // std::vector<std::string> row_names = rownames.cast<std::vector<std::string>>();
+    // Check dimensions match
+    if (row_names.size() != num_genes) {
+        throw std::runtime_error("Number of row names must match matrix rows");
+    }
 
-//     // Import required functions from fbn_utils
-//     // py::module fbn_utils = py::module::import("fbn_utils");
-//     // py::function a_in_b_index = fbn_utils.attr("a_in_b_index");
-//     // py::function int_sort = fbn_utils.attr("int_sort");
+    // Import required functions from fbn_utils
+    py::module fbn_utils = py::module::import("fbnnet_utils");
+    py::function a_in_b_index = fbn_utils.attr("a_in_b_index");
+    py::function int_sort = fbn_utils.attr("int_sort");
 
-//     // Find matching indices
-//     // std::vector<int> r_index_obj = a_in_b_index(target_genes, row_names);
-//     // std::vector<int> r_index = int_sort(r_index_obj, false);
+    // Find matching indices
+    py::object r_index_obj = a_in_b_index(target_genes, row_names);
+    py::object sorted_index_obj = int_sort(r_index_obj, false);
+    std::vector<int> r_index = sorted_index_obj.cast<std::vector<int>>();
 
-//     // // Create output matrix
-//     // std::vector<double> sub_data(r_index.size() * num_samples);
-//     // std::vector<std::string> sub_row_names;
+    // Create output matrix
+    std::vector<double> sub_data(r_index.size() * num_samples);
+    std::vector<std::string> sub_row_names;
 
-//     // // Copy selected rows
-//     // for (size_t i = 0; i < r_index.size(); ++i) {
-//     //     int src_row = r_index[i];
-//     //     for (size_t j = 0; j < num_samples; ++j) {
-//     //         sub_data[i * num_samples + j] = data[src_row * num_samples + j];
-//     //     }
-//     //     sub_row_names.push_back(row_names[src_row]);
-//     // }
+    // Copy selected rows
+    for (size_t i = 0; i < r_index.size(); ++i) {
+        int src_row = r_index[i];
+        for (size_t j = 0; j < num_samples; ++j) {
+            sub_data[i * num_samples + j] = data[src_row * num_samples + j];
+        }
+        sub_row_names.push_back(row_names[src_row]);
+    }
 
-//     // // Create numpy array
-//     // py::array_t<double> result({static_cast<py::ssize_t>(r_index.size()), 
-//     //                           static_cast<py::ssize_t>(num_samples)},
-//     //                          sub_data.data());
+    // Create numpy array
+    py::array_t<double> result({static_cast<py::ssize_t>(r_index.size()), 
+                              static_cast<py::ssize_t>(num_samples)},
+                             sub_data.data());
 
-//     // // Set row names as an attribute
-//     // result.attr("rownames") = py::cast(sub_row_names);
+    // Return both the matrix and row names
+    py::dict output;
+    output["matrix"] = result;
+    output["rownames"] = py::cast(sub_row_names);
 
-//     // return result;
-//     py::array_t<double> result = py::array_t<double>();
-//     return result;
-// }
+    return output;
+}
 
 PYBIND11_MODULE(fbnnet_core, m) {
     m.def("extract_gene_state_from_time_series_cube", 
@@ -139,12 +141,12 @@ PYBIND11_MODULE(fbnnet_core, m) {
           "Extract gene states from time series cube",
           py::arg("time_series_cube"),
           py::arg("temporal"));
-    // m.def("extract_gene_states", 
-    //         &extract_gene_states,
-    //         "Extract specific gene states from a matrix",
-    //         py::arg("state_matrix"),
-    //         py::arg("target_genes"),
-    //         py::arg("fbn_utils"));
+    m.def("extract_gene_states", 
+    &extract_gene_states,
+    "Extract specific gene states from a matrix",
+    py::arg("state_matrix"),
+    py::arg("target_genes"),
+    py::arg("row_names"));
 }
 // // -------------------- Core Implementation --------------------
 // py::array_t<double> extractGeneStateFromTimeSeriesCube(py::list timeSeriesCube, int temporal) {

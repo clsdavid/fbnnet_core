@@ -5,7 +5,7 @@ import fbnnet_core  # This is your C++-wrapped Python module
 
 
 class TestCore(unittest.TestCase):
-    def test_mcbind(self):
+    def test_extract_gene_state_from_time_series_cube(self):
         cube1 = np.array([[1, 2], [3, 4]], dtype=np.int32)
         cube2 = np.array([[5, 6], [7, 8]], dtype=np.int32)
         # build a cube
@@ -17,6 +17,35 @@ class TestCore(unittest.TestCase):
         print(result)
         self.assertEqual(result.shape, (2, 6))
         
+    def test_extract_gene_states(self):
+
+        # Create sample data
+        state_matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64)
+        row_names = ["gene1", "gene2", "gene3"]
+        target_genes = ["gene3", "gene1"]
+
+        # Call the function
+        result = fbnnet_core.extract_gene_states(state_matrix, target_genes, row_names)
+
+        # Access results
+        filtered_matrix = result["matrix"]
+        filtered_row_names = result["rownames"]
+
+        print("Filtered matrix:")
+        print(filtered_matrix)
+        print("Row names:", filtered_row_names)
+        self.assertEqual(filtered_matrix.shape, (2, 3))
+        self.assertEqual(filtered_row_names, ['gene1', 'gene3'])
+        # cube1 = np.array([[1, 2], [3, 4]], dtype=np.int32)
+        # cube2 = np.array([[5, 6], [7, 8]], dtype=np.int32)
+        # # build a cube
+        # # The `axis=0` in `np.stack([cube1, cube2], axis=0)` specifies that the stacking should 
+        # # occur along a new first dimension (axis 0). This means the two cubes (`cube1` and `cube2`) 
+        # # will be stacked on top of each other, creating a higher-dimensional array.
+        # cube = np.stack([cube1, cube2], axis=0)
+        # result = fbnnet_core.extract_gene_states(cube, 2)
+        # print(result)
+        # self.assertEqual(result.shape, (2, 6))
         
 
 
