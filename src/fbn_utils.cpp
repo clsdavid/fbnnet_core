@@ -8,6 +8,7 @@
 #include <string>
 #include <cctype>
 #include <unordered_map>
+#include <unordered_set>
 namespace py = pybind11;
 
 // ----- Utility Functions -----
@@ -193,23 +194,91 @@ std::vector<std::string> convertStringIntoVector(std::string value, int outputTy
 
     return res;
 }
-std::vector<bool> a_in_b(const std::vector<std::string>& names1, const std::vector<std::string>& names2) {
-    std::vector<bool> result(names1.size(), false);
-    for (size_t i = 0; i < names1.size(); ++i) {
-        result[i] = std::find(names2.begin(), names2.end(), names1[i]) != names2.end();
+// Returns a boolean mask indicating which elements of names1 are in names2
+std::vector<bool> a_in_b(const std::vector<std::string>& names1, 
+    const std::vector<std::string>& names2) {
+    std::vector<bool> res(names1.size(), false);
+
+    if (names2.empty()) {
+        return std::vector<bool>(names1.size(), false);
     }
-    return result;
-}
-std::vector<int> a_in_b_index(const std::vector<std::string>& names1, const std::vector<std::string>& names2) {
-    std::vector<int> result;
+    if (names1.empty()) {
+        return res;
+    }
+
+    std::unordered_set<std::string> names2_set(names2.begin(), names2.end());
+
     for (size_t i = 0; i < names1.size(); ++i) {
-        auto it = std::find(names2.begin(), names2.end(), names1[i]);
-        if (it != names2.end()) {
-            result.push_back(std::distance(names2.begin(), it));
+        res[i] = (names2_set.find(names1[i]) != names2_set.end());
+    }
+
+    return res;
+}
+
+// Returns indices of elements in names2 that are in names1
+std::vector<size_t> a_in_b_index(const std::vector<std::string>& names1,
+            const std::vector<std::string>& names2) {
+    std::vector<size_t> res;
+
+    if (names1.empty() || names2.empty()) {
+        return res;
+    }
+
+    std::unordered_set<std::string> names1_set(names1.begin(), names1.end());
+
+    for (size_t i = 0; i < names2.size(); ++i) {
+        if (names1_set.find(names2[i]) != names1_set.end()) {
+            res.push_back(i);
         }
     }
-    return result;
+
+    return res;
 }
+
+// Returns a boolean mask indicating which elements of names1 are not in names2
+std::vector<bool> a_not_in_b(const std::vector<std::string>& names1, const std::vector<std::string>& names2) {
+    std::vector<bool> res(names1.size(), false);
+
+    if (names2.empty()) {
+        return std::vector<bool>(names1.size(), true);
+    }
+    if (names1.empty()) {
+        return res;
+    }
+
+    std::unordered_set<std::string> names2_set(names2.begin(), names2.end());
+
+    for (size_t i = 0; i < names1.size(); ++i) {
+        res[i] = (names2_set.find(names1[i]) == names2_set.end());
+    }
+
+    return res;
+}
+
+// Returns indices of elements in names1 that are not in names2
+std::vector<size_t> a_not_in_b_index(const std::vector<std::string>& names1, const std::vector<std::string>& names2) {
+    std::vector<size_t> res;
+
+    if (names1.empty()) {
+        return res;
+    }
+    if (names2.empty()) {
+        res.resize(names1.size());
+        std::iota(res.begin(), res.end(), 0);
+        return res;
+    }
+
+    std::unordered_set<std::string> names2_set(names2.begin(), names2.end());
+
+    for (size_t i = 0; i < names1.size(); ++i) {
+        if (names2_set.find(names1[i]) == names2_set.end()) {
+            res.push_back(i);
+        }
+    }
+
+    return res;
+}
+
 py::list resizel(const py::list& x, int n) {
     py::list result(n);
     for (int i = 0; i < n; ++i) {
@@ -322,6 +391,76 @@ py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95) {
     }
 }
 
+std::vector<std::string> subCPP(
+    const std::vector<std::string>& pattern,
+    const std::vector<std::string>& replacement,
+    const std::vector<std::string>& x) {
+    std::vector<std::string> y = x;  // Initialize output with copy of input
+    size_t patlen = pattern.size();
+    size_t replen = replacement.size();
+
+    if (patlen != replen) {
+        py::print("Error: Pattern and replacement length do not match");
+        return y;
+    }
+
+    for (size_t i = 0; i < patlen; ++i) {
+        for (size_t j = 0; j < x.size(); ++j) {
+            if (x[j] == pattern[i]) {
+                y[j] = replacement[i];
+            }
+        }
+    }
+    return y;
+}
+
+// String vector sorting
+std::vector<std::string> char_sort(std::vector<std::string> x, bool dsc) {
+    if (dsc) {
+        std::sort(x.begin(), x.end(), std::greater<std::string>());
+    } else {
+        std::sort(x.begin(), x.end());
+    }
+    return x;
+}
+
+// Integer vector sorting
+std::vector<int> int_sort(std::vector<int> x, bool dsc) {
+    if (dsc) {
+        std::sort(x.begin(), x.end(), std::greater<int>());
+    } else {
+        std::sort(x.begin(), x.end());
+    }
+    return x;
+}
+
+// Double vector sorting
+std::vector<double> num_sort(std::vector<double> x, bool dsc) {
+    if (dsc) {
+        std::sort(x.begin(), x.end(), std::greater<double>());
+    } else {
+        std::sort(x.begin(), x.end());
+    }
+    return x;
+}
+
+std::vector<std::string> splitExpression(const std::string& expression,
+    int outputType,
+    bool lowerCase = false) {
+    std::vector<std::string> res;
+
+    if (expression == "1" || expression == "0") {
+        res.push_back(expression);
+    } else {
+        if (outputType == 1) {
+            res = convertStringIntoVector(expression, 1, lowerCase);
+        } else {
+            res = convertStringIntoVector(expression, 2, lowerCase);
+        }
+    }
+    return res;
+}
+
 // ----- PyBind11 Module Definition -----
 PYBIND11_MODULE(fbnnet_core, m) {
     m.def("to_string", &to_string);
@@ -348,5 +487,27 @@ PYBIND11_MODULE(fbnnet_core, m) {
     m.def("fisher_test_cpp", &fisher_test_cpp,
         "Perform Fisher's exact test (like R's fisher.test)",
         py::arg("x"), py::arg("conf_level") = 0.95);
+    m.def("sub_cpp", &subCPP, "A function that substitutes patterns in strings",
+        py::arg("pattern"), py::arg("replacement"), py::arg("x"));
+
+    m.def("char_sort", &char_sort, "Sort a vector of strings",
+            py::arg("x"), py::arg("dsc") = false);
+    m.def("int_sort", &int_sort, "Sort a vector of integers",
+            py::arg("x"), py::arg("dsc") = false);
+    m.def("num_sort", &num_sort, "Sort a vector of doubles",
+            py::arg("x"), py::arg("dsc") = false);
+    m.def("a_not_in_b", &a_not_in_b, 
+            "Returns boolean mask of elements in first array not in second array",
+            py::arg("names1"), py::arg("names2"));
+          
+    m.def("a_not_in_b_index", &a_not_in_b_index,
+            "Returns indices of elements in first array not in second array",
+            py::arg("names1"), py::arg("names2"));
+
+    m.def("split_expression", &splitExpression,
+        "Split an expression into a vector of inputs",
+        py::arg("expression"),
+        py::arg("output_type"),
+        py::arg("lower_case") = false);
     // ... Bind other functions
 }

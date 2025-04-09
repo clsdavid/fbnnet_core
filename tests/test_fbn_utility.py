@@ -178,5 +178,73 @@ class TestMathBindings(unittest.TestCase):
         self.assertTrue(result["conf_int"][0] > 1.44)
         self.assertTrue(result["conf_int"][1] > 1.5)
 
+    def test_subCPP(self):
+        # Test the subCPP function
+        arr1 = np.array(["A", "!", "B", "C"])
+        arr2 = np.array(["A", "B", "!", "C"])
+        arr3 = np.array(["A", "!", "B", "C"]) 
+        result = fbnnet_core.sub_cpp(arr1, arr2, arr3)
+        print(result)
+        self.assertTrue(np.array_equal(result, ["A", "B", "!", "C"]))
+
+    def test_char_sort(self):
+        # Test the char_sort function
+        arr = np.array(["B", "A", "C"])
+        result = fbnnet_core.char_sort(arr, True)
+        print(result)
+        self.assertTrue(np.array_equal(result, ["C", "B", "A"]))
+
+        result = fbnnet_core.char_sort(arr, False)
+        print(result)
+        self.assertTrue(np.array_equal(result, ["A", "B", "C"]))
+
+    def test_int_sort(self):
+        # Test the int_sort function
+        arr = np.array([3, 1, 2])
+        result = fbnnet_core.int_sort(arr, True)
+        print(result)
+        self.assertTrue(np.array_equal(result, [3, 2, 1]))
+
+        result = fbnnet_core.int_sort(arr, False)
+        print(result)
+        self.assertTrue(np.array_equal(result, [1, 2, 3]))
+
+
+    def test_num_sort(self):
+        # Test the num_sort function
+        arr = np.array([3.1, 1.2, 2.3])
+        result = fbnnet_core.num_sort(arr, True)
+        print(result)
+        self.assertTrue(np.array_equal(result, [3.1, 2.3, 1.2]))
+
+        result = fbnnet_core.num_sort(arr, False)
+        print(result)
+        self.assertTrue(np.array_equal(result, [1.2, 2.3, 3.1]))
+
+    def test_a_not_in_b(self):
+        # Test the a_not_in_b function
+        arr1 = np.array(["A", "B", "C"])
+        arr2 = np.array(["B", "C", "D"])
+        result = fbnnet_core.a_not_in_b(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [True, False, False]))
+
+    def test_a_not_in_b_index(self):
+        # Test the a_not_in_b_index function
+        arr1 = np.array(["A", "B", "C"])
+        arr2 = np.array(["B", "C", "D"])
+        result = fbnnet_core.a_not_in_b_index(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [0]))
+
+    def test_splitExpression(self):
+        # Test the splitExpression function
+        result1 = fbnnet_core.split_expression("A&B|C", 1)  # Type 1 splitting
+        print(result1)
+        self.assertTrue(np.array_equal(result1, ["A", "&", "B|C"]))
+        result2 = fbnnet_core.split_expression("A&B|C", 2, True)  # Type 2 splitting with lowercase
+        print(result2)
+        self.assertTrue(np.array_equal(result1, ["A", "&", "B|C"]))
+
 if __name__ == "__main__":
     unittest.main()

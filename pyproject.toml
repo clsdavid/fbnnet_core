@@ -1,5 +1,4 @@
 [build-system]
-
 requires = [
   "setuptools>=78.1.0",
   "wheel",
@@ -10,4 +9,26 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fbnnet_core"
 version = "0.1.0"
+description = "FBNNet"
+authors = [
+    {name = "Leshi Chen", email = "chenleshi@hotmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.urls]
+"Homepage" = "https://github.com/clsdavid/fbnnet_core"
+"Bug Tracker" = "https://github.com/clsdavid/fbnnet_core/issues"
+
+
 

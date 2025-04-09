@@ -44,6 +44,10 @@ std::vector<bool> a_in_b(const std::vector<std::string>& names1,
 std::vector<int> a_in_b_index(const std::vector<std::string>& names1,
                             const std::vector<std::string>& names2);
 
+std::vector<bool> a_not_in_b(const std::vector<std::string>& names1, const std::vector<std::string>& names2);
+
+std::vector<size_t> a_not_in_b_index(const std::vector<std::string>& names1, const std::vector<std::string>& names2);
+
 // List operations
 py::list resizel(const py::list& x, int n);
 py::list orderByname(const py::list& x, 
@@ -57,6 +61,16 @@ int matchCount(py::array_t<double> m,
              py::array_t<double> v);
 
 py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95);
+
+std::vector<std::string> subCPP(const std::vector<std::string>& pattern, const std::vector<std::string>& replacement, const std::vector<std::string>& x);
+
+std::vector<std::string> char_sort(std::vector<std::string> x, bool dsc);
+
+std::vector<int> int_sort(std::vector<int> x, bool dsc);
+
+std::vector<double> num_sort(std::vector<double> x, bool dsc);
+
+std::vector<std::string> splitExpression(const std::string& expression, int outputType, bool lowerCase = false)
 
 ----- Template Implementations -----
 // template <typename T>
