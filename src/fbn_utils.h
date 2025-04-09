@@ -41,8 +41,7 @@ std::vector<std::string> convertStringIntoVector(std::string value,
 // Set operations
 std::vector<bool> a_in_b(const std::vector<std::string>& names1, 
                        const std::vector<std::string>& names2);
-std::vector<int> a_in_b_index(const std::vector<std::string>& names1,
-                            const std::vector<std::string>& names2);
+std::vector<size_t> a_in_b_index(const std::vector<std::string>& names1, const std::vector<std::string>& names2);
 
 std::vector<bool> a_not_in_b(const std::vector<std::string>& names1, const std::vector<std::string>& names2);
 
@@ -66,10 +65,10 @@ std::vector<std::string> subCPP(const std::vector<std::string>& pattern, const s
 
 std::vector<std::string> char_sort(std::vector<std::string> x, bool dsc);
 
-std::vector<int> int_sort(std::vector<int> x, bool dsc);
+std::vector<size_t> int_sort(std::vector<size_t> x, bool dsc);
 
 std::vector<double> num_sort(std::vector<double> x, bool dsc);
 
-std::vector<std::string> splitExpression(const std::string& expression, int outputType, bool lowerCase = false)
+std::vector<std::string> splitExpression(const std::string& expression, int outputType, bool lowerCase = false);
 
 #endif

@@ -425,9 +425,9 @@ std::vector<std::string> char_sort(std::vector<std::string> x, bool dsc) {
 }
 
 // Integer vector sorting
-std::vector<int> int_sort(std::vector<int> x, bool dsc) {
+std::vector<size_t> int_sort(std::vector<size_t> x, bool dsc) {
     if (dsc) {
-        std::sort(x.begin(), x.end(), std::greater<int>());
+        std::sort(x.begin(), x.end(), std::greater<size_t>());
     } else {
         std::sort(x.begin(), x.end());
     }
