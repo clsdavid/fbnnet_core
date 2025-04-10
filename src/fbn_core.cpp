@@ -8,7 +8,7 @@
 #include <iostream>
 #include <iomanip>
 #include "fbn_utils.h" // Include fbn_utils.h directly
-// #include "fbn_matrix.h"
+#include "fbn_matrix.h"
 
 namespace py = pybind11;
 
@@ -101,12 +101,6 @@ py::dict extract_gene_states(
         throw std::runtime_error("Number of row names must match matrix rows");
     }
 
-    // Import required functions from fbn_utils
-    // py::module fbn_utils = py::module::import("fbnnet_utils");
-    // py::function a_in_b_index = fbn_utils.attr("a_in_b_index");
-    // py::function int_sort = fbn_utils.attr("int_sort");
-
-    // Find matching indices
     std::vector<size_t> r_index_obj = a_in_b_index(target_genes, row_names);
     std::vector<size_t> r_index = int_sort(r_index_obj, false);
     // std::vector<int> r_index = sorted_index_obj.cast<std::vector<int>>();

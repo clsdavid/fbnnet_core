@@ -1,5 +1,5 @@
-#ifndef MATRIX_WITH_LABELS_H
-#define MATRIX_WITH_LABELS_H
+#ifndef FBN_Matrix_H
+#define FBN_Matrix_H
 
 #include <vector>
 #include <string>
@@ -45,4 +45,4 @@ public:
     std::string to_string() const;
 };
 
-#endif // MATRIX_WITH_LABELS_H
+#endif // FBN_Matrix_H
