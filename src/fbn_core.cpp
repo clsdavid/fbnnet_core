@@ -13,7 +13,7 @@
 namespace py = pybind11;
 
 py::array_t<double> extract_gene_state_from_time_series_cube(
-    const std::vector<py::array_t<double>>& time_series_cube,
+    const std::vector<FBNMatrix>& time_series_cube,
     int temporal) 
 {
     // This function extracts gene states from a time series cube, i.e., concatenates all matrices 
@@ -24,7 +24,7 @@ py::array_t<double> extract_gene_state_from_time_series_cube(
     }
 
     // Get dimensions from first matrix
-    auto first_mat = time_series_cube[0];
+    auto first_mat = time_series_cube[0].matrix_t();
     // Request buffer info
     auto buf = first_mat.request();
     //extract the number of rows from the shape of the array
@@ -43,7 +43,7 @@ py::array_t<double> extract_gene_state_from_time_series_cube(
     // Calculate final matrix dimensions
     size_t final_cols = 0;
     for (const auto& mat : time_series_cube) {
-        auto m = mat.request();
+        auto m = mat.matrix_t().request();
         final_cols += m.shape[1];
     }
     final_cols += static_cast<size_t>(temporal) * (time_series_cube.size() - 1);
@@ -54,7 +54,7 @@ py::array_t<double> extract_gene_state_from_time_series_cube(
 
     // Process each input matrix
     for (size_t i = 0; i < time_series_cube.size(); ++i) {
-        auto current_mat = time_series_cube[i].request();
+        auto current_mat = time_series_cube[i].matrix_t().request();
         double* current_data = static_cast<double*>(current_mat.ptr);
         size_t current_cols = current_mat.shape[1];
 
