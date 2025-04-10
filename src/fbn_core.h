@@ -21,4 +21,10 @@ py::dict extract_gene_states(
     const std::vector<std::string>& target_genes,
     const std::vector<std::string>& row_names);
 
+py::list generate_temporal_gene_states(
+    py::dict& main_parameters,
+    const std::vector<std::string>& target_gene,
+    const std::vector<std::string>& conditional_genes,
+    int temporal);
+
 #endif

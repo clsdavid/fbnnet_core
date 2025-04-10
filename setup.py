@@ -14,6 +14,12 @@ ext_modules = [
         ["src/fbn_utils.cpp"],
         include_dirs=[pybind11.get_include(), "src"],
         language="c++"
+    ),
+    Extension(
+        "fbnnet_matrix",
+        ["src/fbn_matrix.cpp", "src/fbn_matrix_bindings.cpp"],
+        include_dirs=[pybind11.get_include(), "src"],
+        language="c++"
     )
 ]
 
