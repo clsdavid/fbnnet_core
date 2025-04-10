@@ -14,7 +14,7 @@ private:
     std::vector<std::vector<double>> matrix_;
     std::vector<std::string> row_names_;
     std::vector<std::string> col_names_;
-
+    py::array_t<double> matrix_t_;   //numpy array representation
     void validate_dimensions() const;
 
 public:
@@ -33,6 +33,18 @@ public:
 
     // Accessors
     const std::vector<std::vector<double>>& matrix() const { return matrix_; }
+    const py::array_t<double>& matrix_t() const {
+        if (matrix_t_.size() == 0) {
+            matrix_t_ = py::array_t<double>(matrix_.size(), matrix_[0].size(), matrix_[0].data());
+        }
+        return matrix_t_;
+    }
+    const std::vector<double>& operator[](size_t index) const {
+        if (index >= matrix_.size()) {
+            throw std::out_of_range("Index out of range");
+        }
+        return matrix_[index];
+    }
     const std::vector<std::string>& row_names() const { return row_names_; }
     const std::vector<std::string>& col_names() const { return col_names_; }
 
