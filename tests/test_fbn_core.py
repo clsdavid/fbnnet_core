@@ -137,6 +137,10 @@ class TestCore(unittest.TestCase):
         m1.print()
         print("String representation:")
         print(m1)
+        print("native representation:")
+        print(m1.matrix())
+        print("numpy representation:")
+        print(m1.matrix_t())
         
         # Test 2: Create from numpy array
         print("\nTest 2: From numpy array")

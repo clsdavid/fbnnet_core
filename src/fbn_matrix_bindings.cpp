@@ -20,6 +20,7 @@ PYBIND11_MODULE(fbnnet_matrix, m) {
              py::arg("row_names") = std::vector<std::string>(),
              py::arg("col_names") = std::vector<std::string>())
         .def("matrix", &FBNMatrix::matrix)
+        .def("matrix_t", &FBNMatrix::matrix_t)
         .def("row_names", &FBNMatrix::row_names)
         .def("col_names", &FBNMatrix::col_names)
         .def("num_rows", &FBNMatrix::num_rows)

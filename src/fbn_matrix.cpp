@@ -5,6 +5,29 @@
 #include <sstream>
 #include "fbn_matrix.h"
 
+namespace py = pybind11;
+
+py::array_t<double> FBNMatrix::matrix_to_numpy() const {
+    if (matrix_.empty() || matrix_[0].empty()) {
+        return py::array_t<double>(py::array::ShapeContainer{0, 0});
+    }
+
+    size_t rows = matrix_.size();
+    size_t cols = matrix_[0].size();
+
+    py::array_t<double> array(py::array::ShapeContainer{rows, cols});
+    auto buffer = array.mutable_unchecked<2>();
+
+    for (size_t i = 0; i < rows; ++i) {
+        for (size_t j = 0; j < cols; ++j) {
+            buffer(i, j) = matrix_[i][j];
+        }
+    }
+
+    return array;
+}
+
+
 void FBNMatrix::validate_dimensions() const {
     if (!row_names_.empty() && row_names_.size() != matrix_.size()) {
         throw std::runtime_error("Row names size doesn't match matrix rows");
@@ -18,6 +41,7 @@ FBNMatrix::FBNMatrix(const std::vector<std::vector<double>>& matrix,
                                  const std::vector<std::string>& row_names,
                                  const std::vector<std::string>& col_names)
     : matrix_(matrix), row_names_(row_names), col_names_(col_names) {
+    matrix_t_ = matrix_to_numpy();    
     validate_dimensions();
 }
 
@@ -43,6 +67,7 @@ FBNMatrix::FBNMatrix(py::array_t<double> mat,
 
     row_names_ = row_names;
     col_names_ = col_names;
+    matrix_t_ = matrix_to_numpy();
     validate_dimensions();
 }
 
