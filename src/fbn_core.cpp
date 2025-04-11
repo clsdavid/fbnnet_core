@@ -256,6 +256,107 @@ py::list generate_temporal_gene_states(
     return result;
 }
 
+// basic calulation
+
+py::dict getBasicMeasures(
+    py::array_t<double>& stateTCond,
+    py::array_t<double>& m,
+    py::array_t<double>& mc,
+    py::array_t<double>& cond_T_target_T_state,
+    py::array_t<double>& cond_F_target_T_state,
+    py::array_t<double>& cond_T_target_F_state,
+    py::array_t<double>& cond_F_target_F_state,
+    py::array_t<double>& cond_T_target_T_state_c,
+    py::array_t<double>& cond_F_target_T_state_c,
+    py::array_t<double>& cond_T_target_F_state_c,
+    py::array_t<double>& cond_F_target_F_state_c,
+    bool recount_target) {
+    
+    int target_T_count = 0;
+    int target_F_count = 0;
+
+    // Condition counts
+    int lenTT = matchCount(m, cond_T_target_T_state);
+    int lenTF = matchCount(m, cond_F_target_T_state);
+    int lenFT = matchCount(m, cond_T_target_F_state);
+    int lenFF = matchCount(m, cond_F_target_F_state);
+
+    // State vectors
+    std::vector<double> stateTT = {1.0, 1.0};
+    std::vector<double> stateTF = {0.0, 1.0};
+    std::vector<double> stateFT = {1.0, 0.0};
+    std::vector<double> stateFF = {0.0, 0.0};
+
+    if (recount_target) {
+        auto stateTCond_buf = stateTCond.request();
+        if (stateTCond_buf.size > 1) {
+            // Get last two rows of matrix m
+            auto m_buf = m.request();
+            size_t rows = m_buf.shape[0];
+            size_t cols = m_buf.shape[1];
+            
+            if (rows < 2) {
+                throw std::runtime_error("Matrix m must have at least 2 rows for recount");
+            }
+
+            // Correct way to create a new array with specific shape
+            auto m2 = py::array_t<double>({static_cast<py::ssize_t>(2), static_cast<py::ssize_t>(cols)});
+            auto m2_buf = m2.mutable_unchecked<2>();
+            auto m_buf_acc = m.unchecked<2>();
+
+            // Copy last two rows
+            for (size_t i = 0; i < 2; i++) {
+                for (size_t j = 0; j < cols; j++) {
+                    m2_buf(i, j) = m_buf_acc(rows - 2 + i, j);
+                }
+            }
+
+            // Convert state vectors to numpy arrays
+            auto stateTT_arr = py::array_t<double>(stateTT.size(), stateTT.data());
+            auto stateTF_arr = py::array_t<double>(stateTF.size(), stateTF.data());
+            auto stateFT_arr = py::array_t<double>(stateFT.size(), stateFT.data());
+            auto stateFF_arr = py::array_t<double>(stateFF.size(), stateFF.data());
+
+            // Count matches
+            int sresTT = matchCount(m2, stateTT_arr);
+            int sresTF = matchCount(m2, stateTF_arr);
+            int sresFT = matchCount(m2, stateFT_arr);
+            int sresFF = matchCount(m2, stateFF_arr);
+
+            target_T_count = sresTT + sresTF;
+            target_F_count = sresFT + sresFF;
+        } else {
+            target_T_count = lenTT + lenTF;
+            target_F_count = lenFT + lenFF;
+        }
+    }
+
+    // Control condition counts
+    int lenTT_c = matchCount(mc, cond_T_target_T_state_c);
+    int lenTF_c = matchCount(mc, cond_F_target_T_state_c);
+    int lenFT_c = matchCount(mc, cond_T_target_F_state_c);
+    int lenFF_c = matchCount(mc, cond_F_target_F_state_c);
+
+    // Create and return result dictionary
+    py::dict result;
+    result["target_T_count"] = target_T_count;
+    result["target_F_count"] = target_F_count;
+    result["cond_T_count"] = lenTT + lenFT;
+    result["cond_F_count"] = lenTF + lenFF;
+    result["cond_T_count_c"] = lenTT_c + lenFT_c;
+    result["cond_F_count_c"] = lenTF_c + lenFF_c;
+    result["lenTT"] = lenTT;
+    result["lenTF"] = lenTF;
+    result["lenFT"] = lenFT;
+    result["lenFF"] = lenFF;
+    result["lenTT_c"] = lenTT_c;
+    result["lenTF_c"] = lenTF_c;
+    result["lenFT_c"] = lenFT_c;
+    result["lenFF_c"] = lenFF_c;
+    
+    return result;
+}
+
 PYBIND11_MODULE(fbnnet_core, m) {
     m.def("extract_gene_state_from_time_series_cube", 
           &extract_gene_state_from_time_series_cube,
@@ -276,4 +377,5 @@ PYBIND11_MODULE(fbnnet_core, m) {
         py::arg("target_gene"),
         py::arg("conditional_genes"),
         py::arg("temporal"));
+    m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
 }
