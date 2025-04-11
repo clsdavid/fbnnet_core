@@ -228,10 +228,10 @@ py::list generate_temporal_gene_states(
         FBNMatrix extracted_condition_c = extract_gene_states(t_previous_state_c, target_gene, get_row_names);
         FBNMatrix extracted_target_c = extract_gene_states(t_current_state_c, conditional_genes, get_row_names);
 
-        debug_function(extracted_condition.matrix_t());
-        debug_function(extracted_target.matrix_t());
-        debug_function(extracted_condition_c.matrix_t());
-        debug_function(extracted_target_c.matrix_t());
+        // debug_function(extracted_condition.matrix_t());
+        // debug_function(extracted_target.matrix_t());
+        // debug_function(extracted_condition_c.matrix_t());
+        // debug_function(extracted_target_c.matrix_t());
         // Combine matrices
         py::array_t<double> concatenated_matrix = mrbind(extracted_condition.matrix_t(), extracted_target.matrix_t());
         py::array_t<double> concatenated_matrix_c = mrbind(extracted_condition_c.matrix_t(), extracted_target_c.matrix_t());
@@ -241,14 +241,13 @@ py::list generate_temporal_gene_states(
         std::vector<std::string> concatenated_row_names = concatenate_row_names(extracted_condition.row_names(), extracted_target.row_names());
         std::vector<std::string> concatenated_row_names_c = concatenate_row_names(extracted_condition_c.row_names(), extracted_target_c.row_names());
 
-        // debug_str(concatenated_row_names);
-        // debug_str(concatenated_row_names_c);
-        // FBNMatrix concatenated_result = FBNMatrix(concatenated_matrix, concatenated_row_names, extracted_target.col_names());
-        // FBNMatrix concatenated_result_c = FBNMatrix(concatenated_matrix_c, extracted_condition_c.row_names(), extracted_target_c.col_names());
+
+        FBNMatrix concatenated_result = FBNMatrix(concatenated_matrix, concatenated_row_names, extracted_target.col_names());
+        FBNMatrix concatenated_result_c = FBNMatrix(concatenated_matrix_c, concatenated_row_names_c, extracted_target_c.col_names());
         // Create subresult dictionary
         py::dict subresult;
-        subresult["computation_Matrix"] = concatenated_row_names;
-        subresult["computation_Matrix_c"] = concatenated_row_names_c;
+        subresult["computation_Matrix"] = concatenated_result;
+        subresult["computation_Matrix_c"] = concatenated_result_c;
         subresult["timeStep"] = i + 1;
 
         result.append(subresult);

@@ -194,24 +194,6 @@ class TestCore(unittest.TestCase):
         m3 = fbnnet_matrix.FBNMatrix()
         print("Empty matrix:")
         print(m3)
-    # def test_generate_temporal_gene_states_quick(self):
-
-
-    #     # Create test data with proper dimensions
-    #     main_params = {
-    #         "currentStates": [np.random.rand(5, 5) for _ in range(3)],  # 5 genes, 5 time points
-    #         "previousStates": [np.random.rand(5, 5) for _ in range(3)],
-    #         "currentStates_c": [np.random.rand(5, 5) for _ in range(3)],
-    #         "previousStates_c": [np.random.rand(5, 5) for _ in range(3)],
-    #         "rownames": ["gene1", "gene2", "gene3", "gene4", "gene5"],
-    #     }
-
-    #     target_gene = ["gene1"]
-    #     conditional_genes = ["gene2", "gene3"]
-    #     temporal = 2  # Must be <= minimum number of columns - 2
-
-    #     result = fbnnet_core.generate_temporal_gene_states(main_params, target_gene, conditional_genes, temporal)
-    #     print(result)
 
     def test_generate_temporal_gene_states(self):
         # Prepare input data
