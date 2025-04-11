@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <iomanip>
+#include <map>
 #include "fbn_utils.h" // Include fbn_utils.h directly
 #include "fbn_matrix.h"
 
@@ -357,6 +358,191 @@ py::dict getBasicMeasures(
     return result;
 }
 
+
+
+// Helper functions to replace Rcpp's all/any
+template<typename Container, typename Predicate>
+bool all(const Container& c, Predicate p) {
+    return std::all_of(c.begin(), c.end(), p);
+}
+
+template<typename Container, typename Predicate>
+bool any(const Container& c, Predicate p) {
+    return std::any_of(c.begin(), c.end(), p);
+}
+
+py::dict getGenePrababilities_basic(py::dict& main_parameters_in_ref,
+                                   py::object& fixedgenestate,
+                                   std::vector<std::string>& target_gene,
+                                   std::vector<std::string>& new_conditional_gene,
+                                   int temporal,
+                                   py::object& targetCounts)
+{
+    // Extract parameters from main_parameters_in_ref
+    int total_samples = main_parameters_in_ref["total_samples"].cast<int>();
+    std::vector<std::string> all_gene_names = main_parameters_in_ref["all_gene_names"].cast<std::vector<std::string>>();
+    int n_timepoints = main_parameters_in_ref["total_timepoints"].cast<int>();
+    
+    std::vector<std::string> conditional_genes;
+    std::vector<std::string> conditional_genes2;
+    py::dict cur_fixed_state;
+    
+    if(fixedgenestate.is_none()) {
+        conditional_genes = new_conditional_gene;
+    } else {
+        cur_fixed_state = py::cast<py::dict>(fixedgenestate);
+        // Get keys (names) from the dictionary
+        conditional_genes = py::cast<std::vector<std::string>>(cur_fixed_state.attr("keys")());
+        conditional_genes2 = conditional_genes;
+        
+        // Check if all conditional genes are in all_gene_names
+        auto is_in_all_genes = [&](const std::string& gene) {
+            return std::find(all_gene_names.begin(), all_gene_names.end(), gene) != all_gene_names.end();
+        };
+        
+        if(!all(conditional_genes, is_in_all_genes)) {
+            throw std::runtime_error("All or some part of the conditional genes are not founded in the timeseries cube");
+        }
+        
+        // Check if new_conditional_gene is already in conditional_genes
+        auto is_new_gene = [&](const std::string& gene) {
+            return gene == new_conditional_gene[0];
+        };
+        
+        if(any(conditional_genes, is_new_gene)) {
+            std::vector<size_t> indexes = a_in_b_index(new_conditional_gene, conditional_genes);
+            for(size_t i = 0; i < indexes.size(); i++) {
+                conditional_genes.erase(conditional_genes.begin() + indexes[i] - i);
+            }
+            
+            std::vector<size_t> indexes2 = a_in_b_index(new_conditional_gene, conditional_genes2);
+            for(size_t i = 0; i < indexes2.size(); i++) {
+                std::string key = conditional_genes2[indexes2[i]];
+                cur_fixed_state.attr("pop")(key);
+            }
+        } else {
+            conditional_genes.push_back(new_conditional_gene[0]);
+        }
+    }
+    
+    py::dict cond_gene_T_states = cur_fixed_state;
+    py::dict cond_gene_F_states = cur_fixed_state;
+    
+    // Add the new conditional gene to the current fixedgenestate
+    cond_gene_T_states[new_conditional_gene[0].c_str()] = 1;
+    cond_gene_F_states[new_conditional_gene[0].c_str()] = 0;
+    
+    // Get states in order, the order is very important
+    std::vector<size_t> indexes3 = a_in_b_index(conditional_genes, all_gene_names);
+    std::sort(indexes3.begin(), indexes3.end());
+    std::vector<std::string> uniqued_conditional_genes;
+    for(size_t idx : indexes3) {
+        uniqued_conditional_genes.push_back(all_gene_names[idx]);
+    }
+    
+    int num_of_conditional_genes = static_cast<int>(uniqued_conditional_genes.size());
+    
+    cond_gene_T_states = orderByname(cond_gene_T_states, uniqued_conditional_genes);
+    cond_gene_F_states = orderByname(cond_gene_F_states, uniqued_conditional_genes);
+    
+    // Convert dictionary values to vectors
+    std::vector<double> stateTCond;
+    std::vector<double> stateFCond;
+    for(const auto& gene : uniqued_conditional_genes) {
+        stateTCond.push_back(cond_gene_T_states[gene.c_str()].cast<double>());
+        stateFCond.push_back(cond_gene_F_states[gene.c_str()].cast<double>());
+    }
+    
+    std::vector<double> mTRUE = {1.0};
+    std::vector<double> mFALSE = {0.0};
+    
+    // Prepare state vectors
+    std::vector<double> cond_T_target_T_state = concatenate(stateTCond, mTRUE);
+    std::vector<double> cond_F_target_T_state = concatenate(stateFCond, mTRUE);
+    std::vector<double> cond_T_target_F_state = concatenate(stateTCond, mFALSE);
+    std::vector<double> cond_F_target_F_state = concatenate(stateFCond, mFALSE);
+    
+    // Prepare counter vectors
+    std::vector<double> cond_T_target_T_state_c = concatenate(mTRUE, stateTCond);
+    std::vector<double> cond_F_target_T_state_c = concatenate(mFALSE, stateTCond);
+    std::vector<double> cond_T_target_F_state_c = concatenate(mTRUE, stateFCond);
+    std::vector<double> cond_F_target_F_state_c = concatenate(mFALSE, stateFCond);
+    
+    // Get all combinations of temporal timeseries
+    py::list getAllTemporalStates = generate_temporal_gene_states(
+        main_parameters_in_ref,
+        target_gene,
+        conditional_genes,
+        temporal
+    );
+    
+    py::list resultGroup;
+    bool recount_target = false;
+    py::list new_targetCounts;
+    
+    if(targetCounts.is_none()) {
+        recount_target = true;
+        new_targetCounts = py::list(getAllTemporalStates.size());
+    } else {
+        new_targetCounts = py::cast<py::list>(targetCounts);
+    }
+    
+    for(size_t i = 0; i < getAllTemporalStates.size(); i++) {
+        py::dict temporalState = getAllTemporalStates[i].cast<py::dict>();
+        int time_step = temporalState["timeStep"].cast<int>();
+        int total_calculated_timepoints = n_timepoints - (total_samples * time_step);
+        
+        py::array_t<double> computation_Matrix = temporalState["computation_Matrix"].cast<py::array_t<double>>();
+        py::array_t<double> computation_Matrix_c = temporalState["computation_Matrix_c"].cast<py::array_t<double>>();
+        
+        // Create named array objects to avoid temporary reference issues
+        py::array_t<double> stateTCond_array(stateTCond.size(), stateTCond.data());
+        py::array_t<double> cond_T_target_T_state_array(cond_T_target_T_state.size(), cond_T_target_T_state.data());
+        py::array_t<double> cond_F_target_T_state_array(cond_F_target_T_state.size(), cond_F_target_T_state.data());
+        py::array_t<double> cond_T_target_F_state_array(cond_T_target_F_state.size(), cond_T_target_F_state.data());
+        py::array_t<double> cond_F_target_F_state_array(cond_F_target_F_state.size(), cond_F_target_F_state.data());
+        py::array_t<double> cond_T_target_T_state_c_array(cond_T_target_T_state_c.size(), cond_T_target_T_state_c.data());
+        py::array_t<double> cond_F_target_T_state_c_array(cond_F_target_T_state_c.size(), cond_F_target_T_state_c.data());
+        py::array_t<double> cond_T_target_F_state_c_array(cond_T_target_F_state_c.size(), cond_T_target_F_state_c.data());
+        py::array_t<double> cond_F_target_F_state_c_array(cond_F_target_F_state_c.size(), cond_F_target_F_state_c.data());
+        
+        py::dict result = getBasicMeasures(
+            stateTCond_array,
+            computation_Matrix,
+            computation_Matrix_c,
+            cond_T_target_T_state_array,
+            cond_F_target_T_state_array,
+            cond_T_target_F_state_array,
+            cond_F_target_F_state_array,
+            cond_T_target_T_state_c_array,
+            cond_F_target_T_state_c_array,
+            cond_T_target_F_state_c_array,
+            cond_F_target_F_state_c_array,
+            recount_target
+        );
+
+
+        if(recount_target) {
+            py::dict targets;
+            targets["target_T_count"] = result["target_T_count"];
+            targets["target_F_count"] = result["target_F_count"];
+            new_targetCounts[i] = targets;
+        } else {
+            py::dict targets = new_targetCounts[i].cast<py::dict>();
+            result["target_T_count"] = targets["target_T_count"];
+            result["target_F_count"] = targets["target_F_count"];
+        }
+        
+        result["total_calculated_timepoints"] = total_calculated_timepoints;
+        result["num_of_conditional_genes"] = num_of_conditional_genes;
+        result["timestep"] = time_step;
+        
+        resultGroup.append(result);
+    }
+    
+    return resultGroup;
+}
+
 PYBIND11_MODULE(fbnnet_core, m) {
     m.def("extract_gene_state_from_time_series_cube", 
           &extract_gene_state_from_time_series_cube,
@@ -378,4 +564,5 @@ PYBIND11_MODULE(fbnnet_core, m) {
         py::arg("conditional_genes"),
         py::arg("temporal"));
     m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
+    m.def("getGenePrababilities_basic", &getGenePrababilities_basic, "A function to get gene probabilities");
 }
