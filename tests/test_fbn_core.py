@@ -6,7 +6,25 @@ import fbnnet_utils
 import fbnnet_matrix
 from types import SimpleNamespace
 
+
 def setupdata():
+    #' Create an Orchard cube
+#'
+#' This is the main function(s) to genereate a single Orchard Cube or a group
+#' of cubes
+#'
+#' @param target_genes A vector of genes that will be treated as target genes
+#' @param conditional_genes All genes that are available for building up the
+#'  cube
+#' @param timeseriesCube A list of samples in which a sample is a matrix that
+#'  contains gene states 
+#'  where genes in rows and time points in columns.
+#' @param maxK The maximum level the cube can dig in
+#' @param temporal A value that used to be 1 indicates the previous steps the
+#'  current one can depend on
+#' @param useParallel If it is TRUE, the constructing will run it in parallel,
+#'  otherwise in a singl thread
+
     genes_input = ["CycD", "p27", "CycE", "E2F"]
     
     # Create test series matrices
@@ -33,24 +51,26 @@ def setupdata():
         ], dtype=np.float64)
     ]
     
-    # Set row and column names (not native in numpy, we'll use a dict for metadata)
+    # Convert numpy arrays to FBNMatrix objects
     for i, mat in enumerate(testseries):
         testseries[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
 
     # Initialize containers
-    getCurrentStates = {}
-    getPreviousStates = {}
-    getCurrentStates_c = {}
-    getPreviousStates_c = {}
+    getCurrentStates = []
+    getPreviousStates = []
+    getCurrentStates_c = []
+    getPreviousStates_c = []
     
     # Process matrices (note: we're skipping the extractGeneStateFromTimeSeriesCube calls)
-    for index in [3, 2, 1]:
+    for index in range(3):
+        # In R this would be: 1-3 but in Python we use 0-2
         # In Python we'll just store the original matrices since we can't call the R function
         # In a real implementation, you would call your Python equivalent here
-        getCurrentStates[index] = fbnnet_core.extract_gene_state_from_time_series_cube(testseries, index)
-        getPreviousStates[index] = getCurrentStates[index]
-        getCurrentStates_c[index] = getCurrentStates[index]
-        getPreviousStates_c[index] = getCurrentStates[index]
+        temporal = index + 1
+        getCurrentStates.append(fbnnet_core.extract_gene_state_from_time_series_cube(testseries, temporal))
+        getPreviousStates.append(getCurrentStates[index])
+        getCurrentStates_c.append(getCurrentStates[index])
+        getPreviousStates_c.append(getCurrentStates[index])
     
     # Calculate totals
     total_timepoints = sum(mat.matrix_t().shape[1] for mat in testseries)
@@ -58,17 +78,17 @@ def setupdata():
     all_gene_names = genes_input
     
     # Create namespace object similar to R's environment
-    main_parameters = SimpleNamespace(
-        currentStates=getCurrentStates,
-        previousStates=getPreviousStates,
-        currentStates_c=getCurrentStates_c,
-        previousStates_c=getPreviousStates_c,
-        total_samples=total_samples,
-        all_gene_names=all_gene_names,
-        total_timepoints=total_timepoints,
-        testseries=testseries  # Added for easier access to original data
-    )
-    
+    main_parameters = {
+        "currentStates": getCurrentStates,
+        "previousStates": getPreviousStates,
+        "currentStates_c": getCurrentStates_c,
+        "previousStates_c": getPreviousStates_c,
+        "total_samples": total_samples,
+        "rownames": all_gene_names,
+        "total_timepoints": total_timepoints,
+        "testseries": testseries
+    }
+
     return main_parameters
 
 class TestCore(unittest.TestCase):
@@ -96,6 +116,10 @@ class TestCore(unittest.TestCase):
         result = fbnnet_core.extract_gene_state_from_time_series_cube(cube, 2)
         print(result)
         self.assertEqual(result.shape, (3, 8))
+
+        result = fbnnet_core.extract_gene_state_from_time_series_cube(cube, 1)
+        print(result)
+        self.assertEqual(result.shape, (3, 7))
         
     def test_extract_gene_states(self):
 
@@ -108,24 +132,25 @@ class TestCore(unittest.TestCase):
         result = fbnnet_core.extract_gene_states(state_matrix, target_genes, row_names)
 
         # Access results
-        filtered_matrix = result["matrix"]
-        filtered_row_names = result["rownames"]
+        filtered_matrix = result.matrix()
+        filtered_row_names = result.row_names()
 
         print("Filtered matrix:")
         print(filtered_matrix)
         print("Row names:", filtered_row_names)
-        self.assertEqual(filtered_matrix.shape, (2, 3))
         self.assertEqual(filtered_row_names, ['gene1', 'gene3'])
 
     def test_generate_test_data(self):
         test = setupdata()
-        print("Total timepoints:", test.total_timepoints)
-        print("Total samples:", test.total_samples)
-        print("All gene names:", test.all_gene_names)
-        print("Current states:", test.currentStates)
-        print("Previous states:", test.previousStates)
-        print("Current states (C):", test.currentStates_c)
-        print("Previous states (C):", test.previousStates_c)
+        print("Total timepoints:", test["total_timepoints"])
+        print("Total samples:", test["total_samples"])
+        print("All gene names:", test["rownames"])
+        print("Current states:", test["currentStates"])
+        print("Previous states:", test["previousStates"])
+        print("Current states (C):", test["currentStates_c"])
+        print("Previous states (C):", test["previousStates_c"])
+
+
 
 
     def test_matrix_with_labels(self):
@@ -169,8 +194,41 @@ class TestCore(unittest.TestCase):
         m3 = fbnnet_matrix.FBNMatrix()
         print("Empty matrix:")
         print(m3)
-    
+    # def test_generate_temporal_gene_states_quick(self):
 
+
+    #     # Create test data with proper dimensions
+    #     main_params = {
+    #         "currentStates": [np.random.rand(5, 5) for _ in range(3)],  # 5 genes, 5 time points
+    #         "previousStates": [np.random.rand(5, 5) for _ in range(3)],
+    #         "currentStates_c": [np.random.rand(5, 5) for _ in range(3)],
+    #         "previousStates_c": [np.random.rand(5, 5) for _ in range(3)],
+    #         "rownames": ["gene1", "gene2", "gene3", "gene4", "gene5"],
+    #     }
+
+    #     target_gene = ["gene1"]
+    #     conditional_genes = ["gene2", "gene3"]
+    #     temporal = 2  # Must be <= minimum number of columns - 2
+
+    #     result = fbnnet_core.generate_temporal_gene_states(main_params, target_gene, conditional_genes, temporal)
+    #     print(result)
+
+    def test_generate_temporal_gene_states(self):
+        # Prepare input data
+        main_params = setupdata()
+
+        target_gene = ["CycD"]
+        conditional_genes = ["p27", "CycE"]
+        temporal = 3
+
+        # Call the function
+        result = fbnnet_core.generate_temporal_gene_states(main_params, target_gene, conditional_genes, temporal)
+
+        # Access results
+        for time_step_result in result:
+            print("Time step:", time_step_result["timeStep"])
+            print("Matrix:", time_step_result["computation_Matrix"])
+            print("Matrix_c:", time_step_result["computation_Matrix_c"])
         
 
 

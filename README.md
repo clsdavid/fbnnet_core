@@ -4,6 +4,12 @@
 ``` bash
 # install
 pip install .
+
+python setup.py clean --all
+rm -rf build/ dist/ *.egg-info
+pip uninstall fbnnet_core
+pip install .
+
 ```
 
 ``` python

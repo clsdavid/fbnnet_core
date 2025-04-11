@@ -12,6 +12,8 @@
 namespace py = pybind11;
 
 // ----- Function Declarations -----
+void debug_function(const py::object& obj);
+void debug_str(const std::string& msg);
 std::string to_string(double val);
 std::string mpaste(const std::vector<std::string>& x, const std::string& sep = "");
 
@@ -21,6 +23,12 @@ std::vector<T> concatenate(const std::vector<T>& a, const std::vector<T>& b);
 
 
 // Matrix operations
+std::vector<std::string> concatenate_row_names(
+    const std::vector<std::string>& a_names,
+    const std::vector<std::string>& b_names);
+std::vector<std::string> concatenate_col_names(
+    const std::vector<std::string>& a_names,
+    const std::vector<std::string>& b_names);
 py::array_t<double> mcbind(py::array_t<double> a, py::array_t<double> b);
 py::array_t<double> mrbind(py::array_t<double> a, py::array_t<double> b);
 

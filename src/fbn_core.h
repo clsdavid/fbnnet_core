@@ -7,22 +7,23 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+
 #include "fbn_utils.h"
-#include "fbn_core.h"
+#include "fbn_matrix.h"
 
 namespace py = pybind11;
 
 py::array_t<double> extractGeneStateFromTimeSeriesCube(
     const std::vector<py::array_t<double>>& timeSeriesCube,
     int temporal);
-    
-py::dict extract_gene_states(
-    py::array_t<double>& state_matrix,
+
+FBNMatrix extract_gene_states(
+    const py::array_t<double>& state_matrix,
     const std::vector<std::string>& target_genes,
     const std::vector<std::string>& row_names);
 
 py::list generate_temporal_gene_states(
-    py::dict& main_parameters,
+    const py::dict& main_parameters,
     const std::vector<std::string>& target_gene,
     const std::vector<std::string>& conditional_genes,
     int temporal);

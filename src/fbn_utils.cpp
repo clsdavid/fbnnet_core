@@ -9,9 +9,21 @@
 #include <cctype>
 #include <unordered_map>
 #include <unordered_set>
+#include <iostream>
+
 namespace py = pybind11;
 
 // ----- Utility Functions -----
+
+void debug_function(const py::object& obj) {
+    // Print Python-style representation
+    py::print("[DEBUG from C++]", py::str(obj));
+}
+
+void debug_str(const std::string& msg) {
+    // Option 1: Print via std::cout
+    std::cout << "[DEBUG] " << msg << std::endl;
+}
 
 std::string to_string(double val) {
     std::ostringstream stm;
@@ -49,58 +61,149 @@ double dround(double val, int decimal) {
 }
 // ----- Matrix Binding (NumPy) -----
 
-py::array_t<double> mcbind(py::array_t<double> a, py::array_t<double> b) {
-    py::buffer_info a_buf = a.request(), b_buf = b.request();
-    if (a_buf.ndim != 2 || b_buf.ndim != 2)
-        throw std::runtime_error("Inputs must be 2D matrices");
-    if (a_buf.shape[0] != b_buf.shape[0])
-        throw std::runtime_error("Row count mismatch");
+// Helper function to concatenate row names
+std::vector<std::string> concatenate_row_names(
+    const std::vector<std::string>& a_names,
+    const std::vector<std::string>& b_names) {
+    std::vector<std::string> result;
+    result.reserve(a_names.size() + b_names.size());
+    result.insert(result.end(), a_names.begin(), a_names.end());
+    result.insert(result.end(), b_names.begin(), b_names.end());
+    return result;
+}
 
-    size_t rows = a_buf.shape[0];
-    size_t cols = a_buf.shape[1] + b_buf.shape[1];
-    py::array_t<double> out({rows, cols});
-    py::buffer_info out_buf = out.request();
+std::vector<std::string> concatenate_col_names(
+    const std::vector<std::string>& a_names,
+    const std::vector<std::string>& b_names) {
+    std::vector<std::string> result;
+    result.reserve(a_names.size() + b_names.size());
+    result.insert(result.end(), a_names.begin(), a_names.end());
+    result.insert(result.end(), b_names.begin(), b_names.end());
+    return result;
+}
+
+// Concatenate two numeric matrices by columns
+py::array_t<double> mcbind(py::array_t<double> a, py::array_t<double> b) {
+    // Get matrix dimensions
+    auto a_buf = a.request();
+    auto b_buf = b.request();
     
+    if (a_buf.ndim != 2 || b_buf.ndim != 2) {
+        throw std::runtime_error("Both inputs must be 2D matrices");
+    }
+    
+    size_t a_rows = a_buf.shape[0];
+    size_t a_cols = a_buf.shape[1];
+    size_t b_rows = b_buf.shape[0];
+    size_t b_cols = b_buf.shape[1];
+    
+    if (a_rows != b_rows) {
+        std::string msg = "The two matrices must have the same number of rows: nrow(a)=";
+        msg += std::to_string(a_rows);
+        msg += ", nrow(b)=";
+        msg += std::to_string(b_rows);
+        throw std::runtime_error(msg);
+    }
+    
+    // Create output matrix
+    size_t out_rows = a_rows;
+    size_t out_cols = a_cols + b_cols;
+    auto out = py::array_t<double>({out_rows, out_cols});
+    auto out_buf = out.request();
+    
+    // Get pointers to data
     double* a_ptr = static_cast<double*>(a_buf.ptr);
     double* b_ptr = static_cast<double*>(b_buf.ptr);
     double* out_ptr = static_cast<double*>(out_buf.ptr);
     
-    // Copy data column-wise
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < a_buf.shape[1]; ++j)
-            out_ptr[i * cols + j] = a_ptr[i * a_buf.shape[1] + j];
-        for (size_t j = 0; j < b_buf.shape[1]; ++j)
-            out_ptr[i * cols + a_buf.shape[1] + j] = b_ptr[i * b_buf.shape[1] + j];
+    // Copy data (column-wise concatenation)
+    for (size_t i = 0; i < out_rows; i++) {
+        // Copy columns from matrix a
+        for (size_t j = 0; j < a_cols; j++) {
+            out_ptr[i * out_cols + j] = a_ptr[i * a_cols + j];
+        }
+        // Copy columns from matrix b
+        for (size_t j = 0; j < b_cols; j++) {
+            out_ptr[i * out_cols + a_cols + j] = b_ptr[i * b_cols + j];
+        }
     }
+    
+    // Handle row names if they exist (copy from first matrix)
+    if (py::hasattr(a, "row_names")) {
+        out.attr("row_names") = a.attr("row_names");
+    }
+    
+    // Handle column names if they exist in both matrices
+    if (py::hasattr(a, "col_names") && py::hasattr(b, "col_names")) {
+        auto a_col_names = a.attr("col_names").cast<std::vector<std::string>>();
+        auto b_col_names = b.attr("col_names").cast<std::vector<std::string>>();
+        auto combined_col_names = concatenate_col_names(a_col_names, b_col_names);
+        out.attr("col_names") = py::cast(combined_col_names);
+    }
+    
     return out;
 }
 
+// Concatenate two numeric matrices by rows
 py::array_t<double> mrbind(py::array_t<double> a, py::array_t<double> b) {
-    py::buffer_info a_buf = a.request(), b_buf = b.request();
-    if (a_buf.ndim != 2 || b_buf.ndim != 2)
-        throw std::runtime_error("Inputs must be 2D matrices");
-    if (a_buf.shape[0] != b_buf.shape[0])
-        throw std::runtime_error("Row count mismatch");
-
-    size_t rows = a_buf.shape[0] + b_buf.shape[0];
-    size_t cols = a_buf.shape[1];
-    py::array_t<double> out({rows, cols});
-    py::buffer_info out_buf = out.request();
+    // Get matrix dimensions
+    auto a_buf = a.request();
+    auto b_buf = b.request();
     
+    if (a_buf.ndim != 2 || b_buf.ndim != 2) {
+        throw std::runtime_error("Both inputs must be 2D matrices");
+    }
+    
+    size_t a_rows = a_buf.shape[0];
+    size_t a_cols = a_buf.shape[1];
+    size_t b_rows = b_buf.shape[0];
+    size_t b_cols = b_buf.shape[1];
+    
+    if (a_cols != b_cols) {
+        std::string msg = "The two matrices must have the same number of columns: ncol(a)=";
+        msg += std::to_string(a_cols);
+        msg += ", ncol(b)=";
+        msg += std::to_string(b_cols);
+        throw std::runtime_error(msg);
+    }
+    
+    // Create output matrix
+    size_t out_rows = a_rows + b_rows;
+    size_t out_cols = a_cols;
+    auto out = py::array_t<double>({out_rows, out_cols});
+    auto out_buf = out.request();
+    
+    // Get pointers to data
     double* a_ptr = static_cast<double*>(a_buf.ptr);
     double* b_ptr = static_cast<double*>(b_buf.ptr);
     double* out_ptr = static_cast<double*>(out_buf.ptr);
     
-    // Copy data row-wise
-    for (size_t i = 0; i < a_buf.shape[0]; ++i) {
-        for (size_t j = 0; j < a_buf.shape[1]; ++j)
-            out_ptr[i * cols + j] = a_ptr[i * a_buf.shape[1] + j];
+    // Copy data
+    for (size_t i = 0; i < a_rows; i++) {
+        for (size_t j = 0; j < a_cols; j++) {
+            out_ptr[i * out_cols + j] = a_ptr[i * a_cols + j];
+        }
     }
-    for (size_t i = 0; i < b_buf.shape[0]; ++i) {
-        for (size_t j = 0; j < b_buf.shape[1]; ++j)
-            out_ptr[(i + a_buf.shape[0]) * cols + j] = b_ptr[i * b_buf.shape[1] + j];
+    
+    for (size_t i = 0; i < b_rows; i++) {
+        for (size_t j = 0; j < b_cols; j++) {
+            out_ptr[(a_rows + i) * out_cols + j] = b_ptr[i * b_cols + j];
+        }
     }
-
+    
+    // Handle row names if they exist (as Python lists in the array's .row_names attribute)
+    if (py::hasattr(a, "row_names") && py::hasattr(b, "row_names")) {
+        auto a_row_names = a.attr("row_names").cast<std::vector<std::string>>();
+        auto b_row_names = b.attr("row_names").cast<std::vector<std::string>>();
+        auto combined_row_names = concatenate_row_names(a_row_names, b_row_names);
+        out.attr("row_names") = py::cast(combined_row_names);
+    }
+    
+    // Handle column names if they exist (copy from first matrix)
+    if (py::hasattr(a, "col_names")) {
+        out.attr("col_names") = a.attr("col_names");
+    }
+    
     return out;
 }
 
@@ -463,6 +566,8 @@ std::vector<std::string> splitExpression(const std::string& expression,
 
 // ----- PyBind11 Module Definition -----
 PYBIND11_MODULE(fbnnet_utils, m) {
+    m.def("debug_function", &debug_function, "Print debug message from C++");
+    m.def("debug_str", &debug_str, "Print debug message from C++");
     m.def("to_string", &to_string);
     m.def("mpaste", &mpaste);
     m.def("dround", &dround);
