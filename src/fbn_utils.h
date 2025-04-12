@@ -81,4 +81,8 @@ std::vector<std::string> splitExpression(const std::string& expression,
     bool lowerCase = false);
 std::string join_vector(const std::vector<std::string>& vec, const std::string& sep = ", ");
 
+std::string join_double(const std::vector<double>& vec, const std::string& sep);
+
+py::dict deep_copy_dict(const py::dict& x);
+
 #endif

@@ -112,6 +112,13 @@ class TestMathBindings(unittest.TestCase):
         print(result)
         self.assertTrue(np.array_equal(result, [False, True, True]))
 
+        # # Test the a_in_b function
+        # arr1 = np.array(["B", "B", "C"])
+        # arr2 = np.array(["B", "C", "D"])
+        # result = fbnnet_utils.a_in_b(arr1, arr2)
+        # print(result)
+        # self.assertTrue(np.array_equal(result, [False, True, True]))
+
     def test_a_in_b_index(self):
         # Test the a_in_b_index function
         arr1 = np.array(["A", "B", "C"])

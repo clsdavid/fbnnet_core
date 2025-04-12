@@ -580,6 +580,24 @@ std::string join_vector(const std::vector<std::string>& vec, const std::string& 
     return std::string(oss.str());
 }
 
+std::string join_double(const std::vector<double>& vec, const std::string& sep) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        oss << vec[i];
+        if (i < vec.size() - 1) oss << sep;
+    }
+    return std::string(oss.str());
+}
+
+//create a function that deep copy py::dict
+py::dict deep_copy_dict(const py::dict& x) {
+    py::dict y;
+    for (const auto& item : x) {
+        y[item.first] = item.second;
+    }
+    return y;
+}
+
 // ----- PyBind11 Module Definition -----
 PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("debug_function", &debug_function, "Print debug message from C++");
@@ -634,5 +652,11 @@ PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("join_vector", &join_vector,
         "Join a vector of strings into a single string",
         py::arg("vec"), py::arg("sep") = ", ");
+    m.def("join_double", &join_double,
+        "Join a vector of doubles into a single string",
+        py::arg("vec"), py::arg("sep") = ", ");
+    m.def("deep_copy_dict", &deep_copy_dict,
+        "Deep copy a Python dictionary",
+        py::arg("x"));
     // ... Bind other functions
 }

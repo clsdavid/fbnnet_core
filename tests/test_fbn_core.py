@@ -157,6 +157,7 @@ def setupdata2():
         # In R this would be: 1-3 but in Python we use 0-2
         # In Python we'll just store the original matrices since we can't call the R function
         # In a real implementation, you would call your Python equivalent here
+        # initializing all states and combined all sample's states with 9s.
         temporal = index + 1
         getCurrentStates.append(fbnnet_core.extract_gene_state_from_time_series_cube(testseries, temporal))
         getPreviousStates.append(getCurrentStates[index])
@@ -289,7 +290,20 @@ class TestCore(unittest.TestCase):
     def test_generate_temporal_gene_states(self):
         # Prepare input data
         main_params = setupdata()
+        print("====TestSeries====")
+        print(main_params["testseries"])
+        print("====Current States====")
+        print(main_params["currentStates"])
+        print("====Previous States====")
+        print(main_params["previousStates"])
+        print("====Current States_c====")
+        print(main_params["currentStates_c"])
 
+        print(main_params["previousStates_c"])
+        print("====Total Samples====")
+        print(main_params["total_samples"])
+        print("====Row Names====")
+        print(main_params["rownames"])
         target_gene = ["CycD"]
         conditional_genes = ["p27", "CycE"]
         temporal = 3
@@ -339,7 +353,25 @@ class TesteProbabilities(unittest.TestCase):
     def test_getGeneProbabilities_basic_CycD_p27(self):
         # Prepare input data
         main_params = setupdata2()
+        print(main_params["testseries"])
 
+        # [
+        #     CycD: 1 1 1 1 
+        #     p27:  0 1 0 1 
+        #     CycE: 1 1 1 1 
+        #     E2F:  0 0 0 1 
+
+        #     CycD: 1 1 0 1 
+        #     p27:  0 1 0 1 
+        #     CycE: 0 1 0 1 
+        #     E2F:  1 0 0 1 
+
+        #     CycD: 1 0 0 1 
+        #     p27:  1 1 0 1 
+        #     CycE: 1 1 0 1 
+        #     E2F:  1 1 0 1 
+        # ]
+        
         target_gene = ["CycD"]
         conditional_genes = ["p27"]
         temporal = 1
