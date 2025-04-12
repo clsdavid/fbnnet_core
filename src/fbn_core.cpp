@@ -510,7 +510,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         temporal
     );
     debug_str("step 6");
-    py::list resultGroup;
+    py::dict resultGroup;
     bool recount_target = false;
     py::list new_targetCounts;
     
@@ -591,6 +591,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         );
         debug_str("step 7.4." + std::to_string(i));
 
+        if (!result.contains("target_T_count") || !result.contains("target_F_count")) {
+            throw std::runtime_error("result missing required keys!");
+        }
+        
         if(recount_target) {
             py::dict targets;
             targets["target_T_count"] = result["target_T_count"];
@@ -601,14 +605,16 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             result["target_T_count"] = targets["target_T_count"];
             result["target_F_count"] = targets["target_F_count"];
         }
-        
+        debug_str("step 7.5." + std::to_string(i));
         result["total_calculated_timepoints"] = total_calculated_timepoints;
         result["num_of_conditional_genes"] = num_of_conditional_genes;
         result["timestep"] = time_step;
-        
-        resultGroup.append(result);
+        debug_str("step 7.6." + std::to_string(i));
+        debug_function(result);
+        std::string time_step_str = std::to_string(time_step);
+        resultGroup[py::str(time_step_str)] = result;  // Recommended for Unicode safety
     }
-    
+    debug_str("finished");
     return resultGroup;
 }
 

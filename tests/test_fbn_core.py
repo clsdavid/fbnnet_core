@@ -226,10 +226,22 @@ class TestCore(unittest.TestCase):
 
         # Access results
         for time_step_result in result:
-            print("Time step:", time_step_result["timeStep"])
-            print("Matrix:", time_step_result["computation_Matrix"])
-            print("Matrix_c:", time_step_result["computation_Matrix_c"])
-            print("Probabilities:", time_step_result["probabilities"])
+            item = result[time_step_result]
+            print("Time step:", item["timestep"])
+            print("target_T_count:", item["target_T_count"])
+            print("target_F_count:", item["target_F_count"])
+            print("cond_T_count:", item["cond_T_count"])
+            print("cond_F_count:", item["cond_F_count"])
+            print("cond_T_count_c:", item["cond_T_count_c"])
+            print("cond_F_count_c:", item["cond_F_count_c"])
+            print("lenTT:", item["lenTT"])
+            print("lenTF:", item["lenTF"])
+            print("lenFT:", item["lenFT"])
+            print("lenFF:", item["lenFF"])
+            print("lenTT_c:", item["lenTT_c"])
+            print("lenTF_c:", item["lenTF_c"])
+            print("lenFT_c:", item["lenFT_c"])
+            print("lenFF_c:", item["lenFF_c"])
 
 if __name__ == "__main__":
     # convert an array into matrix
