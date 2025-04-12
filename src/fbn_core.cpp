@@ -10,6 +10,7 @@
 #include <map>
 #include "fbn_utils.h" // Include fbn_utils.h directly
 #include "fbn_matrix.h"
+#include "fbn_core.h"
 
 namespace py = pybind11;
 
@@ -442,8 +443,8 @@ py::dict getGenePrababilities_basic(py::dict& main_parameters_in_ref,
     
     int num_of_conditional_genes = static_cast<int>(uniqued_conditional_genes.size());
     
-    cond_gene_T_states = orderByname(cond_gene_T_states, uniqued_conditional_genes);
-    cond_gene_F_states = orderByname(cond_gene_F_states, uniqued_conditional_genes);
+    cond_gene_T_states = orderByName(cond_gene_T_states, uniqued_conditional_genes);
+    cond_gene_F_states = orderByName(cond_gene_F_states, uniqued_conditional_genes);
     
     // Convert dictionary values to vectors
     std::vector<double> stateTCond;
@@ -563,6 +564,13 @@ PYBIND11_MODULE(fbnnet_core, m) {
         py::arg("target_gene"),
         py::arg("conditional_genes"),
         py::arg("temporal"));
+    // m.def("generate_temporal_gene_states", 
+    //     &generate_temporal_gene_states,
+    //     "Generate temporal gene states",
+    //     py::arg("main_parameters"),
+    //     py::arg("target_gene"),
+    //     py::arg("conditional_genes"),
+    //     py::arg("temporal"));
     m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
     m.def("getGenePrababilities_basic", &getGenePrababilities_basic, "A function to get gene probabilities");
 }

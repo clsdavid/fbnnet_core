@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <iostream>
+#include "fbn_utils.h"
 
 namespace py = pybind11;
 
@@ -224,7 +225,7 @@ int countZeros(py::array_t<double> arr) {
 
 // ... (Additional converted functions follow similar patterns)
 template <typename T>
-std::vector<T> vector_sort(std::vector<T> x, bool dsc = true) {
+std::vector<T> vector_sort(std::vector<T> x, bool dsc) {
     if (dsc) {
         std::sort(x.rbegin(), x.rend());
     } else {
@@ -465,7 +466,7 @@ int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
 }
 
 // add back the missing functions
-py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95) {
+py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level) {
     try {
         // This for 2x2 table
         // Import statsmodels
@@ -549,7 +550,7 @@ std::vector<double> num_sort(std::vector<double> x, bool dsc) {
 
 std::vector<std::string> splitExpression(const std::string& expression,
     int outputType,
-    bool lowerCase = false) {
+    bool lowerCase) {
     std::vector<std::string> res;
 
     if (expression == "1" || expression == "0") {
@@ -583,12 +584,15 @@ PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("a_in_b", &a_in_b);
     m.def("a_in_b_index", &a_in_b_index);
     m.def("resizel", &resizel);
-    m.def("order_by_name", &orderByName, 
+    m.def("orderByName", &orderByName, 
         "Reorder dictionary items according to specified names",
         py::arg("x"), py::arg("names"));
     m.def("removeEmptyElement", &removeEmptyElement);
     m.def("subtractM", &subtractM);
-    m.def("matchCount", &matchCount);
+    m.def("matchCount", &matchCount, 
+        "Count the number of columns in a matrix that match a vector",
+        py::arg("m"), py::arg("v"));
+
     m.def("fisher_test_cpp", &fisher_test_cpp,
         "Perform Fisher's exact test (like R's fisher.test)",
         py::arg("x"), py::arg("conf_level") = 0.95);
@@ -609,10 +613,11 @@ PYBIND11_MODULE(fbnnet_utils, m) {
             "Returns indices of elements in first array not in second array",
             py::arg("names1"), py::arg("names2"));
 
-    m.def("split_expression", &splitExpression,
+    m.def("splitExpression", &splitExpression,
         "Split an expression into a vector of inputs",
         py::arg("expression"),
         py::arg("output_type"),
         py::arg("lower_case") = false);
+
     // ... Bind other functions
 }

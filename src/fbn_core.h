@@ -18,12 +18,12 @@ py::array_t<double> extractGeneStateFromTimeSeriesCube(
     int temporal);
 
 FBNMatrix extract_gene_states(
-    const py::array_t<double>& state_matrix,
+    py::array_t<double>& state_matrix,
     const std::vector<std::string>& target_genes,
     const std::vector<std::string>& row_names);
 
 py::list generate_temporal_gene_states(
-    const py::dict& main_parameters,
+    py::dict& main_parameters,
     const std::vector<std::string>& target_gene,
     const std::vector<std::string>& conditional_genes,
     int temporal);

@@ -135,7 +135,7 @@ class TestMathBindings(unittest.TestCase):
         # Test the orderByname function
         dict = {"B": 2, "A": 1, "C": 3}
         arr = np.array(["A", "C", "B"])
-        result = fbnnet_utils.order_by_name(dict, arr)
+        result = fbnnet_utils.orderByName(dict, arr)
         print(result)
         self.assertTrue(result, {"A": 1, "C": 3, "B": 2})
 
@@ -239,10 +239,10 @@ class TestMathBindings(unittest.TestCase):
 
     def test_splitExpression(self):
         # Test the splitExpression function
-        result1 = fbnnet_utils.split_expression("A&B|C", 1)  # Type 1 splitting
+        result1 = fbnnet_utils.splitExpression("A&B|C", 1)  # Type 1 splitting
         print(result1)
         self.assertTrue(np.array_equal(result1, ["A", "&", "B|C"]))
-        result2 = fbnnet_utils.split_expression("A&B|C", 2, True)  # Type 2 splitting with lowercase
+        result2 = fbnnet_utils.splitExpression("A&B|C", 2, True)  # Type 2 splitting with lowercase
         print(result2)
         self.assertTrue(np.array_equal(result1, ["A", "&", "B|C"]))
 

@@ -11,6 +11,7 @@
 
 namespace py = pybind11;
 
+//Note: when define default value for a function, please make sure not do the default in the source file
 // ----- Function Declarations -----
 void debug_function(const py::object& obj);
 void debug_str(const std::string& msg);
@@ -57,15 +58,13 @@ std::vector<size_t> a_not_in_b_index(const std::vector<std::string>& names1, con
 
 // List operations
 py::list resizel(const py::list& x, int n);
-py::list orderByname(const py::list& x, 
-                   const std::vector<std::string>& names);
+py::dict orderByName(const py::dict& x, const std::vector<std::string>& names);
 py::list removeEmptyElement(const py::list& x);
 
 // Matrix math operations
 py::array_t<double> subtractM(py::array_t<double> m, 
                              py::array_t<double> v);
-int matchCount(py::array_t<double> m, 
-             py::array_t<double> v);
+int matchCount(py::array_t<double>& m, py::array_t<double>& v);
 
 py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95);
 
@@ -77,6 +76,8 @@ std::vector<size_t> int_sort(std::vector<size_t> x, bool dsc);
 
 std::vector<double> num_sort(std::vector<double> x, bool dsc);
 
-std::vector<std::string> splitExpression(const std::string& expression, int outputType, bool lowerCase = false);
+std::vector<std::string> splitExpression(const std::string& expression,
+    int outputType,
+    bool lowerCase = false);
 
 #endif
