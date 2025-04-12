@@ -48,7 +48,7 @@ py::dict getBasicMeasures(
     py::array_t<double>& cond_F_target_F_state_c,
     bool recount_target
 );
-py::dict getGenePrababilities_basic(py::dict& main_parameters_in_ref,
+py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     py::object& fixedgenestate,
     std::vector<std::string>& target_gene,
     std::vector<std::string>& new_conditional_gene,

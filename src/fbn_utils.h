@@ -62,8 +62,8 @@ py::dict orderByName(const py::dict& x, const std::vector<std::string>& names);
 py::list removeEmptyElement(const py::list& x);
 
 // Matrix math operations
-py::array_t<double> subtractM(py::array_t<double> m, 
-                             py::array_t<double> v);
+py::array_t<double> substractM(py::array_t<double>& m, py::array_t<double>& v);
+
 int matchCount(py::array_t<double>& m, py::array_t<double>& v);
 
 py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95);
@@ -79,5 +79,6 @@ std::vector<double> num_sort(std::vector<double> x, bool dsc);
 std::vector<std::string> splitExpression(const std::string& expression,
     int outputType,
     bool lowerCase = false);
+std::string join_vector(const std::vector<std::string>& vec, const std::string& sep = ", ");
 
 #endif

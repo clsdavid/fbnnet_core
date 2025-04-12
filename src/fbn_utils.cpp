@@ -418,50 +418,56 @@ py::list removeEmptyElement(const py::list& x) {
     }
     return result;
 }
-py::array_t<double> subtractM(py::array_t<double> m, py::array_t<double> v) {
-    auto m_buf = m.request(), v_buf = v.request();
-    if (m_buf.ndim != 2 || v_buf.ndim != 1)
-        throw std::runtime_error("Matrix and vector dimensions do not match");
-    if (m_buf.shape[1] != v_buf.shape[0])
-        throw std::runtime_error("Column count mismatch");
 
-    size_t rows = m_buf.shape[0];
-    size_t cols = m_buf.shape[1];
-    py::array_t<double> out({rows, cols});
-    auto out_buf = out.mutable_unchecked<2>();
+py::array_t<double> substractM(py::array_t<double>& m, py::array_t<double>& v) {
+    // Access the input arrays
+    auto m_buf = m.request();
+    auto v_buf = v.request();
     
+    // Get dimensions
+    size_t nrow = m_buf.shape[0];
+    size_t ncol = m_buf.shape[1];
+    
+    // Check vector length matches matrix rows
+    if (v_buf.size != nrow) {
+        throw std::runtime_error("Vector length must match number of matrix rows");
+    }
+    
+    // Create output array (row-major)
+    py::array_t<double> res({nrow, ncol});
+    auto res_buf = res.request();
+    
+    // Get pointers to the data
     double* m_ptr = static_cast<double*>(m_buf.ptr);
     double* v_ptr = static_cast<double*>(v_buf.ptr);
+    double* res_ptr = static_cast<double*>(res_buf.ptr);
     
-    for (size_t i = 0; i < rows; ++i) {
-        for (size_t j = 0; j < cols; ++j) {
-            out_buf(i, j) = m_ptr[i * cols + j] - v_ptr[j];
+    // Perform subtraction (row-major traversal)
+    for (size_t row = 0; row < nrow; ++row) {
+        for (size_t col = 0; col < ncol; ++col) {
+            res_ptr[row * ncol + col] = std::abs(m_ptr[row * ncol + col] - v_ptr[row]);
         }
     }
-    return out;
+    
+    return res;
 }
+
 int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
-    // First perform the subtraction (reusing the previous subtractM function)
-    auto subtracted = subtractM(m, v);
-    
-    // Get buffer info for the subtracted matrix
-    py::buffer_info sub_buf = subtracted.request();
-    if (sub_buf.ndim != 2)
-        throw std::runtime_error("Subtracted matrix must be 2-dimensional");
-    
-    size_t nrows = sub_buf.shape[0];
-    size_t ncols = sub_buf.shape[1];
-    double* sub_ptr = static_cast<double*>(sub_buf.ptr);
-    
-    // Calculate column sums
-    std::vector<double> col_sums(ncols, 0.0);
-    for (size_t col = 0; col < ncols; ++col) {
-        for (size_t row = 0; row < nrows; ++row) {
-            col_sums[col] += sub_ptr[col * nrows + row];
+    py::array_t<double> diff = substractM(m, v);
+    auto diff_buf = diff.request();
+    size_t nrow = diff_buf.shape[0];
+    size_t ncol = diff_buf.shape[1];
+    double* diff_ptr = static_cast<double*>(diff_buf.ptr);
+
+    std::vector<double> col_sums(ncol, 0.0);
+
+    // Correct row-major traversal (row first, then column)
+    for (size_t row = 0; row < nrow; ++row) {
+        for (size_t col = 0; col < ncol; ++col) {
+            col_sums[col] += diff_ptr[row * ncol + col];  // Row-major indexing
         }
     }
-    
-    // Count how many column sums are exactly 0
+
     return std::count(col_sums.begin(), col_sums.end(), 0.0);
 }
 
@@ -565,6 +571,15 @@ std::vector<std::string> splitExpression(const std::string& expression,
     return res;
 }
 
+std::string join_vector(const std::vector<std::string>& vec, const std::string& sep) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        oss << vec[i];
+        if (i < vec.size() - 1) oss << sep;
+    }
+    return std::string(oss.str());
+}
+
 // ----- PyBind11 Module Definition -----
 PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("debug_function", &debug_function, "Print debug message from C++");
@@ -588,10 +603,8 @@ PYBIND11_MODULE(fbnnet_utils, m) {
         "Reorder dictionary items according to specified names",
         py::arg("x"), py::arg("names"));
     m.def("removeEmptyElement", &removeEmptyElement);
-    m.def("subtractM", &subtractM);
-    m.def("matchCount", &matchCount, 
-        "Count the number of columns in a matrix that match a vector",
-        py::arg("m"), py::arg("v"));
+    m.def("substractM", &substractM, "Subtract vector from matrix columns and take absolute value");
+    m.def("matchCount", &matchCount, "Count how many matrix columns exactly match the vector");
 
     m.def("fisher_test_cpp", &fisher_test_cpp,
         "Perform Fisher's exact test (like R's fisher.test)",
@@ -618,6 +631,8 @@ PYBIND11_MODULE(fbnnet_utils, m) {
         py::arg("expression"),
         py::arg("output_type"),
         py::arg("lower_case") = false);
-
+    m.def("join_vector", &join_vector,
+        "Join a vector of strings into a single string",
+        py::arg("vec"), py::arg("sep") = ", ");
     // ... Bind other functions
 }

@@ -213,6 +213,23 @@ class TestCore(unittest.TestCase):
             print("Matrix_c:", time_step_result["computation_Matrix_c"])
         
 
+    def test_getGeneProbabilities_basic(self):
+        # Prepare input data
+        main_params = setupdata()
+
+        target_gene = ["CycD"]
+        conditional_genes = ["p27", "CycE"]
+        temporal = 3
+
+        # Call the function
+        result = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal, None)
+
+        # Access results
+        for time_step_result in result:
+            print("Time step:", time_step_result["timeStep"])
+            print("Matrix:", time_step_result["computation_Matrix"])
+            print("Matrix_c:", time_step_result["computation_Matrix_c"])
+            print("Probabilities:", time_step_result["probabilities"])
 
 if __name__ == "__main__":
     # convert an array into matrix

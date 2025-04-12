@@ -147,18 +147,44 @@ class TestMathBindings(unittest.TestCase):
         print(result)
         self.assertTrue(result, ["A", "B", "C"])
 
-    def test_subtractM(self):
-        # Test the subtractM function
-        arr1 = np.array([[1, 2], [3, 4]])
+    def test_substractM(self):
+        # Test the substractM function
+        arr1 = np.array([[1, 2], [3, 4,]])
         arr2 = np.array([1,1,])
-        result = fbnnet_utils.subtractM(arr1, arr2)
+        result = fbnnet_utils.substractM(arr1, arr2)
         print(result)
         self.assertTrue(np.array_equal(result, [[0, 1], [2, 3]]))
 
-    def test_matchCount(self):
-        # Test the matchCount function
+        # Test the substractM function
+        arr1 = np.array([[1, 2, 2], [3, 4, 3]])
+        arr2 = np.array([1,1,])
+        result = fbnnet_utils.substractM(arr1, arr2)
+        print(result)
+        # convert result to int
+        result = result.astype(int)
+        self.assertTrue(np.array_equal(result, [[0, 1, 1], [2, 3, 2]]))
+        # test number
+        arr1 = np.array([[2, 1, 2], [1, 2, 1], [2, 2, 2], [1, 2, 1]])
+        arr2 = np.array([0, 1, 1, 1])
+        result = fbnnet_utils.substractM(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [[2, 1, 2], [0, 1, 0], [1, 1, 1], [0, 1, 0]]))
+
+        # test binary operation
         arr1 = np.array([[1, 0, 1], [0, 1, 0], [1, 1, 0], [0, 1, 0]])
-        arr2 = np.array([0, 1, 0])
+        arr2 = np.array([0, 1, 1, 1])
+        result = fbnnet_utils.substractM(arr1, arr2)
+        print(result)
+        self.assertTrue(np.array_equal(result, [[1, 0, 1], [1, 0, 1], [0, 0, 1], [1, 0, 1]]))
+
+    def test_matchCount(self):
+        # Test the matchCount function, this is used to count the number of column matches with provided vector
+        # 1, 0, 1     0     1 0 1
+        # 0, 1, 0  -  1   = 1 0 1
+        # 1, 1, 0     1     0 0 1
+        # 0, 1, 0     1     1 0 1
+        arr1 = np.array([[1, 0, 1], [0, 1, 0], [1, 1, 0], [0, 1, 0]])
+        arr2 = np.array([0, 1, 1, 1])
         result = fbnnet_utils.matchCount(arr1, arr2)
         print(result)
         self.assertTrue(result, 1)
