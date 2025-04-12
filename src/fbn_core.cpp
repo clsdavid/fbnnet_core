@@ -410,9 +410,15 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     if(fixedgenestate.is_none()) {
         conditional_genes = new_conditional_gene;
     } else {
-        cur_fixed_state = py::cast<py::dict>(fixedgenestate);
+        // fixedgenestate = fixedgenestate_obj.cast<py::dict>();
+        // cur_fixed_state = py::cast<py::dict>(fixedgenestate);
+        debug_str("fixedgenestate is not None");
+        cur_fixed_state = fixedgenestate.cast<py::dict>();
+        debug_str("can cast fixedgenestate to dict");
         // Get keys (names) from the dictionary
-        conditional_genes = py::cast<std::vector<std::string>>(cur_fixed_state.attr("keys")());
+        for (auto item : cur_fixed_state) {
+            conditional_genes.push_back(item.first.cast<std::string>());
+        };
         conditional_genes2 = conditional_genes;
         
         // Check if all conditional genes are in rownames
