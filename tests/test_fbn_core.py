@@ -481,21 +481,6 @@ class TesteProbabilities(unittest.TestCase):
         # CycD:   1 1 1 1 9 1 1 0 1 9 1 0 0 
         # p27:    1 0 1 9 0 1 0 1 9 1 1 0 1 
 
-        # result:
-        # target_T_count: 6
-        # target_F_count: 3
-        # cond_T_count: 4
-        # cond_F_count: 5
-        # cond_T_count_c: 6
-        # cond_F_count_c: 3
-        # count_cond_T_target_T: 1
-        # count_cond_F_target_T: 5
-        # count_cond_T_target_F: 3
-        # count_cond_F_target_F: 0
-        # count_target_T_cond_T: 4
-        # count_target_F_cond_T: 2
-        # count_target_T_cond_F: 2
-        # count_target_F_cond_F: 1
         self.assertTrue(probability["target_T_count"] == 6)
         self.assertTrue(probability["target_F_count"] == 3)
         self.assertTrue(probability["count_cond_T_target_T"] == 1)
@@ -542,39 +527,30 @@ class TesteProbabilities(unittest.TestCase):
         print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
         print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
 
-        self.assertTrue(probability["target_T_count"] == 7)
-        self.assertTrue(probability["target_F_count"] == 2)
-        self.assertTrue(probability["count_cond_T_target_T"] == 5)
+        # note conditional on top and target on bottom
+        # computation_Matrix cond - target
+        # when count, please disregard 9
+        # CycD: 1 1 1 1 9 1 1 0 1 9 1 0 0 
+        # p27:  1 0 1 9 0 1 0 1 9 1 1 0 1 
+        # computation_Matrix_c target - cond
+        # p27:  0 1 0 1 9 0 1 0 1 9 1 1 0 
+        # CycD: 1 1 1 9 1 1 0 1 9 1 0 0 1 
+
+        self.assertTrue(probability["target_T_count"] == 6)
+        self.assertTrue(probability["target_F_count"] == 3)
+        self.assertTrue(probability["count_cond_T_target_T"] == 4)
         self.assertTrue(probability["count_cond_F_target_T"] == 2)
-        self.assertTrue(probability["count_cond_T_target_F"] == 1)
+        self.assertTrue(probability["count_cond_T_target_F"] == 2)
         self.assertTrue(probability["count_cond_F_target_F"] == 1)
         self.assertTrue(probability["cond_T_count"] == 6)
         self.assertTrue(probability["cond_F_count"] == 3)
-        self.assertTrue(probability["count_target_T_cond_T"] == 4)
-        self.assertTrue(probability["count_target_F_cond_T"] == 2)
-        self.assertTrue(probability["count_target_T_cond_F"] == 2)
+        self.assertTrue(probability["count_target_T_cond_T"] == 1)
+        self.assertTrue(probability["count_target_F_cond_T"] == 5)
+        self.assertTrue(probability["count_target_T_cond_F"] == 3)
         self.assertTrue(probability["count_target_F_cond_F"] == 0)
-        self.assertTrue(probability["cond_T_count_c"] == 8)
-        self.assertTrue(probability["cond_F_count_c"] == 1)
-        # # Uncomment the following lines to test with different parameters
-        # it("getGenePrababilities(mainParameters,NULL,\"p27\",\"CycD\",1)", {
-        #     probability <- getGenePrababilities_basic(mainParameters, NULL, "p27", "CycD", 1, NULL)[[1]]
-        #     expect_equal(probability$target_T_count, 7)
-        #     expect_equal(probability$target_F_count, 2)
-        #     expect_equal(probability$count_cond_T_target_T, 5)
-        #     expect_equal(probability$count_cond_F_target_T, 2)
-        #     expect_equal(probability$count_cond_T_target_F, 1)
-        #     expect_equal(probability$count_cond_F_target_F, 1)
-        #     expect_equal(probability$cond_T_count, 6)
-        #     expect_equal(probability$cond_F_count, 3)
-            
-        #     expect_equal(probability$count_target_T_cond_T, 4)
-        #     expect_equal(probability$count_target_F_cond_T, 1)
-        #     expect_equal(probability$count_target_T_cond_F, 4)
-        #     expect_equal(probability$count_target_F_cond_F, 0)
-        #     expect_equal(probability$cond_T_count_c, 8)
-        #     expect_equal(probability$cond_F_count_c, 1)
-        # })
+        self.assertTrue(probability["cond_T_count_c"] == 6)
+        self.assertTrue(probability["cond_F_count_c"] == 3)
+
     def test_getGeneProbabilities_basic_p27_CycE(self):
         # Prepare input data
         main_params = setupdata2()
@@ -604,39 +580,30 @@ class TesteProbabilities(unittest.TestCase):
         print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
         print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
 
-        self.assertTrue(probability["target_T_count"] == 7)
-        self.assertTrue(probability["target_F_count"] == 2)
-        self.assertTrue(probability["count_cond_T_target_T"] == 1)
-        self.assertTrue(probability["count_cond_F_target_T"] == 6)
-        self.assertTrue(probability["count_cond_T_target_F"] == 1)
-        self.assertTrue(probability["count_cond_F_target_F"] == 1)
-        self.assertTrue(probability["cond_T_count"] == 2)
-        self.assertTrue(probability["cond_F_count"] == 7)
-        self.assertTrue(probability["count_target_T_cond_T"] == 1)
-        self.assertTrue(probability["count_target_F_cond_T"] == 0)
-        self.assertTrue(probability["count_target_T_cond_F"] == 7)
-        self.assertTrue(probability["count_target_F_cond_F"] == 1)
-        self.assertTrue(probability["cond_T_count_c"] == 8)
-        self.assertTrue(probability["cond_F_count_c"] == 1)
-        # # Uncomment the following lines to test with different parameters
-        # it("getGenePrababilities(mainParameters,NULL,\"p27\",\"CycE\",1)", {
-        #     probability <- getGenePrababilities_basic(mainParameters, NULL, "p27", "CycE", 1, NULL)[[1]]
-        #     expect_equal(probability$target_T_count, 7)
-        #     expect_equal(probability$target_F_count, 2)
-        #     expect_equal(probability$count_cond_T_target_T, 1)
-        #     expect_equal(probability$count_cond_F_target_T, 6)
-        #     expect_equal(probability$count_cond_T_target_F, 1)
-        #     expect_equal(probability$count_cond_F_target_F, 1)
-        #     expect_equal(probability$cond_T_count, 2)
-        #     expect_equal(probability$cond_F_count, 7)
-            
-        #     expect_equal(probability$count_target_T_cond_T, 1)
-        #     expect_equal(probability$count_target_F_cond_T, 0)
-        #     expect_equal(probability$count_target_T_cond_F, 7)
-        #     expect_equal(probability$count_target_F_cond_F, 1)
-        #     expect_equal(probability$cond_T_count_c, 8)
-        #     expect_equal(probability$cond_F_count_c, 1)
-        # })
+        # note conditional on top and target on bottom
+        # computation_Matrix cond - target
+        # when count, please disregard 9
+        # CycE: 1 1 1 1 9 0 1 0 1 9 1 1 0 
+        # p27:  1 0 1 9 0 1 0 1 9 1 1 0 1 
+
+        # computation_Matrix_c target - cond
+        # p27:  0 1 0 1 9 0 1 0 1 9 1 1 0 
+        # CycE: 1 1 1 9 0 1 0 1 9 1 1 0 1 
+
+        self.assertTrue(probability["target_T_count"] == 6)
+        self.assertTrue(probability["target_F_count"] == 3)
+        self.assertTrue(probability["count_cond_T_target_T"] == 3)
+        self.assertTrue(probability["count_cond_F_target_T"] == 3)
+        self.assertTrue(probability["count_cond_T_target_F"] == 3)
+        self.assertTrue(probability["count_cond_F_target_F"] == 0)
+        self.assertTrue(probability["cond_T_count"] == 6)
+        self.assertTrue(probability["cond_F_count"] == 3)
+        self.assertTrue(probability["count_target_T_cond_T"] == 2)
+        self.assertTrue(probability["count_target_F_cond_T"] == 5)
+        self.assertTrue(probability["count_target_T_cond_F"] == 2)
+        self.assertTrue(probability["count_target_F_cond_F"] == 0)
+        self.assertTrue(probability["cond_T_count_c"] == 7)
+        self.assertTrue(probability["cond_F_count_c"] == 2)
 
     def test_getGeneProbabilities_basic_CycE_E2F(self):
         # Prepare input data
@@ -672,6 +639,19 @@ class TesteProbabilities(unittest.TestCase):
         print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
         print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
         print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
+        # note conditional on top and target on bottom
+        # computation_Matrix cond - target, where fixed genes "p27": 1, "CycD": 0
+        # when count, please disregard 9
+        # p27:  1 1 1 1 9 1 1 0 1 9 1 0 0 
+        # CycD: 0 1 0 1 9 0 1 0 1 9 1 1 0 
+        # E2F:  0 0 0 1 9 1 0 0 1 9 1 1 0 
+        # CycE: 1 1 1 9 0 1 0 1 9 1 1 0 1 
+
+        # computation_Matrix_c target - cond
+        # CycE: 1 1 1 1 9 0 1 0 1 9 1 1 0 
+        # p27: 1 1 1 9 1 1 0 1 9 1 0 0 1 
+        # CycD: 1 0 1 9 0 1 0 1 9 1 1 0 1 
+        # E2F: 0 0 1 9 1 0 0 1 9 1 1 0 1 
 
         self.assertTrue(probability["target_T_count"] == 1)
         self.assertTrue(probability["target_F_count"] == 8)

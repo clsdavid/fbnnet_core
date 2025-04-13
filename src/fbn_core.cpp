@@ -12,6 +12,7 @@
 #include "fbn_utils.h" // Include fbn_utils.h directly
 #include "fbn_matrix.h"
 #include "fbn_core.h"
+#include "fbn_column.h"
 
 namespace py = pybind11;
 
