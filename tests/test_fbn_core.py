@@ -401,7 +401,7 @@ class TestCore(unittest.TestCase):
         temporal = 3
 
         # Call the function
-        result = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal, None)
+        result = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
 
         # Access results
         for time_step_result in result:
@@ -451,7 +451,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal, None)
+        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -522,7 +522,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal, None)
+        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -584,7 +584,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal, None)
+        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -653,7 +653,7 @@ class TesteProbabilities(unittest.TestCase):
         }
   
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal, None)
+        probability = fbnnet_core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 

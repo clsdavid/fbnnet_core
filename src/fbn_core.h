@@ -51,6 +51,5 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     py::object& fixedgenestate,
     std::vector<std::string>& target_gene,
     std::vector<std::string>& new_conditional_gene,
-    int temporal,
-    py::object& targetCounts);
+    int temporal);
 #endif

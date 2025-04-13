@@ -294,8 +294,7 @@ py::list generate_temporal_gene_states(
     return result;
 }
 
-// basic calulation
-
+// basic calculation of measures
 py::dict getBasicMeasures(
     py::array_t<double>& stateTCond,
     py::array_t<double>& m,
@@ -340,68 +339,6 @@ py::dict getBasicMeasures(
     std::vector<double> state_cond_T_target_F = {1.0, 0.0};
     std::vector<double> state_cond_F_target_F = {0.0, 0.0};
 
-    // debug_str("state_cond_T_target_T");
-    // // debug_str(std::to_string(recount_target));
-    // if (recount_target) {
-    //     auto stateTCond_buf = stateTCond.request();
-    //     // debug_str("stateTCond_buf");
-    //     // debug_function(stateTCond_buf);
-
-    //     if (stateTCond_buf.size > 1) {
-    //         // Get last two rows of matrix m
-    //         auto m_buf = m.request();
-    //         size_t rows = m_buf.shape[0];
-    //         size_t cols = m_buf.shape[1];
-            
-    //         if (rows < 2) {
-    //             throw std::runtime_error("Matrix m must have at least 2 rows for recount");
-    //         }
-
-    //         // Correct way to create a new array with specific shape
-    //         auto m2 = py::array_t<double>({static_cast<py::ssize_t>(2), static_cast<py::ssize_t>(cols)});
-    //         auto m2_buf = m2.mutable_unchecked<2>();
-    //         auto m_buf_acc = m.unchecked<2>();
-
-    //         // Copy last two rows
-    //         for (size_t i = 0; i < 2; i++) {
-    //             for (size_t j = 0; j < cols; j++) {
-    //                 m2_buf(i, j) = m_buf_acc(rows - 2 + i, j);
-    //             }
-    //         }
-
-    //         // Convert state vectors to numpy arrays
-    //         auto state_cond_T_target_T_arr = py::array_t<double>(state_cond_T_target_T.size(), state_cond_T_target_T.data());
-    //         auto state_cond_F_target_T_arr = py::array_t<double>(state_cond_F_target_T.size(), state_cond_F_target_T.data());
-    //         auto state_cond_T_target_F_arr = py::array_t<double>(state_cond_T_target_F.size(), state_cond_T_target_F.data());
-    //         auto state_cond_F_target_F_arr = py::array_t<double>(state_cond_F_target_F.size(), state_cond_F_target_F.data());
-
-    //         debug_str("state_cond_T_target_T_arr");
-    //         debug_function(m2);
-    //         debug_function(state_cond_T_target_T_arr);
-    //         debug_function(state_cond_F_target_T_arr);
-    //         debug_function(state_cond_T_target_F_arr);
-    //         debug_function(state_cond_F_target_F_arr);
-
-
-    //         // Count matches
-    //         int sresTT = matchCount(m2, state_cond_T_target_T_arr);
-    //         int sresTF = matchCount(m2, state_cond_F_target_T_arr);
-    //         int sresFT = matchCount(m2, state_cond_T_target_F_arr);
-    //         int sresFF = matchCount(m2, state_cond_F_target_F_arr);
-
-    //         target_T_count = sresTT + sresTF;
-    //         target_F_count = sresFT + sresFF;
-    //     } else {
-    //         target_T_count = count_cond_T_target_T + count_cond_F_target_T;
-    //         target_F_count = count_cond_T_target_F + count_cond_F_target_F;
-    //     }
-    // }
-
-    // Control condition counts
-    // rename lenTT_c to count_target_T_cond_T
-    // rename lenTF_c to count_target_F_cond_T
-    // rename lenFT_c to count_target_T_cond_F
-    // rename lenFF_c to count_target_F_cond_F
     int count_target_T_cond_T = matchCount(mc, target_T_cond_T_state);
     int count_target_F_cond_T = matchCount(mc, target_F_cond_T_state);
     int count_target_T_cond_F = matchCount(mc, target_T_cond_F_state);
@@ -446,8 +383,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
                                    py::object& fixedgenestate,
                                    std::vector<std::string>& target_gene,
                                    std::vector<std::string>& new_conditional_gene,
-                                   int temporal,
-                                   py::object& targetCounts)
+                                   int temporal)
 {
     // Extract parameters from main_parameters_in_ref
     int total_samples = main_parameters_in_ref["total_samples"].cast<int>();
@@ -601,13 +537,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     );
     debug_str("step 6");
     py::dict resultGroup;
-    py::list new_targetCounts;
-    
-    if(targetCounts.is_none()) {
-        new_targetCounts = py::list(getAllTemporalStates.size());
-    } else {
-        new_targetCounts = py::cast<py::list>(targetCounts);
-    }
+
     debug_str("step 7");
     for(size_t i = 0; i < getAllTemporalStates.size(); i++) {
         debug_str("step 7.1." + std::to_string(i));
@@ -696,11 +626,6 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             throw std::runtime_error("result missing required keys!");
         }
         
-        py::dict targets;
-        targets["target_T_count"] = result["target_T_count"];
-        targets["target_F_count"] = result["target_F_count"];
-        new_targetCounts[i] = targets;
-
         debug_str("step 7.5." + std::to_string(i));
         result["total_calculated_timepoints"] = total_calculated_timepoints;
         result["num_of_conditional_genes"] = num_of_conditional_genes;
