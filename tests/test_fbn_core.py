@@ -472,11 +472,12 @@ class TesteProbabilities(unittest.TestCase):
         print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
         
         # note conditional on top and target on bottom
-        # computation_Matrix
+        # computation_Matrix cond - target
+        # when count, please disregard 9
         # p27:  0 1 0 1 9 0 1 0 1 9 1 1 0 
         # CycD: 1 1 1 9 1 1 0 1 9 1 0 0 1 
 
-        # computation_Matrix_c
+        # computation_Matrix_c target - cond
         # CycD:   1 1 1 1 9 1 1 0 1 9 1 0 0 
         # p27:    1 0 1 9 0 1 0 1 9 1 1 0 1 
 
@@ -495,17 +496,17 @@ class TesteProbabilities(unittest.TestCase):
         # count_target_F_cond_T: 2
         # count_target_T_cond_F: 2
         # count_target_F_cond_F: 1
-        self.assertTrue(probability["target_T_count"] == 5)
-        self.assertTrue(probability["target_F_count"] == 4)
-        self.assertTrue(probability["count_cond_T_target_T"] == 4)
-        self.assertTrue(probability["count_cond_F_target_T"] == 1)
-        self.assertTrue(probability["count_cond_T_target_F"] == 4)
+        self.assertTrue(probability["target_T_count"] == 6)
+        self.assertTrue(probability["target_F_count"] == 3)
+        self.assertTrue(probability["count_cond_T_target_T"] == 1)
+        self.assertTrue(probability["count_cond_F_target_T"] == 5)
+        self.assertTrue(probability["count_cond_T_target_F"] == 3)
         self.assertTrue(probability["count_cond_F_target_F"] == 0)
-        self.assertTrue(probability["cond_T_count"] == 8)
-        self.assertTrue(probability["cond_F_count"] == 1)
-        self.assertTrue(probability["count_target_T_cond_T"] == 5)
+        self.assertTrue(probability["cond_T_count"] == 4)
+        self.assertTrue(probability["cond_F_count"] == 5)
+        self.assertTrue(probability["count_target_T_cond_T"] == 4)
         self.assertTrue(probability["count_target_F_cond_T"] == 2)
-        self.assertTrue(probability["count_target_T_cond_F"] == 1)
+        self.assertTrue(probability["count_target_T_cond_F"] == 2)
         self.assertTrue(probability["count_target_F_cond_F"] == 1)
         self.assertTrue(probability["cond_T_count_c"] == 6)
         self.assertTrue(probability["cond_F_count_c"] == 3)
@@ -550,8 +551,8 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["cond_T_count"] == 6)
         self.assertTrue(probability["cond_F_count"] == 3)
         self.assertTrue(probability["count_target_T_cond_T"] == 4)
-        self.assertTrue(probability["count_target_F_cond_T"] == 1)
-        self.assertTrue(probability["count_target_T_cond_F"] == 4)
+        self.assertTrue(probability["count_target_F_cond_T"] == 2)
+        self.assertTrue(probability["count_target_T_cond_F"] == 2)
         self.assertTrue(probability["count_target_F_cond_F"] == 0)
         self.assertTrue(probability["cond_T_count_c"] == 8)
         self.assertTrue(probability["cond_F_count_c"] == 1)

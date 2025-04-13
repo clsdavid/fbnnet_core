@@ -307,15 +307,14 @@ py::dict getBasicMeasures(
     py::array_t<double>& target_T_cond_T_state,
     py::array_t<double>& target_F_cond_T_state,
     py::array_t<double>& target_T_cond_F_state,
-    py::array_t<double>& target_F_cond_F_state,
-    bool recount_target) {
+    py::array_t<double>& target_F_cond_F_state) {
     
     int target_T_count = 0;
     int target_F_count = 0;
 
     // Condition counts
     // print below input for debug
-    debug_str("stateTT- start");
+    debug_str("state_cond_T_target_T- start");
     debug_function(m);
     debug_function(mc);
     debug_function(cond_T_target_T_state);
@@ -332,67 +331,71 @@ py::dict getBasicMeasures(
     int count_cond_F_target_F = matchCount(m, cond_F_target_F_state);
 
     // State vectors
-    std::vector<double> stateTT = {1.0, 1.0};
-    std::vector<double> stateTF = {0.0, 1.0};
-    std::vector<double> stateFT = {1.0, 0.0};
-    std::vector<double> stateFF = {0.0, 0.0};
+    // rename sateTT to state_cond_T_target_T
+    // rename stateTF to state_cond_F_target_T
+    // rename stateFT to state_cond_T_target_F
+    // rename stateFF to state_cond_F_target_F
+    std::vector<double> state_cond_T_target_T = {1.0, 1.0};
+    std::vector<double> state_cond_F_target_T = {0.0, 1.0};
+    std::vector<double> state_cond_T_target_F = {1.0, 0.0};
+    std::vector<double> state_cond_F_target_F = {0.0, 0.0};
 
-    debug_str("stateTT");
-    // debug_str(std::to_string(recount_target));
-    if (recount_target) {
-        auto stateTCond_buf = stateTCond.request();
-        // debug_str("stateTCond_buf");
-        // debug_function(stateTCond_buf);
+    // debug_str("state_cond_T_target_T");
+    // // debug_str(std::to_string(recount_target));
+    // if (recount_target) {
+    //     auto stateTCond_buf = stateTCond.request();
+    //     // debug_str("stateTCond_buf");
+    //     // debug_function(stateTCond_buf);
 
-        if (stateTCond_buf.size > 1) {
-            // Get last two rows of matrix m
-            auto m_buf = m.request();
-            size_t rows = m_buf.shape[0];
-            size_t cols = m_buf.shape[1];
+    //     if (stateTCond_buf.size > 1) {
+    //         // Get last two rows of matrix m
+    //         auto m_buf = m.request();
+    //         size_t rows = m_buf.shape[0];
+    //         size_t cols = m_buf.shape[1];
             
-            if (rows < 2) {
-                throw std::runtime_error("Matrix m must have at least 2 rows for recount");
-            }
+    //         if (rows < 2) {
+    //             throw std::runtime_error("Matrix m must have at least 2 rows for recount");
+    //         }
 
-            // Correct way to create a new array with specific shape
-            auto m2 = py::array_t<double>({static_cast<py::ssize_t>(2), static_cast<py::ssize_t>(cols)});
-            auto m2_buf = m2.mutable_unchecked<2>();
-            auto m_buf_acc = m.unchecked<2>();
+    //         // Correct way to create a new array with specific shape
+    //         auto m2 = py::array_t<double>({static_cast<py::ssize_t>(2), static_cast<py::ssize_t>(cols)});
+    //         auto m2_buf = m2.mutable_unchecked<2>();
+    //         auto m_buf_acc = m.unchecked<2>();
 
-            // Copy last two rows
-            for (size_t i = 0; i < 2; i++) {
-                for (size_t j = 0; j < cols; j++) {
-                    m2_buf(i, j) = m_buf_acc(rows - 2 + i, j);
-                }
-            }
+    //         // Copy last two rows
+    //         for (size_t i = 0; i < 2; i++) {
+    //             for (size_t j = 0; j < cols; j++) {
+    //                 m2_buf(i, j) = m_buf_acc(rows - 2 + i, j);
+    //             }
+    //         }
 
-            // Convert state vectors to numpy arrays
-            auto stateTT_arr = py::array_t<double>(stateTT.size(), stateTT.data());
-            auto stateTF_arr = py::array_t<double>(stateTF.size(), stateTF.data());
-            auto stateFT_arr = py::array_t<double>(stateFT.size(), stateFT.data());
-            auto stateFF_arr = py::array_t<double>(stateFF.size(), stateFF.data());
+    //         // Convert state vectors to numpy arrays
+    //         auto state_cond_T_target_T_arr = py::array_t<double>(state_cond_T_target_T.size(), state_cond_T_target_T.data());
+    //         auto state_cond_F_target_T_arr = py::array_t<double>(state_cond_F_target_T.size(), state_cond_F_target_T.data());
+    //         auto state_cond_T_target_F_arr = py::array_t<double>(state_cond_T_target_F.size(), state_cond_T_target_F.data());
+    //         auto state_cond_F_target_F_arr = py::array_t<double>(state_cond_F_target_F.size(), state_cond_F_target_F.data());
 
-            debug_str("stateTT_arr");
-            debug_function(m2);
-            debug_function(stateTT_arr);
-            debug_function(stateTF_arr);
-            debug_function(stateFT_arr);
-            debug_function(stateFF_arr);
+    //         debug_str("state_cond_T_target_T_arr");
+    //         debug_function(m2);
+    //         debug_function(state_cond_T_target_T_arr);
+    //         debug_function(state_cond_F_target_T_arr);
+    //         debug_function(state_cond_T_target_F_arr);
+    //         debug_function(state_cond_F_target_F_arr);
 
 
-            // Count matches
-            int sresTT = matchCount(m2, stateTT_arr);
-            int sresTF = matchCount(m2, stateTF_arr);
-            int sresFT = matchCount(m2, stateFT_arr);
-            int sresFF = matchCount(m2, stateFF_arr);
+    //         // Count matches
+    //         int sresTT = matchCount(m2, state_cond_T_target_T_arr);
+    //         int sresTF = matchCount(m2, state_cond_F_target_T_arr);
+    //         int sresFT = matchCount(m2, state_cond_T_target_F_arr);
+    //         int sresFF = matchCount(m2, state_cond_F_target_F_arr);
 
-            target_T_count = sresTT + sresTF;
-            target_F_count = sresFT + sresFF;
-        } else {
-            target_T_count = count_cond_T_target_T + count_cond_F_target_T;
-            target_F_count = count_cond_T_target_F + count_cond_F_target_F;
-        }
-    }
+    //         target_T_count = sresTT + sresTF;
+    //         target_F_count = sresFT + sresFF;
+    //     } else {
+    //         target_T_count = count_cond_T_target_T + count_cond_F_target_T;
+    //         target_F_count = count_cond_T_target_F + count_cond_F_target_F;
+    //     }
+    // }
 
     // Control condition counts
     // rename lenTT_c to count_target_T_cond_T
@@ -406,12 +409,14 @@ py::dict getBasicMeasures(
 
     // Create and return result dictionary
     py::dict result;
-    result["target_T_count"] = target_T_count;
-    result["target_F_count"] = target_F_count;
+    result["target_T_count"] = count_cond_T_target_T + count_cond_F_target_T;;
+    result["target_F_count"] = count_cond_T_target_F + count_cond_F_target_F;;
+    result["target_T_count_c"] = count_target_T_cond_T + count_target_T_cond_F;
+    result["target_F_count_c"] = count_target_F_cond_T + count_target_F_cond_F;;
     result["cond_T_count"] = count_cond_T_target_T + count_cond_T_target_F;
     result["cond_F_count"] = count_cond_F_target_T + count_cond_F_target_F;
-    result["cond_T_count_c"] = count_target_T_cond_T + count_target_T_cond_F;
-    result["cond_F_count_c"] = count_target_F_cond_T + count_target_F_cond_F;
+    result["cond_T_count_c"] = count_target_T_cond_T + count_target_F_cond_T;
+    result["cond_F_count_c"] = count_target_T_cond_F + count_target_F_cond_F;
     result["count_cond_T_target_T"] = count_cond_T_target_T;
     result["count_cond_F_target_T"] = count_cond_F_target_T;
     result["count_cond_T_target_F"] = count_cond_T_target_F;
@@ -596,11 +601,9 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     );
     debug_str("step 6");
     py::dict resultGroup;
-    bool recount_target = false;
     py::list new_targetCounts;
     
     if(targetCounts.is_none()) {
-        recount_target = true;
         new_targetCounts = py::list(getAllTemporalStates.size());
     } else {
         new_targetCounts = py::cast<py::list>(targetCounts);
@@ -685,8 +688,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             target_T_cond_T_state_array,
             target_F_cond_T_state_array,
             target_T_cond_F_state_array,
-            target_F_cond_F_state_array,
-            recount_target
+            target_F_cond_F_state_array
         );
         debug_str("step 7.4." + std::to_string(i));
 
@@ -694,16 +696,11 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             throw std::runtime_error("result missing required keys!");
         }
         
-        if(recount_target) {
-            py::dict targets;
-            targets["target_T_count"] = result["target_T_count"];
-            targets["target_F_count"] = result["target_F_count"];
-            new_targetCounts[i] = targets;
-        } else {
-            py::dict targets = new_targetCounts[i].cast<py::dict>();
-            result["target_T_count"] = targets["target_T_count"];
-            result["target_F_count"] = targets["target_F_count"];
-        }
+        py::dict targets;
+        targets["target_T_count"] = result["target_T_count"];
+        targets["target_F_count"] = result["target_F_count"];
+        new_targetCounts[i] = targets;
+
         debug_str("step 7.5." + std::to_string(i));
         result["total_calculated_timepoints"] = total_calculated_timepoints;
         result["num_of_conditional_genes"] = num_of_conditional_genes;
