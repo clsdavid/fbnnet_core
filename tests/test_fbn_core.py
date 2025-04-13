@@ -216,21 +216,68 @@ class TestCore(unittest.TestCase):
     def test_extract_gene_states(self):
 
         # Create sample data
-        state_matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64)
-        row_names = ["gene1", "gene2", "gene3"]
-        target_genes = ["gene3", "gene1"]
+        state_matrix = np.array([[1., 1., 1., 0., 1., 9., 1., 1., 0., 1., 0., 1., 9., 1., 0., 0., 1., 1., 1.],
+            [1., 1., 1., 1., 1., 9., 0., 1., 0., 1., 0., 1., 9., 0., 1., 1., 1., 0., 1.],
+            [0., 0., 1., 1., 1., 9., 1., 0., 0., 1., 1., 0., 9., 1., 1., 0., 1., 1., 1.],
+            [0., 1., 0., 1., 0., 9., 1., 1., 0., 0., 1., 1., 9., 1., 1., 1., 0., 0., 0.]], dtype=np.float64)
+        # state_matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float64)
+        row_names = ["CycD", "p27", "CycE", "E2F"]
+        target_genes = ["p27", "CycE"]
 
         # Call the function
         result = fbnnet_core.extract_gene_states(state_matrix, target_genes, row_names)
-
+        result.print()
         # Access results
-        filtered_matrix = result.matrix()
+        filtered_matrix = result.matrix_t()
         filtered_row_names = result.row_names()
 
         print("Filtered matrix:")
         print(filtered_matrix)
         print("Row names:", filtered_row_names)
-        self.assertEqual(filtered_row_names, ['gene1', 'gene3'])
+        self.assertEqual(filtered_row_names, ["p27", "CycE"])
+        # check the result matrix with sate_matrix
+        self.assertEqual(filtered_matrix.shape, (2, 19))
+        # check the result matrix with sate_matrix
+        self.assertEqual(filtered_matrix[0, 0], 1)
+        self.assertEqual(filtered_matrix[0, 1], 1)
+        self.assertEqual(filtered_matrix[0, 2], 1)
+        self.assertEqual(filtered_matrix[0, 3], 1)
+        self.assertEqual(filtered_matrix[0, 4], 1)
+        self.assertEqual(filtered_matrix[0, 5], 9)
+        self.assertEqual(filtered_matrix[0, 6], 0)
+        self.assertEqual(filtered_matrix[0, 7], 1)
+        self.assertEqual(filtered_matrix[0, 8], 0)
+        self.assertEqual(filtered_matrix[0, 9], 1)
+        self.assertEqual(filtered_matrix[0, 10], 0)
+        self.assertEqual(filtered_matrix[0, 11], 1)
+        self.assertEqual(filtered_matrix[0, 12], 9)
+        self.assertEqual(filtered_matrix[0, 13], 0)
+        self.assertEqual(filtered_matrix[0, 14], 1)
+        self.assertEqual(filtered_matrix[0, 15], 1)
+        self.assertEqual(filtered_matrix[0, 16], 1)
+        self.assertEqual(filtered_matrix[0, 17], 0)
+        self.assertEqual(filtered_matrix[0, 18], 1)
+
+        self.assertEqual(filtered_matrix[1, 0], 0)
+        self.assertEqual(filtered_matrix[1, 1], 0)
+        self.assertEqual(filtered_matrix[1, 2], 1)
+        self.assertEqual(filtered_matrix[1, 3], 1)
+        self.assertEqual(filtered_matrix[1, 4], 1)
+        self.assertEqual(filtered_matrix[1, 5], 9)
+        self.assertEqual(filtered_matrix[1, 6], 1)
+        self.assertEqual(filtered_matrix[1, 7], 0)
+        self.assertEqual(filtered_matrix[1, 8], 0)
+        self.assertEqual(filtered_matrix[1, 9], 1)
+        self.assertEqual(filtered_matrix[1, 10], 1)
+        self.assertEqual(filtered_matrix[1, 11], 0)
+        self.assertEqual(filtered_matrix[1, 12], 9)
+        self.assertEqual(filtered_matrix[1, 13], 1)
+        self.assertEqual(filtered_matrix[1, 14], 1)
+        self.assertEqual(filtered_matrix[1, 15], 0)
+        self.assertEqual(filtered_matrix[1, 16], 1)
+        self.assertEqual(filtered_matrix[1, 17], 1)
+        self.assertEqual(filtered_matrix[1, 18], 1)
+
 
     def test_generate_test_data(self):
         test = setupdata()
@@ -292,18 +339,18 @@ class TestCore(unittest.TestCase):
         main_params = setupdata()
         print("====TestSeries====")
         print(main_params["testseries"])
-        print("====Current States====")
-        print(main_params["currentStates"])
-        print("====Previous States====")
-        print(main_params["previousStates"])
-        print("====Current States_c====")
-        print(main_params["currentStates_c"])
+        # print("====Current States====")
+        # print(main_params["currentStates"])
+        # print("====Previous States====")
+        # print(main_params["previousStates"])
+        # print("====Current States_c====")
+        # print(main_params["currentStates_c"])
 
-        print(main_params["previousStates_c"])
-        print("====Total Samples====")
-        print(main_params["total_samples"])
-        print("====Row Names====")
-        print(main_params["rownames"])
+        # print(main_params["previousStates_c"])
+        # print("====Total Samples====")
+        # print(main_params["total_samples"])
+        # print("====Row Names====")
+        # print(main_params["rownames"])
         target_gene = ["CycD"]
         conditional_genes = ["p27", "CycE"]
         temporal = 3
@@ -316,7 +363,34 @@ class TestCore(unittest.TestCase):
             print("Time step:", time_step_result["timeStep"])
             print("Matrix:", time_step_result["computation_Matrix"])
             print("Matrix_c:", time_step_result["computation_Matrix_c"])
-        
+
+        # get first matrix
+        first_matrix = result[0]["computation_Matrix"].matrix_t()
+        # assert the first matrix values
+        # 0 p27, 1 CycE, 2 CycD
+        self.assertEqual(first_matrix[0, 0], 0)
+        self.assertEqual(first_matrix[0, 1], 1)
+        self.assertEqual(first_matrix[0, 2], 1)
+        self.assertEqual(first_matrix[0, 3], 1)
+        self.assertEqual(first_matrix[0, 4], 1)
+        self.assertEqual(first_matrix[0, 5], 1)
+        self.assertEqual(first_matrix[0, 6], 9)
+
+        self.assertEqual(first_matrix[1, 0], 0)
+        self.assertEqual(first_matrix[1, 1], 0)
+        self.assertEqual(first_matrix[1, 2], 0)
+        self.assertEqual(first_matrix[1, 3], 1)
+        self.assertEqual(first_matrix[1, 4], 1)
+        self.assertEqual(first_matrix[1, 5], 1)
+        self.assertEqual(first_matrix[1, 6], 9)
+
+        self.assertEqual(first_matrix[2, 0], 1)
+        self.assertEqual(first_matrix[2, 1], 1)
+        self.assertEqual(first_matrix[2, 2], 1)
+        self.assertEqual(first_matrix[2, 3], 0)
+        self.assertEqual(first_matrix[2, 4], 1)
+        self.assertEqual(first_matrix[2, 5], 9)
+        self.assertEqual(first_matrix[2, 6], 1)
 
     def test_getGeneProbabilities_basic(self):
         # Prepare input data
@@ -396,7 +470,29 @@ class TesteProbabilities(unittest.TestCase):
         print("lenTF_c:", probability["lenTF_c"])
         print("lenFT_c:", probability["lenFT_c"])
         print("lenFF_c:", probability["lenFF_c"])
+        # computation_Matrix
+        # p27:  0 1 0 1 9 0 1 0 1 9 1 1 0 
+        # CycD: 1 1 1 9 1 1 0 1 9 1 0 0 1 
 
+        # computation_Matrix_c
+        # CycD:   1 1 1 1 9 1 1 0 1 9 1 0 0 
+        # p27:    1 0 1 9 0 1 0 1 9 1 1 0 1 
+
+        # result:
+        # target_T_count: 6
+        # target_F_count: 3
+        # cond_T_count: 4
+        # cond_F_count: 5
+        # cond_T_count_c: 6
+        # cond_F_count_c: 3
+        # lenTT: 1
+        # lenTF: 5
+        # lenFT: 3
+        # lenFF: 0
+        # lenTT_c: 4
+        # lenTF_c: 2
+        # lenFT_c: 2
+        # lenFF_c: 1
         self.assertTrue(probability["target_T_count"] == 5)
         self.assertTrue(probability["target_F_count"] == 4)
         self.assertTrue(probability["lenTT"] == 4)

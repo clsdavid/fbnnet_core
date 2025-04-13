@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iomanip>
 #include <map>
+#include <unordered_map>
 #include "fbn_utils.h" // Include fbn_utils.h directly
 #include "fbn_matrix.h"
 #include "fbn_core.h"
@@ -87,56 +88,46 @@ py::array_t<double> extract_gene_state_from_time_series_cube(
     );
 }
 
+// Python-compatible version of extractGeneStates
 FBNMatrix extract_gene_states(
     py::array_t<double>& state_matrix,
     const std::vector<std::string>& target_genes,
-    const std::vector<std::string>& row_names) 
-{
-    // Get matrix dimensions and data
+    const std::vector<std::string>& row_names
+) {
     auto buf = state_matrix.request();
-    double* data = static_cast<double*>(buf.ptr);
-    size_t num_genes = buf.shape[0];
-    size_t num_time_points = buf.shape[1];
+    if (buf.ndim != 2)
+        throw std::runtime_error("Input matrix must be 2D");
 
+    size_t nrows = buf.shape[0];
+    size_t ncols = buf.shape[1];
 
-    // Check dimensions match
-    if (row_names.size() != num_genes) {
-        throw std::runtime_error("Number of row names must match matrix rows");
-    }
+    // Step 1: Use a_in_b_index to find indices of target genes in row names
+    std::vector<size_t> r_index = a_in_b_index(target_genes, row_names);
 
-    std::vector<size_t> r_index_obj = a_in_b_index(target_genes, row_names);
-    std::vector<size_t> r_index = int_sort(r_index_obj, false);
-    // std::vector<int> r_index = sorted_index_obj.cast<std::vector<int>>();
+    // Step 2: Sort indices with int_sort (assume it has signature: vector<int> int_sort(vector<int>, bool ascending))
+    r_index = int_sort(r_index, false);  // assuming 'false' means ascending
 
-    // Create output matrix
-    std::vector<double> sub_data(r_index.size() * num_time_points);
-    std::vector<std::string> sub_row_names;
+    // Step 3: Create new matrix with selected rows
+    py::array_t<double> sub({r_index.size(), ncols});
+    auto sub_buf = sub.mutable_unchecked<2>();
+    auto mat_buf = state_matrix.unchecked<2>();
 
-    // Copy selected rows
     for (size_t i = 0; i < r_index.size(); ++i) {
-        int src_row = r_index[i];
-        for (size_t j = 0; j < num_time_points; ++j) {
-            sub_data[i * num_time_points + j] = data[src_row * num_time_points + j];
+        int row_idx = r_index[i];
+        for (size_t j = 0; j < ncols; ++j) {
+            sub_buf(i, j) = mat_buf(row_idx, j);
         }
-        sub_row_names.push_back(row_names[src_row]);
     }
 
-    // Create numpy array
-    py::array_t<double> result({static_cast<py::ssize_t>(r_index.size()), 
-                              static_cast<py::ssize_t>(num_time_points)},
-                             sub_data.data());
-
-    // Return both the matrix and row names
-    // get colnames from result by using the num_time_points
     std::vector<std::string> col_names;
-    for (size_t i = 0; i < num_time_points; ++i) {
+    for (size_t i = 0; i < ncols; ++i) {
         col_names.push_back(std::to_string(i + 1));
     }
    
-
-    FBNMatrix output = FBNMatrix(result, sub_row_names, col_names);
+    FBNMatrix output = FBNMatrix(sub, target_genes, col_names);
     return output;
 }
+
 
 py::list generate_temporal_gene_states(
     py::dict& main_parameters,
@@ -152,14 +143,14 @@ py::list generate_temporal_gene_states(
     // previousStates means the conditional gene states
     // currentStates_c means the conditional gene states as target gene states
     // previousStates_c means the target gene states as conditional gene states
+    // each state is a list of matrices in different temporal, for eaxample, 1 means the current state is determined by the previous state at 1 step., 
+    // 2 means the current state is determined by the previous state at 2 steps.
     if (!main_parameters.contains("currentStates") || 
         !main_parameters.contains("previousStates") ||
         !main_parameters.contains("currentStates_c") || 
         !main_parameters.contains("previousStates_c")) {
         throw std::runtime_error("Missing required parameters in main_parameters");
     }
-    // get row names from main parameters
-    std::vector<std::string> row_names = main_parameters["rownames"].cast<std::vector<std::string>>();
 
     // each state is a matrix
     py::list get_current_states = main_parameters["currentStates"].cast<py::list>();
@@ -182,21 +173,6 @@ py::list generate_temporal_gene_states(
     validate_list(get_current_states_c, "getCurrentStates_c", temporal);
     validate_list(get_previous_states_c, "getPreviousStates_c", temporal);
 
-    // Import required functions
-    // py::module fbn_utils = py::module::import("fbn_utils");
-    // auto extract_gene_states = fbn_utils.attr("extract_gene_states");
-    // auto mrbind = fbn_utils.attr("mrbind");
-    // debug_str("----------------------current_states----------------------");
-    // debug_str(py::str(get_current_states));
-    // debug_str("----------------------previous_states----------------------");
-    // debug_str(py::str(get_previous_states));
-    // debug_str("----------------------current_states_c----------------------");
-    // debug_str(py::str(get_current_states_c));
-    // debug_str("----------------------previous_states_c----------------------");
-    // debug_str(py::str(get_previous_states_c));
-    // debug_str("----------------------rownames----------------------");
-    // debug_str(py::str(gget_row_names));
-
     py::list result;
     for (int i = 0; i < temporal; i++) {
         py::array_t<double> current_state = get_current_states[i].cast<py::array_t<double>>();
@@ -204,12 +180,46 @@ py::list generate_temporal_gene_states(
         py::array_t<double> current_state_c = get_current_states_c[i].cast<py::array_t<double>>();
         py::array_t<double> previous_state_c = get_previous_states_c[i].cast<py::array_t<double>>();
 
-        // Check array dimensions
-        if (previous_state.ndim() != 2 || previous_state.shape(1) < temporal + 2) {
+        //======================Data validation========================
+        // get the number of rows and cols
+        auto current_state_buf = current_state.request();
+        auto previous_state_buf = previous_state.request();
+        auto current_state_c_buf = current_state_c.request();
+        auto previous_state_c_buf = previous_state_c.request();
+        // check if all state matrices have the same number of rows and cols
+        if (current_state_buf.ndim != 2 || previous_state_buf.ndim != 2 || 
+            current_state_c_buf.ndim != 2 || previous_state_c_buf.ndim != 2) {
+            throw std::runtime_error("All state matrices must be 2D");
+        }
+        if (current_state_buf.shape[0] != previous_state_buf.shape[0] || 
+            current_state_buf.shape[0] != current_state_c_buf.shape[0] || 
+            current_state_buf.shape[0] != previous_state_c_buf.shape[0]) {
+            throw std::runtime_error("All state matrices must have the same number of rows");
+        }
+        if (current_state_buf.shape[1] != previous_state_buf.shape[1] || 
+            current_state_buf.shape[1] != current_state_c_buf.shape[1] || 
+            current_state_buf.shape[1] != previous_state_c_buf.shape[1]) {
+            throw std::runtime_error("All state matrices must have the same number of columns");
+        }
+        // Check if the number of columns is greater than temporal + 2
+        if (current_state_buf.shape[1] < temporal + 2) {
+            throw std::runtime_error("Not enough states for this temporal");
+        }
+        if (previous_state_buf.shape[1] < temporal + 2) {
+            throw std::runtime_error("Not enough states for this temporal");
+        }
+        if (current_state_c_buf.shape[1] < temporal + 2) {
+            throw std::runtime_error("Not enough states for this temporal");
+        }
+        if (previous_state_c_buf.shape[1] < temporal + 2) {
             throw std::runtime_error("Not enough states for this temporal");
         }
 
-        int n_state = previous_state.shape(1) - 1;
+        //=======================End of data validation========================
+
+        
+        int n_state = current_state.shape(1) - 1;
+        int n_row = current_state.shape(0);
         int start_col = i + 1;
         int end_col = n_state + 1;
 
@@ -219,29 +229,48 @@ py::list generate_temporal_gene_states(
         }
 
         // Extract submatrices with proper bounds checking
-        auto t_current_state = current_state.attr("__getitem__")(
-            py::make_tuple(py::ellipsis(), py::slice(start_col, end_col, 1))).cast<py::array_t<double>>();
+        py::array_t<double> current_state_sliced = current_state.attr("__getitem__")(
+            py::make_tuple(py::slice(0, n_row, 1), py::slice(start_col, end_col, 1))).cast<py::array_t<double>>();
         
-        auto t_previous_state = previous_state.attr("__getitem__")(
-            py::make_tuple(py::ellipsis(), py::slice(0, n_state - i, 1))).cast<py::array_t<double>>();
+        py::array_t<double> previous_state_sliced = previous_state.attr("__getitem__")(
+            py::make_tuple(py::slice(0, n_row, 1), py::slice(0, n_state - i, 1))).cast<py::array_t<double>>();
         
-        auto t_current_state_c = current_state_c.attr("__getitem__")(
-            py::make_tuple(py::ellipsis(), py::slice(start_col, end_col, 1))).cast<py::array_t<double>>();
+        py::array_t<double> current_state_sliced_c = current_state_c.attr("__getitem__")(
+            py::make_tuple(py::slice(0, n_row, 1), py::slice(start_col, end_col, 1))).cast<py::array_t<double>>();
         
-        auto t_previous_state_c = previous_state_c.attr("__getitem__")(
-            py::make_tuple(py::ellipsis(), py::slice(0, n_state - i, 1))).cast<py::array_t<double>>();
+        py::array_t<double> previous_state_sliced_c = previous_state_c.attr("__getitem__")(
+            py::make_tuple(py::slice(0, n_row, 1), py::slice(0, n_state - i, 1))).cast<py::array_t<double>>();
+
+        // debug_str("Before Extracted matrices:");
+        // debug_str("Before Extracted previous_state_sliced matrix:");
+        // debug_function(previous_state_sliced);
+        // debug_str("Before Extracted current_state_sliced matrix:"); 
+        // debug_function(current_state_sliced);
+        // debug_str("Before Extracted previous_state_sliced_c matrix c:");
+        // debug_function(previous_state_sliced_c);
+        // debug_str("Before Extracted current_state_sliced_c matrix c:"); 
+        // debug_function(current_state_sliced_c);
 
         // Extract gene states with validation
-        FBNMatrix extracted_condition = extract_gene_states(t_previous_state, conditional_genes, get_row_names);
-        FBNMatrix extracted_target = extract_gene_states(t_current_state, target_gene, get_row_names);
-        FBNMatrix extracted_condition_c = extract_gene_states(t_previous_state_c, target_gene, get_row_names);
-        FBNMatrix extracted_target_c = extract_gene_states(t_current_state_c, conditional_genes, get_row_names);
+        FBNMatrix extracted_condition = extract_gene_states(previous_state_sliced, conditional_genes, get_row_names);
+        FBNMatrix extracted_target = extract_gene_states(current_state_sliced, target_gene, get_row_names);
+        FBNMatrix extracted_condition_c = extract_gene_states(previous_state_sliced_c, target_gene, get_row_names);
+        FBNMatrix extracted_target_c = extract_gene_states(current_state_sliced_c, conditional_genes, get_row_names);
 
+        // debug_str("Extracted matrices:");
+        // debug_str("Extracted condition matrix:"); // conditional
+        // extracted_condition.print();
         // debug_function(extracted_condition.matrix_t());
+        // debug_str("Extracted target matrix:"); //target
+        // extracted_target.print();
         // debug_function(extracted_target.matrix_t());
+        // debug_str("Extracted condition matrix c:");  // target
+        // extracted_condition_c.print();
         // debug_function(extracted_condition_c.matrix_t());
+        // debug_str("Extracted target matrix c:"); //conditional
+        // extracted_target_c.print();
         // debug_function(extracted_target_c.matrix_t());
-        // Combine matrices
+        // Combine matrices: condition on top and target on bottom
         py::array_t<double> concatenated_matrix = mrbind(extracted_condition.matrix_t(), extracted_target.matrix_t());
         py::array_t<double> concatenated_matrix_c = mrbind(extracted_condition_c.matrix_t(), extracted_target_c.matrix_t());
 
@@ -595,8 +624,8 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             computation_Matrix_c = computation_obj_c.cast<py::array_t<double>>();
         }
 
-        debug_function(computation_Matrix);
-        debug_function(computation_Matrix_c);
+        // debug_function(computation_Matrix);
+        // debug_function(computation_Matrix_c);
 
         debug_str("step 7.2." + std::to_string(i));
         // Create named array objects to avoid temporary reference issues
@@ -612,16 +641,27 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         py::array_t<double> cond_F_target_F_state_c_array(cond_F_target_F_state_c.size(), cond_F_target_F_state_c.data());
         debug_str("step 7.3." + std::to_string(i));
         // print all input arrays for debug
+        debug_str("stateTCond_array");
         debug_function(stateTCond_array);
+        debug_str("computation_Matrix");
         debug_function(computation_Matrix);
+        debug_str("computation_Matrix_c");
         debug_function(computation_Matrix_c);
+        debug_str("cond_T_target_T_state_array");
         debug_function(cond_T_target_T_state_array);
+        debug_str("cond_F_target_T_state_array");
         debug_function(cond_F_target_T_state_array);
+        debug_str("cond_T_target_F_state_array");
         debug_function(cond_T_target_F_state_array);
+        debug_str("cond_F_target_F_state_array");
         debug_function(cond_F_target_F_state_array);
+        debug_str("cond_T_target_T_state_c_array");
         debug_function(cond_T_target_T_state_c_array);
+        debug_str("cond_F_target_T_state_c_array");
         debug_function(cond_F_target_T_state_c_array);
+        debug_str("cond_T_target_F_state_c_array");
         debug_function(cond_T_target_F_state_c_array);
+        debug_str("cond_F_target_F_state_c_array");
         debug_function(cond_F_target_F_state_c_array);
 
         py::dict result = getBasicMeasures(
