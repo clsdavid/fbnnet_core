@@ -1,6 +1,16 @@
 #include "fbn_column.h"
 #include <sstream>
 #include <stdexcept>
+#include <pybind11/pytypes.h>
+namespace py = pybind11;
+
+py::dict FBNColumn::to_pydict() const {
+    py::dict d;
+    for (size_t i = 0; i < row_names.size(); ++i) {
+        d[py::str(row_names[i])] = py::float_(values[i]);
+    }
+    return d;
+}
 
 size_t FBNColumn::size() const {
     return values.size();

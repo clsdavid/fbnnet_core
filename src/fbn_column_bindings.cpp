@@ -15,5 +15,6 @@ PYBIND11_MODULE(fbnnet_column, m) {
         .def("__repr__", &FBNColumn::to_string)
         .def("is_none", &FBNColumn::is_none)
         .def("get_row_names", &FBNColumn::get_row_names)
-        .def("get_values", &FBNColumn::get_values);
+        .def("get_values", &FBNColumn::get_values)
+        .def("to_pydict", &FBNColumn::to_pydict);
 }

@@ -23,6 +23,7 @@ class FBNColumn {
 
     std::vector<std::string> get_row_names() const;  // NEW
     std::vector<double> get_values() const;          // NEW
+    pybind11::dict to_pydict() const;
 };
 
 
