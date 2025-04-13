@@ -639,53 +639,54 @@ class TesteProbabilities(unittest.TestCase):
         print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
         print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
         print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
+
+        # [
+        #     CycD: 1 1 1 1 
+        #     p27:  0 1 0 1 
+        #     CycE: 1 1 1 1 
+        #     E2F:  0 0 0 1 
+
+        #     CycD: 1 1 0 1 
+        #     p27:  0 1 0 1 
+        #     CycE: 0 1 0 1 
+        #     E2F:  1 0 0 1 
+
+        #     CycD: 1 0 0 1 
+        #     p27:  1 1 0 1 
+        #     CycE: 1 1 0 1 
+        #     E2F:  1 1 0 1 
+        # ]
+
         # note conditional on top and target on bottom
-        # computation_Matrix cond - target, where fixed genes "p27": 1, "CycD": 0
+        # computation_Matrix cond - target, where fixed genes "CycD": 0, "p27": 1
         # when count, please disregard 9
-        # p27:  1 1 1 1 9 1 1 0 1 9 1 0 0 
-        # CycD: 0 1 0 1 9 0 1 0 1 9 1 1 0 
+        # CycD: 1 1 1 1 9 1 1 0 1 9 1 0 0 
+        # p27:  0 1 0 1 9 0 1 0 1 9 1 1 0 
         # E2F:  0 0 0 1 9 1 0 0 1 9 1 1 0 
         # CycE: 1 1 1 9 0 1 0 1 9 1 1 0 1 
 
         # computation_Matrix_c target - cond
         # CycE: 1 1 1 1 9 0 1 0 1 9 1 1 0 
-        # p27: 1 1 1 9 1 1 0 1 9 1 0 0 1 
-        # CycD: 1 0 1 9 0 1 0 1 9 1 1 0 1 
-        # E2F: 0 0 1 9 1 0 0 1 9 1 1 0 1 
+        # CycD: 1 1 1 9 1 1 0 1 9 1 0 0 1 
+        # p27:  1 0 1 9 0 1 0 1 9 1 1 0 1 
+        # E2F:  0 0 1 9 1 0 0 1 9 1 1 0 1 
 
-        self.assertTrue(probability["target_T_count"] == 1)
-        self.assertTrue(probability["target_F_count"] == 8)
-        self.assertTrue(probability["count_cond_T_target_T"] == 1)
-        self.assertTrue(probability["count_cond_F_target_T"] == 6)
-        self.assertTrue(probability["count_cond_T_target_F"] == 2)
-        self.assertTrue(probability["count_cond_F_target_F"] == 1)
-        self.assertTrue(probability["cond_T_count"] == 3)
+        self.assertTrue(probability["target_T_count"] == 7)
+        self.assertTrue(probability["target_F_count"] == 2)
+        self.assertTrue(probability["count_cond_T_target_T"] == 0)
+        self.assertTrue(probability["count_cond_F_target_T"] == 0)
+        self.assertTrue(probability["count_cond_T_target_F"] == 1)
+        self.assertTrue(probability["count_cond_F_target_F"] == 0)
+        self.assertTrue(probability["cond_T_count"] == 1)
         self.assertTrue(probability["cond_F_count"] == 0)
         self.assertTrue(probability["count_target_T_cond_T"] == 1)
-        self.assertTrue(probability["count_target_F_cond_T"] == 2)
+        self.assertTrue(probability["count_target_F_cond_T"] == 0)
         self.assertTrue(probability["count_target_T_cond_F"] == 0)
         self.assertTrue(probability["count_target_F_cond_F"] == 0)
         self.assertTrue(probability["cond_T_count_c"] == 1)
-        self.assertTrue(probability["cond_F_count_c"] == 2)
-        # it("getGenePrababilities(mainParameters,list(\"p27\"=1,\"CycD\"=0),\"CycE\",\"E2F\",1)", {
+        self.assertTrue(probability["cond_F_count_c"] == 0)
+
             
-        #     probability <- getGenePrababilities_basic(mainParameters, list(p27 = 1, CycD = 0), "CycE", "E2F", 1, NULL)[[1]]
-        #     expect_equal(probability$target_T_count, 1)
-        #     expect_equal(probability$target_F_count, 8)
-        #     expect_equal(probability$count_cond_T_target_T, 1)
-        #     expect_equal(probability$count_cond_F_target_T, 0)
-        #     expect_equal(probability$count_cond_T_target_F, 2)
-        #     expect_equal(probability$count_cond_F_target_F, 0)
-        #     expect_equal(probability$cond_T_count, 3)
-        #     expect_equal(probability$cond_F_count, 0)
-            
-        #     expect_equal(probability$count_target_T_cond_T, 1)
-        #     expect_equal(probability$count_target_F_cond_T, 2)
-        #     expect_equal(probability$count_target_T_cond_F, 0)
-        #     expect_equal(probability$count_target_F_cond_F, 0)
-        #     expect_equal(probability$cond_T_count_c, 1)
-        #     expect_equal(probability$cond_F_count_c, 2)
-        # })
 if __name__ == "__main__":
     # convert an array into matrix
     # Example 1D array

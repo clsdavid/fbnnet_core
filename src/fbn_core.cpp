@@ -340,6 +340,63 @@ py::dict getBasicMeasures(
     std::vector<double> state_cond_T_target_F = {1.0, 0.0};
     std::vector<double> state_cond_F_target_F = {0.0, 0.0};
 
+    debug_str("state_cond_T_target_T");
+    // debug_str(std::to_string(recount_target));
+ 
+    auto stateTCond_buf = stateTCond.request();
+    // debug_str("stateTCond_buf");
+    // debug_function(stateTCond_buf);
+
+    if (stateTCond_buf.size > 1) {
+        // Get last two rows of matrix m
+        auto m_buf = m.request();
+        size_t rows = m_buf.shape[0];
+        size_t cols = m_buf.shape[1];
+        
+        if (rows < 2) {
+            throw std::runtime_error("Matrix m must have at least 2 rows for recount");
+        }
+
+        // Correct way to create a new array with specific shape
+        auto m2 = py::array_t<double>({static_cast<py::ssize_t>(2), static_cast<py::ssize_t>(cols)});
+        auto m2_buf = m2.mutable_unchecked<2>();
+        auto m_buf_acc = m.unchecked<2>();
+
+        // Copy last two rows
+        for (size_t i = 0; i < 2; i++) {
+            for (size_t j = 0; j < cols; j++) {
+                m2_buf(i, j) = m_buf_acc(rows - 2 + i, j);
+            }
+        }
+
+        // Convert state vectors to numpy arrays
+        auto state_cond_T_target_T_arr = py::array_t<double>(state_cond_T_target_T.size(), state_cond_T_target_T.data());
+        auto state_cond_F_target_T_arr = py::array_t<double>(state_cond_F_target_T.size(), state_cond_F_target_T.data());
+        auto state_cond_T_target_F_arr = py::array_t<double>(state_cond_T_target_F.size(), state_cond_T_target_F.data());
+        auto state_cond_F_target_F_arr = py::array_t<double>(state_cond_F_target_F.size(), state_cond_F_target_F.data());
+
+        debug_str("state_cond_T_target_T_arr");
+        debug_function(m2);
+        debug_function(state_cond_T_target_T_arr);
+        debug_function(state_cond_F_target_T_arr);
+        debug_function(state_cond_T_target_F_arr);
+        debug_function(state_cond_F_target_F_arr);
+
+
+        // Count matches
+        int sresTT = matchCount(m2, state_cond_T_target_T_arr);
+        int sresTF = matchCount(m2, state_cond_F_target_T_arr);
+        int sresFT = matchCount(m2, state_cond_T_target_F_arr);
+        int sresFF = matchCount(m2, state_cond_F_target_F_arr);
+
+        target_T_count = sresTT + sresTF;
+        target_F_count = sresFT + sresFF;
+    } else {
+        target_T_count = count_cond_T_target_T + count_cond_F_target_T;
+        target_F_count = count_cond_T_target_F + count_cond_F_target_F;
+    }
+    
+
     int count_target_T_cond_T = matchCount(mc, target_T_cond_T_state);
     int count_target_F_cond_T = matchCount(mc, target_F_cond_T_state);
     int count_target_T_cond_F = matchCount(mc, target_T_cond_F_state);
@@ -347,10 +404,8 @@ py::dict getBasicMeasures(
 
     // Create and return result dictionary
     py::dict result;
-    result["target_T_count"] = count_cond_T_target_T + count_cond_F_target_T;;
-    result["target_F_count"] = count_cond_T_target_F + count_cond_F_target_F;;
-    result["target_T_count_c"] = count_target_T_cond_T + count_target_T_cond_F;
-    result["target_F_count_c"] = count_target_F_cond_T + count_target_F_cond_F;;
+    result["target_T_count"] = target_T_count;;
+    result["target_F_count"] = target_F_count;
     result["cond_T_count"] = count_cond_T_target_T + count_cond_T_target_F;
     result["cond_F_count"] = count_cond_F_target_T + count_cond_F_target_F;
     result["cond_T_count_c"] = count_target_T_cond_T + count_target_F_cond_T;
@@ -443,6 +498,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     // py::object copy = py::module_::import("copy").attr("deepcopy");
     py::dict cond_gene_T_states = deep_copy_dict(cur_fixed_state);
     py::dict cond_gene_F_states = deep_copy_dict(cur_fixed_state);
+
     debug_str("step 2 - initialized cond_gene_T_states and cond_gene_F_states");
     debug_function(cond_gene_T_states);
     debug_function(cond_gene_F_states);
@@ -461,21 +517,39 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     debug_str("step 2 - have value to cond_gene_T_states and cond_gene_F_states");
     debug_function(cond_gene_T_states);
     debug_function(cond_gene_F_states);
-
     // Get states in order, the order is very important
     std::vector<size_t> indexes3 = a_in_b_index(conditional_genes, rownames);
+
     std::sort(indexes3.begin(), indexes3.end());
+    // Remove duplicates
     std::vector<std::string> uniqued_conditional_genes;
     for(size_t idx : indexes3) {
         uniqued_conditional_genes.push_back(rownames[idx]);
     }
+
+    std::vector<std::string> uniqued_conditional_genes_target;
+    // add uniqued_conditional_genes to the end of uniqued_conditional_genes_target
+    for(size_t i = 0; i < uniqued_conditional_genes.size(); i++) {
+        uniqued_conditional_genes_target.push_back(uniqued_conditional_genes[i]);
+    }
+    uniqued_conditional_genes_target.push_back(target_gene[0]);
+    std::vector<std::string> target_uniqued_conditional_genes;
+    target_uniqued_conditional_genes.push_back(target_gene[0]);
+    // add uniqued_conditional_genes to the end of target_uniqued_conditional_genes
+    for(size_t i = 0; i < uniqued_conditional_genes.size(); i++) {
+        target_uniqued_conditional_genes.push_back(uniqued_conditional_genes[i]);
+    }
+
     debug_str(join_vector(uniqued_conditional_genes, ","));
+    debug_str(join_vector(uniqued_conditional_genes_target, ","));
+    debug_str(join_vector(target_uniqued_conditional_genes, ","));
     debug_str("step 3");
+
     int num_of_conditional_genes = static_cast<int>(uniqued_conditional_genes.size());
     
     // print uniqued_conditional_genes for debug
     std:: string sep = ", ";
-    debug_str(std::string("cond_gene_T_states: ") + join_vector(uniqued_conditional_genes, sep));
+
     debug_function(cond_gene_T_states);
     // debug_str("uniqued_conditional_genes: " + join_vector(uniqued_conditional_genes, ","));
     cond_gene_T_states = orderByName(cond_gene_T_states, uniqued_conditional_genes);
@@ -533,13 +607,14 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     py::list getAllTemporalStates = generate_temporal_gene_states(
         main_parameters_in_ref,
         target_gene,
-        conditional_genes,
+        uniqued_conditional_genes,
         temporal
     );
     debug_str("step 6");
     py::dict resultGroup;
 
     debug_str("step 7");
+
     for(size_t i = 0; i < getAllTemporalStates.size(); i++) {
         debug_str("step 7.1." + std::to_string(i));
         py::dict temporalState = getAllTemporalStates[i].cast<py::dict>();
@@ -568,8 +643,9 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             computation_Matrix_c = computation_obj_c.cast<py::array_t<double>>();
         }
 
-        // debug_function(computation_Matrix);
-        // debug_function(computation_Matrix_c);
+        debug_str("step 7.1.3." + std::to_string(i));
+        debug_function(computation_Matrix);
+        debug_function(computation_Matrix_c);
 
         debug_str("step 7.2." + std::to_string(i));
         // Create named array objects to avoid temporary reference issues
