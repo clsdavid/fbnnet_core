@@ -304,10 +304,10 @@ py::dict getBasicMeasures(
     py::array_t<double>& cond_F_target_T_state,
     py::array_t<double>& cond_T_target_F_state,
     py::array_t<double>& cond_F_target_F_state,
-    py::array_t<double>& cond_T_target_T_state_c,
-    py::array_t<double>& cond_F_target_T_state_c,
-    py::array_t<double>& cond_T_target_F_state_c,
-    py::array_t<double>& cond_F_target_F_state_c,
+    py::array_t<double>& target_T_cond_T_state,
+    py::array_t<double>& target_F_cond_T_state,
+    py::array_t<double>& target_T_cond_F_state,
+    py::array_t<double>& target_F_cond_F_state,
     bool recount_target) {
     
     int target_T_count = 0;
@@ -322,11 +322,14 @@ py::dict getBasicMeasures(
     debug_function(cond_F_target_T_state);
     debug_function(cond_T_target_F_state);
     debug_function(cond_F_target_F_state);
-
-    int lenTT = matchCount(m, cond_T_target_T_state);
-    int lenTF = matchCount(m, cond_F_target_T_state);
-    int lenFT = matchCount(m, cond_T_target_F_state);
-    int lenFF = matchCount(m, cond_F_target_F_state);
+    // rename lenTT to count_cond_T_target_T, 
+    // rename lenTF to count_cond_F_target_T, 
+    // rename lenFT to count_cond_T_target_F, 
+    // rename lenFF to count_cond_F_target_F    
+    int count_cond_T_target_T = matchCount(m, cond_T_target_T_state);
+    int count_cond_F_target_T = matchCount(m, cond_F_target_T_state);
+    int count_cond_T_target_F = matchCount(m, cond_T_target_F_state);
+    int count_cond_F_target_F = matchCount(m, cond_F_target_F_state);
 
     // State vectors
     std::vector<double> stateTT = {1.0, 1.0};
@@ -386,33 +389,37 @@ py::dict getBasicMeasures(
             target_T_count = sresTT + sresTF;
             target_F_count = sresFT + sresFF;
         } else {
-            target_T_count = lenTT + lenTF;
-            target_F_count = lenFT + lenFF;
+            target_T_count = count_cond_T_target_T + count_cond_F_target_T;
+            target_F_count = count_cond_T_target_F + count_cond_F_target_F;
         }
     }
 
     // Control condition counts
-    int lenTT_c = matchCount(mc, cond_T_target_T_state_c);
-    int lenTF_c = matchCount(mc, cond_F_target_T_state_c);
-    int lenFT_c = matchCount(mc, cond_T_target_F_state_c);
-    int lenFF_c = matchCount(mc, cond_F_target_F_state_c);
+    // rename lenTT_c to count_target_T_cond_T
+    // rename lenTF_c to count_target_F_cond_T
+    // rename lenFT_c to count_target_T_cond_F
+    // rename lenFF_c to count_target_F_cond_F
+    int count_target_T_cond_T = matchCount(mc, target_T_cond_T_state);
+    int count_target_F_cond_T = matchCount(mc, target_F_cond_T_state);
+    int count_target_T_cond_F = matchCount(mc, target_T_cond_F_state);
+    int count_target_F_cond_F = matchCount(mc, target_F_cond_F_state);
 
     // Create and return result dictionary
     py::dict result;
     result["target_T_count"] = target_T_count;
     result["target_F_count"] = target_F_count;
-    result["cond_T_count"] = lenTT + lenFT;
-    result["cond_F_count"] = lenTF + lenFF;
-    result["cond_T_count_c"] = lenTT_c + lenFT_c;
-    result["cond_F_count_c"] = lenTF_c + lenFF_c;
-    result["lenTT"] = lenTT;
-    result["lenTF"] = lenTF;
-    result["lenFT"] = lenFT;
-    result["lenFF"] = lenFF;
-    result["lenTT_c"] = lenTT_c;
-    result["lenTF_c"] = lenTF_c;
-    result["lenFT_c"] = lenFT_c;
-    result["lenFF_c"] = lenFF_c;
+    result["cond_T_count"] = count_cond_T_target_T + count_cond_T_target_F;
+    result["cond_F_count"] = count_cond_F_target_T + count_cond_F_target_F;
+    result["cond_T_count_c"] = count_target_T_cond_T + count_target_T_cond_F;
+    result["cond_F_count_c"] = count_target_F_cond_T + count_target_F_cond_F;
+    result["count_cond_T_target_T"] = count_cond_T_target_T;
+    result["count_cond_F_target_T"] = count_cond_F_target_T;
+    result["count_cond_T_target_F"] = count_cond_T_target_F;
+    result["count_cond_F_target_F"] = count_cond_F_target_F;
+    result["count_target_T_cond_T"] = count_target_T_cond_T;
+    result["count_target_F_cond_T"] = count_target_F_cond_T;
+    result["count_target_T_cond_F"] = count_target_T_cond_F;
+    result["count_target_F_cond_F"] = count_target_F_cond_F;
     
     return result;
 }
@@ -538,8 +545,11 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
 
     debug_str("step 3.1");
     // Convert dictionary values to vectors
+    // state T count and state F count
+    // stateTCond and stateFCond are the states of the conditional genes of previous time step
     std::vector<double> stateTCond;
     std::vector<double> stateFCond;
+    // load prefixed values and current conditional gene states
     for(const auto& gene : uniqued_conditional_genes) {
         stateTCond.push_back(cond_gene_T_states[gene.c_str()].cast<double>());
         stateFCond.push_back(cond_gene_F_states[gene.c_str()].cast<double>());
@@ -567,15 +577,15 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
 
 
     // Prepare counter vectors
-    std::vector<double> cond_T_target_T_state_c = concatenate(mTRUE, stateTCond);
-    std::vector<double> cond_F_target_T_state_c = concatenate(mFALSE, stateTCond);
-    std::vector<double> cond_T_target_F_state_c = concatenate(mTRUE, stateFCond);
-    std::vector<double> cond_F_target_F_state_c = concatenate(mFALSE, stateFCond);
+    std::vector<double> target_T_cond_T_state = concatenate(mTRUE, stateTCond);
+    std::vector<double> target_F_cond_T_state = concatenate(mFALSE, stateTCond);
+    std::vector<double> target_T_cond_F_state = concatenate(mTRUE, stateFCond);
+    std::vector<double> target_F_cond_F_state = concatenate(mFALSE, stateFCond);
 
-    debug_str("cond_T_target_T_state_c " + join_double(cond_T_target_T_state_c, ","));
-    debug_str("cond_F_target_T_state_c " + join_double(cond_F_target_T_state_c, ","));
-    debug_str("cond_T_target_F_state_c " + join_double(cond_T_target_F_state_c, ","));
-    debug_str("cond_F_target_F_state_c " + join_double(cond_F_target_F_state_c, ","));
+    debug_str("target_T_cond_T_state " + join_double(target_T_cond_T_state, ","));
+    debug_str("target_F_cond_T_state " + join_double(target_F_cond_T_state, ","));
+    debug_str("target_T_cond_F_state " + join_double(target_T_cond_F_state, ","));
+    debug_str("target_F_cond_F_state " + join_double(target_F_cond_F_state, ","));
     debug_str("step 5");
     // Get all combinations of temporal timeseries
     py::list getAllTemporalStates = generate_temporal_gene_states(
@@ -635,10 +645,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         py::array_t<double> cond_F_target_T_state_array(cond_F_target_T_state.size(), cond_F_target_T_state.data());
         py::array_t<double> cond_T_target_F_state_array(cond_T_target_F_state.size(), cond_T_target_F_state.data());
         py::array_t<double> cond_F_target_F_state_array(cond_F_target_F_state.size(), cond_F_target_F_state.data());
-        py::array_t<double> cond_T_target_T_state_c_array(cond_T_target_T_state_c.size(), cond_T_target_T_state_c.data());
-        py::array_t<double> cond_F_target_T_state_c_array(cond_F_target_T_state_c.size(), cond_F_target_T_state_c.data());
-        py::array_t<double> cond_T_target_F_state_c_array(cond_T_target_F_state_c.size(), cond_T_target_F_state_c.data());
-        py::array_t<double> cond_F_target_F_state_c_array(cond_F_target_F_state_c.size(), cond_F_target_F_state_c.data());
+        py::array_t<double> target_T_cond_T_state_array(target_T_cond_T_state.size(), target_T_cond_T_state.data());
+        py::array_t<double> target_F_cond_T_state_array(target_F_cond_T_state.size(), target_F_cond_T_state.data());
+        py::array_t<double> target_T_cond_F_state_array(target_T_cond_F_state.size(), target_T_cond_F_state.data());
+        py::array_t<double> target_F_cond_F_state_array(target_F_cond_F_state.size(), target_F_cond_F_state.data());
         debug_str("step 7.3." + std::to_string(i));
         // print all input arrays for debug
         debug_str("stateTCond_array");
@@ -655,14 +665,14 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         debug_function(cond_T_target_F_state_array);
         debug_str("cond_F_target_F_state_array");
         debug_function(cond_F_target_F_state_array);
-        debug_str("cond_T_target_T_state_c_array");
-        debug_function(cond_T_target_T_state_c_array);
-        debug_str("cond_F_target_T_state_c_array");
-        debug_function(cond_F_target_T_state_c_array);
-        debug_str("cond_T_target_F_state_c_array");
-        debug_function(cond_T_target_F_state_c_array);
-        debug_str("cond_F_target_F_state_c_array");
-        debug_function(cond_F_target_F_state_c_array);
+        debug_str("target_T_cond_T_state_array");
+        debug_function(target_T_cond_T_state_array);
+        debug_str("target_F_cond_T_state_array");
+        debug_function(target_F_cond_T_state_array);
+        debug_str("target_T_cond_F_state_array");
+        debug_function(target_T_cond_F_state_array);
+        debug_str("target_F_cond_F_state_array");
+        debug_function(target_F_cond_F_state_array);
 
         py::dict result = getBasicMeasures(
             stateTCond_array,
@@ -672,10 +682,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             cond_F_target_T_state_array,
             cond_T_target_F_state_array,
             cond_F_target_F_state_array,
-            cond_T_target_T_state_c_array,
-            cond_F_target_T_state_c_array,
-            cond_T_target_F_state_c_array,
-            cond_F_target_F_state_c_array,
+            target_T_cond_T_state_array,
+            target_F_cond_T_state_array,
+            target_T_cond_F_state_array,
+            target_F_cond_F_state_array,
             recount_target
         );
         debug_str("step 7.4." + std::to_string(i));

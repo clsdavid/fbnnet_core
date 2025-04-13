@@ -194,7 +194,19 @@ class TestMathBindings(unittest.TestCase):
         arr2 = np.array([0, 1, 1, 1])
         result = fbnnet_utils.matchCount(arr1, arr2)
         print(result)
-        self.assertTrue(result, 1)
+        self.assertEqual(result, 1)
+        # p27:  0 1 0 1 9 0 1 0 1 9 1 1 0 
+        # CycD: 1 1 1 9 1 1 0 1 9 1 0 0 1 
+
+        state_matrix = np.array([[0, 1, 0, 1, 9, 0, 1, 0, 1, 9, 1, 1, 0 ],
+            [1, 1,1, 9, 1, 1, 0, 1, 9, 1, 0, 0, 1 ]], dtype=np.float64)
+        
+        tt = np.array([1, 1])
+        result2 = fbnnet_utils.matchCount(state_matrix, tt)
+        print(result2)
+        self.assertEqual(result2, 1)
+        
+
 
     def test_fisher_test_cpp(self):
         # Example 2x2 table (flattened as in R)

@@ -31,8 +31,8 @@ py::list generate_temporal_gene_states(
 py::dict createResultDict(int target_T_count, int target_F_count,
     int cond_T_count, int cond_F_count,
     int cond_T_count_c, int cond_F_count_c,
-    int lenTT, int lenTF, int lenFT, int lenFF,
-    int lenTT_c, int lenTF_c, int lenFT_c, int lenFF_c);
+    int count_cond_T_target_T, int count_cond_F_target_T, int count_cond_T_target_F, int count_cond_F_target_F,
+    int count_target_T_cond_T, int count_target_F_cond_T, int count_target_T_cond_F, int count_target_F_cond_F);
 
 py::dict getBasicMeasures(
     py::array_t<double>& stateTCond,
@@ -42,10 +42,10 @@ py::dict getBasicMeasures(
     py::array_t<double>& cond_F_target_T_state,
     py::array_t<double>& cond_T_target_F_state,
     py::array_t<double>& cond_F_target_F_state,
-    py::array_t<double>& cond_T_target_T_state_c,
-    py::array_t<double>& cond_F_target_T_state_c,
-    py::array_t<double>& cond_T_target_F_state_c,
-    py::array_t<double>& cond_F_target_F_state_c,
+    py::array_t<double>& target_T_cond_T_state,
+    py::array_t<double>& target_F_cond_T_state,
+    py::array_t<double>& target_T_cond_F_state,
+    py::array_t<double>& target_F_cond_F_state,
     bool recount_target
 );
 py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
