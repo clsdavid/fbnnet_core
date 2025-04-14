@@ -10,7 +10,7 @@ from types import SimpleNamespace
 def setupdata():
     #' Create an Orchard cube
 #'
-#' This is the main function(s) to genereate a single Orchard Cube or a group
+#' This is the main function(s) to generate a single Orchard Cube or a group
 #' of cubes
 #'
 #' @param target_genes A vector of genes that will be treated as target genes
@@ -94,7 +94,7 @@ def setupdata():
 def setupdata2():
     #' Create an Orchard cube
 #'
-#' This is the main function(s) to genereate a single Orchard Cube or a group
+#' This is the main function(s) to generate a single Orchard Cube or a group
 #' of cubes
 #'
 #' @param target_genes A vector of genes that will be treated as target genes
@@ -686,7 +686,12 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["cond_T_count_c"] == 1)
         self.assertTrue(probability["cond_F_count_c"] == 0)
 
-            
+ # need to add the test from R, which is column-wise      
+ # matrix(1:6, nrow=2, ncol=3, byrow=FALSE)
+#       [,1] [,2] [,3]
+# [1,]    1    3    5
+# [2,]    2    4    6
+    
 if __name__ == "__main__":
     # convert an array into matrix
     # Example 1D array

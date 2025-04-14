@@ -144,7 +144,7 @@ py::list generate_temporal_gene_states(
     // previousStates means the conditional gene states
     // currentStates_c means the conditional gene states as target gene states
     // previousStates_c means the target gene states as conditional gene states
-    // each state is a list of matrices in different temporal, for eaxample, 1 means the current state is determined by the previous state at 1 step., 
+    // each state is a list of matrices in different temporal, for example, 1 means the current state is determined by the previous state at 1 step., 
     // 2 means the current state is determined by the previous state at 2 steps.
     if (!main_parameters.contains("currentStates") || 
         !main_parameters.contains("previousStates") ||
@@ -242,35 +242,12 @@ py::list generate_temporal_gene_states(
         py::array_t<double> previous_state_sliced_c = previous_state_c.attr("__getitem__")(
             py::make_tuple(py::slice(0, n_row, 1), py::slice(0, n_state - i, 1))).cast<py::array_t<double>>();
 
-        // debug_str("Before Extracted matrices:");
-        // debug_str("Before Extracted previous_state_sliced matrix:");
-        // debug_function(previous_state_sliced);
-        // debug_str("Before Extracted current_state_sliced matrix:"); 
-        // debug_function(current_state_sliced);
-        // debug_str("Before Extracted previous_state_sliced_c matrix c:");
-        // debug_function(previous_state_sliced_c);
-        // debug_str("Before Extracted current_state_sliced_c matrix c:"); 
-        // debug_function(current_state_sliced_c);
-
         // Extract gene states with validation
         FBNMatrix extracted_condition = extract_gene_states(previous_state_sliced, conditional_genes, get_row_names);
         FBNMatrix extracted_target = extract_gene_states(current_state_sliced, target_gene, get_row_names);
         FBNMatrix extracted_condition_c = extract_gene_states(previous_state_sliced_c, target_gene, get_row_names);
         FBNMatrix extracted_target_c = extract_gene_states(current_state_sliced_c, conditional_genes, get_row_names);
 
-        // debug_str("Extracted matrices:");
-        // debug_str("Extracted condition matrix:"); // conditional
-        // extracted_condition.print();
-        // debug_function(extracted_condition.matrix_t());
-        // debug_str("Extracted target matrix:"); //target
-        // extracted_target.print();
-        // debug_function(extracted_target.matrix_t());
-        // debug_str("Extracted condition matrix c:");  // target
-        // extracted_condition_c.print();
-        // debug_function(extracted_condition_c.matrix_t());
-        // debug_str("Extracted target matrix c:"); //conditional
-        // extracted_target_c.print();
-        // debug_function(extracted_target_c.matrix_t());
         // Combine matrices: condition on top and target on bottom
         py::array_t<double> concatenated_matrix = mrbind(extracted_condition.matrix_t(), extracted_target.matrix_t());
         py::array_t<double> concatenated_matrix_c = mrbind(extracted_condition_c.matrix_t(), extracted_target_c.matrix_t());
@@ -313,14 +290,7 @@ py::dict getBasicMeasures(
     int target_F_count = 0;
 
     // Condition counts
-    // print below input for debug
-    debug_str("state_cond_T_target_T- start");
-    debug_function(m);
-    debug_function(mc);
-    debug_function(cond_T_target_T_state);
-    debug_function(cond_F_target_T_state);
-    debug_function(cond_T_target_F_state);
-    debug_function(cond_F_target_F_state);
+
     // rename lenTT to count_cond_T_target_T, 
     // rename lenTF to count_cond_F_target_T, 
     // rename lenFT to count_cond_T_target_F, 
@@ -340,12 +310,7 @@ py::dict getBasicMeasures(
     std::vector<double> state_cond_T_target_F = {1.0, 0.0};
     std::vector<double> state_cond_F_target_F = {0.0, 0.0};
 
-    debug_str("state_cond_T_target_T");
-    // debug_str(std::to_string(recount_target));
- 
     auto stateTCond_buf = stateTCond.request();
-    // debug_str("stateTCond_buf");
-    // debug_function(stateTCond_buf);
 
     if (stateTCond_buf.size > 1) {
         // Get last two rows of matrix m
@@ -368,20 +333,11 @@ py::dict getBasicMeasures(
                 m2_buf(i, j) = m_buf_acc(rows - 2 + i, j);
             }
         }
-
         // Convert state vectors to numpy arrays
         auto state_cond_T_target_T_arr = py::array_t<double>(state_cond_T_target_T.size(), state_cond_T_target_T.data());
         auto state_cond_F_target_T_arr = py::array_t<double>(state_cond_F_target_T.size(), state_cond_F_target_T.data());
         auto state_cond_T_target_F_arr = py::array_t<double>(state_cond_T_target_F.size(), state_cond_T_target_F.data());
         auto state_cond_F_target_F_arr = py::array_t<double>(state_cond_F_target_F.size(), state_cond_F_target_F.data());
-
-        debug_str("state_cond_T_target_T_arr");
-        debug_function(m2);
-        debug_function(state_cond_T_target_T_arr);
-        debug_function(state_cond_F_target_T_arr);
-        debug_function(state_cond_T_target_F_arr);
-        debug_function(state_cond_F_target_F_arr);
-
 
         // Count matches
         int sresTT = matchCount(m2, state_cond_T_target_T_arr);
@@ -450,15 +406,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     std::vector<std::string> conditional_genes2;
     py::dict cur_fixed_state;
     
-    debug_str("step 1");
     if(fixedgenestate.is_none()) {
         conditional_genes = new_conditional_gene;
     } else {
-        // fixedgenestate = fixedgenestate_obj.cast<py::dict>();
-        // cur_fixed_state = py::cast<py::dict>(fixedgenestate);
-        debug_str("fixedgenestate is not None");
         cur_fixed_state = fixedgenestate.cast<py::dict>();
-        debug_str("can cast fixedgenestate to dict");
         // Get keys (names) from the dictionary
         for (auto item : cur_fixed_state) {
             conditional_genes.push_back(item.first.cast<std::string>());
@@ -494,14 +445,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             conditional_genes.push_back(new_conditional_gene[0]);
         }
     }
-    debug_str("step 2");
     // py::object copy = py::module_::import("copy").attr("deepcopy");
     py::dict cond_gene_T_states = deep_copy_dict(cur_fixed_state);
     py::dict cond_gene_F_states = deep_copy_dict(cur_fixed_state);
 
-    debug_str("step 2 - initialized cond_gene_T_states and cond_gene_F_states");
-    debug_function(cond_gene_T_states);
-    debug_function(cond_gene_F_states);
 
     // Add the new conditional gene to the current fixedgenestate
     // loop through conditional_genes and add them to the dictionary
@@ -514,9 +461,6 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         }
     }
 
-    debug_str("step 2 - have value to cond_gene_T_states and cond_gene_F_states");
-    debug_function(cond_gene_T_states);
-    debug_function(cond_gene_F_states);
     // Get states in order, the order is very important
     std::vector<size_t> indexes3 = a_in_b_index(conditional_genes, rownames);
 
@@ -540,26 +484,15 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         target_uniqued_conditional_genes.push_back(uniqued_conditional_genes[i]);
     }
 
-    debug_str(join_vector(uniqued_conditional_genes, ","));
-    debug_str(join_vector(uniqued_conditional_genes_target, ","));
-    debug_str(join_vector(target_uniqued_conditional_genes, ","));
-    debug_str("step 3");
-
+    // debug_str(join_vector(uniqued_conditional_genes, ","));
     int num_of_conditional_genes = static_cast<int>(uniqued_conditional_genes.size());
     
     // print uniqued_conditional_genes for debug
     std:: string sep = ", ";
 
-    debug_function(cond_gene_T_states);
-    // debug_str("uniqued_conditional_genes: " + join_vector(uniqued_conditional_genes, ","));
     cond_gene_T_states = orderByName(cond_gene_T_states, uniqued_conditional_genes);
     cond_gene_F_states = orderByName(cond_gene_F_states, uniqued_conditional_genes);
 
-    debug_str("reordered");
-    debug_function(cond_gene_T_states);
-    debug_function(cond_gene_F_states);
-
-    debug_str("step 3.1");
     // Convert dictionary values to vectors
     // state T count and state F count
     // stateTCond and stateFCond are the states of the conditional genes of previous time step
@@ -571,12 +504,6 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         stateFCond.push_back(cond_gene_F_states[gene.c_str()].cast<double>());
     }
 
-    debug_str("state cond");
-    debug_str("stateTCond: " + join_double(stateTCond, ","));
-    debug_str("stateFCond: " + join_double(stateFCond, ","));
-
-
-    debug_str("step 4");
     std::vector<double> mTRUE = {1.0};
     std::vector<double> mFALSE = {0.0};
     
@@ -586,23 +513,12 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     std::vector<double> cond_T_target_F_state = concatenate(stateTCond, mFALSE);
     std::vector<double> cond_F_target_F_state = concatenate(stateFCond, mFALSE);
     
-    debug_str("cond_T_target_T_state " + join_double(cond_T_target_T_state, ","));
-    debug_str("cond_F_target_T_state " + join_double(cond_F_target_T_state, ","));
-    debug_str("cond_T_target_F_state " + join_double(cond_T_target_F_state, ","));
-    debug_str("cond_F_target_F_state " + join_double(cond_F_target_F_state, ","));
-
-
     // Prepare counter vectors
     std::vector<double> target_T_cond_T_state = concatenate(mTRUE, stateTCond);
     std::vector<double> target_F_cond_T_state = concatenate(mFALSE, stateTCond);
     std::vector<double> target_T_cond_F_state = concatenate(mTRUE, stateFCond);
     std::vector<double> target_F_cond_F_state = concatenate(mFALSE, stateFCond);
 
-    debug_str("target_T_cond_T_state " + join_double(target_T_cond_T_state, ","));
-    debug_str("target_F_cond_T_state " + join_double(target_F_cond_T_state, ","));
-    debug_str("target_T_cond_F_state " + join_double(target_T_cond_F_state, ","));
-    debug_str("target_F_cond_F_state " + join_double(target_F_cond_F_state, ","));
-    debug_str("step 5");
     // Get all combinations of temporal timeseries
     py::list getAllTemporalStates = generate_temporal_gene_states(
         main_parameters_in_ref,
@@ -610,25 +526,18 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         uniqued_conditional_genes,
         temporal
     );
-    debug_str("step 6");
+
     py::dict resultGroup;
-
-    debug_str("step 7");
-
     for(size_t i = 0; i < getAllTemporalStates.size(); i++) {
-        debug_str("step 7.1." + std::to_string(i));
         py::dict temporalState = getAllTemporalStates[i].cast<py::dict>();
         int time_step = temporalState["timeStep"].cast<int>();
         int total_calculated_timepoints = n_timepoints - (total_samples * time_step);
 
         // check if temporalState["computation_Matrix"] is instance of FBNMatrix
-        debug_str("step 7.1.1." + std::to_string(i));
         py::array_t<double> computation_Matrix;
         py::array_t<double> computation_Matrix_c;
         py::object computation_obj = temporalState["computation_Matrix"];
         py::object computation_obj_c = temporalState["computation_Matrix_c"];
-        debug_function(computation_obj);
-        debug_function(computation_obj_c);
 
         if (py::isinstance<FBNMatrix>(computation_obj)) {
             computation_Matrix = computation_obj.cast<FBNMatrix>().matrix_t();
@@ -636,21 +545,14 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             computation_Matrix = computation_obj.cast<py::array_t<double>>();
         }
 
-        debug_str("step 7.1.2." + std::to_string(i));
         if(py::isinstance<FBNMatrix>(computation_obj_c)) {
             computation_Matrix_c = computation_obj_c.cast<FBNMatrix>().matrix_t();
         } else {
             computation_Matrix_c = computation_obj_c.cast<py::array_t<double>>();
         }
 
-        debug_str("step 7.1.3." + std::to_string(i));
-        debug_function(computation_Matrix);
-        debug_function(computation_Matrix_c);
-
-        debug_str("step 7.2." + std::to_string(i));
         // Create named array objects to avoid temporary reference issues
         py::array_t<double> stateTCond_array(stateTCond.size(), stateTCond.data());
-
         py::array_t<double> cond_T_target_T_state_array(cond_T_target_T_state.size(), cond_T_target_T_state.data());
         py::array_t<double> cond_F_target_T_state_array(cond_F_target_T_state.size(), cond_F_target_T_state.data());
         py::array_t<double> cond_T_target_F_state_array(cond_T_target_F_state.size(), cond_T_target_F_state.data());
@@ -659,31 +561,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         py::array_t<double> target_F_cond_T_state_array(target_F_cond_T_state.size(), target_F_cond_T_state.data());
         py::array_t<double> target_T_cond_F_state_array(target_T_cond_F_state.size(), target_T_cond_F_state.data());
         py::array_t<double> target_F_cond_F_state_array(target_F_cond_F_state.size(), target_F_cond_F_state.data());
-        debug_str("step 7.3." + std::to_string(i));
-        // print all input arrays for debug
-        debug_str("stateTCond_array");
-        debug_function(stateTCond_array);
-        debug_str("computation_Matrix");
-        debug_function(computation_Matrix);
-        debug_str("computation_Matrix_c");
-        debug_function(computation_Matrix_c);
-        debug_str("cond_T_target_T_state_array");
-        debug_function(cond_T_target_T_state_array);
-        debug_str("cond_F_target_T_state_array");
-        debug_function(cond_F_target_T_state_array);
-        debug_str("cond_T_target_F_state_array");
-        debug_function(cond_T_target_F_state_array);
-        debug_str("cond_F_target_F_state_array");
-        debug_function(cond_F_target_F_state_array);
-        debug_str("target_T_cond_T_state_array");
-        debug_function(target_T_cond_T_state_array);
-        debug_str("target_F_cond_T_state_array");
-        debug_function(target_F_cond_T_state_array);
-        debug_str("target_T_cond_F_state_array");
-        debug_function(target_T_cond_F_state_array);
-        debug_str("target_F_cond_F_state_array");
-        debug_function(target_F_cond_F_state_array);
-
+        
         py::dict result = getBasicMeasures(
             stateTCond_array,
             computation_Matrix,
@@ -697,22 +575,15 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             target_T_cond_F_state_array,
             target_F_cond_F_state_array
         );
-        debug_str("step 7.4." + std::to_string(i));
-
         if (!result.contains("target_T_count") || !result.contains("target_F_count")) {
             throw std::runtime_error("result missing required keys!");
         }
-        
-        debug_str("step 7.5." + std::to_string(i));
         result["total_calculated_timepoints"] = total_calculated_timepoints;
         result["num_of_conditional_genes"] = num_of_conditional_genes;
         result["timestep"] = time_step;
-        debug_str("step 7.6." + std::to_string(i));
-        debug_function(result);
         std::string time_step_str = std::to_string(time_step);
         resultGroup[py::str(time_step_str)] = result;  // Recommended for Unicode safety
     }
-    debug_str("finished");
     return resultGroup;
 }
 
