@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <pybind11/embed.h> // for calling Python functions
 #include <cmath>
 #include <algorithm>
 #include <sstream>
@@ -472,7 +473,7 @@ int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
 }
 
 // add back the missing functions
-py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level) {
+py::dict compute_fisher_test(py::array_t<double>& x, double conf_level) {
     try {
         // This for 2x2 table
         // Import statsmodels
@@ -497,8 +498,31 @@ py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level) {
     } 
     catch (const std::exception &e) {
         // Handle errors (e.g., statsmodels not installed)
-        throw std::runtime_error("Error in fisher_test_cpp: " + std::string(e.what()));
+        throw std::runtime_error("Error in compute_fisher_test: " + std::string(e.what()));
     }
+}
+
+py::array_t<double> compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF) {
+    // Start Python interpreter (if using embedded mode)
+    py::module_ scipy_stats = py::module_::import("scipy.stats");
+    py::object chi2_ppf = scipy_stats.attr("chi2").attr("ppf");
+
+    // Build 2x2 NumPy array
+    py::array_t<double> vectors = py::array_t<double>({2, 2});
+    auto r = vectors.mutable_unchecked<2>();
+    r(0, 0) = lenTT;
+    r(0, 1) = lenFT;
+    r(1, 0) = lenTF;
+    r(1, 1) = lenFF;
+
+    // Flatten to 1D vector and apply chi-squared PPF (quantile function)
+    py::list result;
+    for (int i = 0; i < 2; ++i)
+        for (int j = 0; j < 2; ++j)
+            result.append(chi2_ppf(r(i, j), 2));
+
+    // Return as NumPy array
+    return py::array(result);
 }
 
 std::vector<std::string> subCPP(
@@ -624,9 +648,12 @@ PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("subtractM", &subtractM, "Subtract vector from matrix columns and take absolute value");
     m.def("matchCount", &matchCount, "Count how many matrix columns exactly match the vector");
 
-    m.def("fisher_test_cpp", &fisher_test_cpp,
+    m.def("compute_fisher_test", &compute_fisher_test,
         "Perform Fisher's exact test (like R's fisher.test)",
         py::arg("x"), py::arg("conf_level") = 0.95);
+    m.def("compute_chisq", &compute_chisq,
+        "Compute chi-squared test statistic",
+        py::arg("lenTT"), py::arg("lenFT"), py::arg("lenTF"), py::arg("lenFF"));
     m.def("sub_cpp", &subCPP, "A function that substitutes patterns in strings",
         py::arg("pattern"), py::arg("replacement"), py::arg("x"));
 
@@ -659,4 +686,6 @@ PYBIND11_MODULE(fbnnet_utils, m) {
         "Deep copy a Python dictionary",
         py::arg("x"));
     // ... Bind other functions
+    m.attr("__version__") = "1.0.0";
+    m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
 }

@@ -382,17 +382,17 @@ y::dict internalloopByWhole2(
 }
 
 PYBIND11_MODULE(fbn_core, m) {
-   m.def("filterTargetGenesByConditionGenes", &filterTargetGenesByConditionGenes,
-      py::arg("targetGenes"), py::arg("mainParameters"),
-      py::arg("genes"), py::arg("matchedgenes") = py::none(),
-      py::arg("temporal") = 1, py::arg("targetCounts") = py::none());
+     m.def("filterTargetGenesByConditionGenes", &filterTargetGenesByConditionGenes,
+        py::arg("targetGenes"), py::arg("mainParameters"),
+        py::arg("genes"), py::arg("matchedgenes") = py::none(),
+        py::arg("temporal") = 1, py::arg("targetCounts") = py::none());
 
-   m.def("getGenePrababilities_measurements", &getGenePrababilities_measurements,
+    m.def("getGenePrababilities_measurements", &getGenePrababilities_measurements,
          py::arg("targetGene"), py::arg("mainParameters"),
          py::arg("genes"), py::arg("matchedgenes") = py::none(),
          py::arg("temporal") = 1, py::arg("targetCounts") = py::none());
 
-   m.def("buildProbabilityTreeOnTargetGene", &buildProbabilityTreeOnTargetGene,
+    m.def("buildProbabilityTreeOnTargetGene", &buildProbabilityTreeOnTargetGene,
          py::arg("targetGene"), py::arg("mainParameters"),
          py::arg("genes"), py::arg("matchedgenes") = py::none(),
          py::arg("matchedexpression") = py::none(), py::arg("maxK") = 4,
@@ -400,14 +400,14 @@ PYBIND11_MODULE(fbn_core, m) {
          py::arg("findPositiveRegulate") = false,
          py::arg("findNegativeRegulate") = false);
 
-   m.def("mineNetworksDirect", &mineNetworksDirect,
+    m.def("mineNetworksDirect", &mineNetworksDirect,
          py::arg("targetGene"), py::arg("mainParameters"),
          py::arg("genes"), py::arg("matchedgenes") = py::none(),
          py::arg("matchedexpression") = py::none(), py::arg("maxK") = 4,
          py::arg("temporal") = 1, py::arg("targetCounts") = py::none(),
          py::arg("findPositiveRegulate") = false,
          py::arg("findNegativeRegulate") = false);
-   m.def("buildProbabilityTreeOnTargetGene", &buildProbabilityTreeOnTargetGene,
+    m.def("buildProbabilityTreeOnTargetGene", &buildProbabilityTreeOnTargetGene,
          py::arg("targetGene"),
          py::arg("mainParameters"),
          py::arg("genes"),
@@ -419,23 +419,26 @@ PYBIND11_MODULE(fbn_core, m) {
          py::arg("findPositiveRegulate") = false,
          py::arg("findNegativeRegulate") = false);
 
-   m.def("mineNetworksDirect", &mineNetworksDirect,
-      py::arg("targetGene"),
-      py::arg("mainParameters"),
-      py::arg("genes"),
-      py::arg("matchedgenes") = py::none(),
-      py::arg("matchedexpression") = py::none(),
-      py::arg("maxK") = 4,
-      py::arg("temporal") = 1,
-      py::arg("targetCounts") = py::none(),
-      py::arg("findPositiveRegulate") = false,
-      py::arg("findNegativeRegulate") = false);
+    m.def("mineNetworksDirect", &mineNetworksDirect,
+        py::arg("targetGene"),
+        py::arg("mainParameters"),
+        py::arg("genes"),
+        py::arg("matchedgenes") = py::none(),
+        py::arg("matchedexpression") = py::none(),
+        py::arg("maxK") = 4,
+        py::arg("temporal") = 1,
+        py::arg("targetCounts") = py::none(),
+        py::arg("findPositiveRegulate") = false,
+        py::arg("findNegativeRegulate") = false);
 
-   m.def("internalloopByWhole2", &internalloopByWhole2,
-      py::arg("target_gene"),
-      py::arg("conditional_genes"),
-      py::arg("maxK"),
-      py::arg("temporal"),
-      py::arg("mainParameters"));
+    m.def("internalloopByWhole2", &internalloopByWhole2,
+        py::arg("target_gene"),
+        py::arg("conditional_genes"),
+        py::arg("maxK"),
+        py::arg("temporal"),
+        py::arg("mainParameters"));
+
+    m.attr("__version__") = "1.0.0";
+    m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
 
 }

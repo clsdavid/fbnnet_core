@@ -111,4 +111,6 @@ PYBIND11_MODULE(fbn_core, m) {
             throw std::runtime_error("Filtering failed");
         }
     });
+    m.attr("__version__") = "1.0.0";
+    m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
 }

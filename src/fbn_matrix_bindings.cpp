@@ -28,4 +28,7 @@ PYBIND11_MODULE(fbnnet_matrix, m) {
         .def("print", &FBNMatrix::print, py::arg("precision") = 4)
         .def("__repr__", &FBNMatrix::to_string)
         .def("__str__", &FBNMatrix::to_string);
+
+    m.attr("__version__") = "1.0.0";
+    m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
 }

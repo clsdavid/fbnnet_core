@@ -66,7 +66,9 @@ py::array_t<double> subtractM(py::array_t<double>& m, py::array_t<double>& v);
 
 int matchCount(py::array_t<double>& m, py::array_t<double>& v);
 
-py::dict fisher_test_cpp(py::array_t<double>& x, double conf_level = 0.95);
+py::dict compute_fisher_test(py::array_t<double>& x, double conf_level = 0.95);
+
+py::array_t<double> compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF);
 
 std::vector<std::string> subCPP(const std::vector<std::string>& pattern, const std::vector<std::string>& replacement, const std::vector<std::string>& x);
 

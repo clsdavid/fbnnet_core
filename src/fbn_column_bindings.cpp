@@ -17,4 +17,7 @@ PYBIND11_MODULE(fbnnet_column, m) {
         .def("get_row_names", &FBNColumn::get_row_names)
         .def("get_values", &FBNColumn::get_values)
         .def("to_pydict", &FBNColumn::to_pydict);
+
+    m.attr("__version__") = "1.0.0";
+    m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
 }

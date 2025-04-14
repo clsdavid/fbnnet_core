@@ -665,7 +665,7 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     pTable_c_buf(1, 1) = lenFF_c;
  
     // Fisher test
-    py::dict pTest = fisher_test_cpp(pTable, 0.95);
+    py::dict pTest = compute_fisher_test(pTable, 0.95);
     double p_value = pTest["p.value"].cast<double>();
 
     //df = (r-1)(c-1) where r is the number of rows and c is the number of columns.
@@ -943,14 +943,11 @@ PYBIND11_MODULE(fbnnet_core, m) {
         py::arg("target_gene"),
         py::arg("conditional_genes"),
         py::arg("temporal"));
-    // m.def("generate_temporal_gene_states", 
-    //     &generate_temporal_gene_states,
-    //     "Generate temporal gene states",
-    //     py::arg("main_parameters"),
-    //     py::arg("target_gene"),
-    //     py::arg("conditional_genes"),
-    //     py::arg("temporal"));
+
     m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
     m.def("getGeneProbabilities_basic", &getGeneProbabilities_basic, "A function to get gene probabilities");
     m.def("getAdvancedMeasures", &getAdvancedMeasures, "Calculate advanced FBN measures");
+
+    m.attr("__version__") = "1.0.0";
+    m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
 }

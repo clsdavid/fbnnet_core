@@ -208,12 +208,12 @@ class TestMathBindings(unittest.TestCase):
         
 
 
-    def test_fisher_test_cpp(self):
+    def test_compute_fisher_test(self):
         # Example 2x2 table (flattened as in R)
         table = np.array([10, 5, 20, 15], dtype=float)
 
         # Call the C++ function (internally uses statsmodels)
-        result = fbnnet_utils.fisher_test_cpp(table, conf_level=0.95)
+        result = fbnnet_utils.compute_fisher_test(table, conf_level=0.95)
 
         print("P-value:", result["p_value"])
         print("Odds ratio:", result["estimate"])
@@ -222,6 +222,18 @@ class TestMathBindings(unittest.TestCase):
         self.assertTrue(result["estimate"] == 1.5)
         self.assertTrue(result["conf_int"][0] > 1.44)
         self.assertTrue(result["conf_int"][1] > 1.5)
+
+    def test_compute_chisq(self):
+
+        result = fbnnet_utils.compute_chisq(0.2, 0.3, 0.4, 0.1)
+        print("Chi-squared test result:", result)
+        # self.assertTrue(result["p_value"] > 0.05)
+        # self.assertTrue(result["statistic"] > 0.05)
+
+
+
+
+        # Call the C++ function (internally uses statsmodels)
 
     def test_subCPP(self):
         # Test the subCPP function
