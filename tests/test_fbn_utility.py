@@ -225,13 +225,9 @@ class TestMathBindings(unittest.TestCase):
 
     def test_compute_chisq(self):
 
-        result = fbnnet_utils.compute_chisq(0.2, 0.3, 0.4, 0.1)
+        result = fbnnet_utils.compute_chisq(1, 5, 3, 0)
         print("Chi-squared test result:", result)
-        # self.assertTrue(result["p_value"] > 0.05)
-        # self.assertTrue(result["statistic"] > 0.05)
-
-
-
+        self.assertTrue(result > 4.49)
 
         # Call the C++ function (internally uses statsmodels)
 

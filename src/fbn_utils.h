@@ -68,7 +68,7 @@ int matchCount(py::array_t<double>& m, py::array_t<double>& v);
 
 py::dict compute_fisher_test(py::array_t<double>& x, double conf_level = 0.95);
 
-py::array_t<double> compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF);
+double compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF);
 
 std::vector<std::string> subCPP(const std::vector<std::string>& pattern, const std::vector<std::string>& replacement, const std::vector<std::string>& x);
 
@@ -87,4 +87,4 @@ std::string join_double(const std::vector<double>& vec, const std::string& sep);
 
 py::dict deep_copy_dict(const py::dict& x);
 
-#endif
+#endif //FBN_UTILS_H

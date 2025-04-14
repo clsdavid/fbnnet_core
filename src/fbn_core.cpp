@@ -14,6 +14,7 @@
 #include "fbn_matrix.h"
 #include "fbn_core.h"
 #include "fbn_column.h"
+#include "fbn_chisq.h"
 
 namespace py = pybind11;
 
@@ -671,7 +672,7 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     //df = (r-1)(c-1) where r is the number of rows and c is the number of columns.
     //chiSQ = chisq.test(pTable,correct = FALSE,simulate.p.value = TRUE)
 
-    std::vector<double> chiSQ = {0.0, 0.0}; // Placeholder
+    double chiSQ =  compute_chisq(lenTT, lenFT, lenTF, lenFF); 
     
     bool isNegativeCorrelated = false;
     bool isPossitiveCorrelated = false;

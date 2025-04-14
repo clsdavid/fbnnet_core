@@ -3,7 +3,8 @@
 #include <pybind11/numpy.h>
 #include <cmath>
 #include <vector>
-#include <random> 
+#include <random>
+#include "fbn_chisq.h"
 
 
 namespace py = pybind11;
@@ -74,6 +75,7 @@ std::pair<double, std::vector<double>> poisson_chisq(const std::vector<int>& cou
     return {chi_val, expected};
 }
 
+// Fixed contingency table chi-square function
 std::pair<double, py::array_t<double>> contingency_chisq(py::array_t<int> table) {
     py::buffer_info buf = table.request();
     if (buf.ndim != 2) throw std::runtime_error("Number of dimensions must be 2");
@@ -81,6 +83,7 @@ std::pair<double, py::array_t<double>> contingency_chisq(py::array_t<int> table)
     int* data = static_cast<int*>(buf.ptr);
     size_t rows = buf.shape[0];
     size_t cols = buf.shape[1];
+    size_t total_elements = rows * cols;
     
     // Calculate row and column totals
     std::vector<int> row_totals(rows, 0);
@@ -107,13 +110,19 @@ std::pair<double, py::array_t<double>> contingency_chisq(py::array_t<int> table)
         }
     }
     
-    // Convert observed to double
-    py::array_t<double> obs_d = table.cast<double>();
+    // Convert observed to vector<double>
+    std::vector<double> obs_vec(total_elements);
+    for (size_t i = 0; i < total_elements; ++i) {
+        obs_vec[i] = static_cast<double>(data[i]);
+    }
     
-    double chi_val = chisq_statistic(
-        py::array_t<double>(obs_d), 
-        expected
-    );
+    // Convert expected to vector<double>
+    std::vector<double> exp_vec(total_elements);
+    for (size_t i = 0; i < total_elements; ++i) {
+        exp_vec[i] = exp_data[i];
+    }
+    
+    double chi_val = chisq_statistic(obs_vec, exp_vec);
     
     return {chi_val, expected};
 }
@@ -125,7 +134,7 @@ int contingency_df(py::array_t<int> table) {
     return (buf.shape[0] - 1) * (buf.shape[1] - 1);
 }
 
-int goodness_of_fit_df(int n_categories, int n_estimated_params=0) {
+int goodness_of_fit_df(int n_categories, int n_estimated_params) {
     return n_categories - 1 - n_estimated_params;
 }
 

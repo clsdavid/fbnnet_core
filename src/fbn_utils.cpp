@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <iostream>
 #include "fbn_utils.h"
+#include "fbn_chisq.h"
 
 namespace py = pybind11;
 
@@ -502,27 +503,26 @@ py::dict compute_fisher_test(py::array_t<double>& x, double conf_level) {
     }
 }
 
-py::array_t<double> compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF) {
-    // Start Python interpreter (if using embedded mode)
-    py::module_ scipy_stats = py::module_::import("scipy.stats");
-    py::object chi2_ppf = scipy_stats.attr("chi2").attr("ppf");
+double compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF) {
+    // convert lenTT, lenFT, lenTF, lenFF to int
+    int lenTT_int = static_cast<int>(lenTT);
+    int lenFT_int = static_cast<int>(lenFT);
+    int lenTF_int = static_cast<int>(lenTF);
+    int lenFF_int = static_cast<int>(lenFF);
 
-    // Build 2x2 NumPy array
-    py::array_t<double> vectors = py::array_t<double>({2, 2});
-    auto r = vectors.mutable_unchecked<2>();
-    r(0, 0) = lenTT;
-    r(0, 1) = lenFT;
-    r(1, 0) = lenTF;
-    r(1, 1) = lenFF;
+    // build std::vector<int> for the four counts
+    std::vector<int> counts = {lenTT_int, lenFT_int, lenTF_int, lenFF_int};
 
-    // Flatten to 1D vector and apply chi-squared PPF (quantile function)
-    py::list result;
-    for (int i = 0; i < 2; ++i)
-        for (int j = 0; j < 2; ++j)
-            result.append(chi2_ppf(r(i, j), 2));
-
-    // Return as NumPy array
-    return py::array(result);
+    double lambda_est = 2.0;  // Estimated lambda parameter
+    // get result from poisson_chisq (fbn_chisq.cpp)
+    // Call the Poisson chi-square function
+    std::pair<double, std::vector<double>> result = poisson_chisq(counts, lambda_est);
+    // Extract the chi-square statistic
+    double chi_square_statistic = result.first;
+    // Extract the expected values
+    std::vector<double> expected_values = result.second;
+    // Return the chi-square statistic
+    return chi_square_statistic;
 }
 
 std::vector<std::string> subCPP(
