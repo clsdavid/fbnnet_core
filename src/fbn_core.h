@@ -52,4 +52,6 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     std::vector<std::string>& target_gene,
     std::vector<std::string>& new_conditional_gene,
     int temporal);
+
+py::dict getAdvancedMeasures(py::dict& basic_measures);
 #endif

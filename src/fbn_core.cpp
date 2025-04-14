@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <map>
 #include <unordered_map>
+#include <limits>
 #include "fbn_utils.h" // Include fbn_utils.h directly
 #include "fbn_matrix.h"
 #include "fbn_core.h"
@@ -587,6 +588,341 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     return resultGroup;
 }
 
+//Advantage methods:
+py::dict getAdvancedMeasures(py::dict& basic_measures) {
+    // Extract information
+    double cond_T_count = basic_measures["cond_T_count"].cast<double>();
+    double cond_F_count = basic_measures["cond_F_count"].cast<double>();
+    double target_T_count = basic_measures["target_T_count"].cast<double>();
+    double target_F_count = basic_measures["target_F_count"].cast<double>();
+    double cond_T_count_c = basic_measures["cond_T_count_c"].cast<double>();
+    double cond_F_count_c = basic_measures["cond_F_count_c"].cast<double>();
+
+    int time_step = basic_measures["timestep"].cast<int>();
+    
+    // Condition counts
+    double lenTT = basic_measures["lenTT"].cast<double>();
+    double lenTF = basic_measures["lenTF"].cast<double>();
+    double lenFT = basic_measures["lenFT"].cast<double>();
+    double lenFF = basic_measures["lenFF"].cast<double>();
+
+    double total_calculated_timepoints = basic_measures["total_calculated_timepoints"].cast<double>();
+    
+    // Condition counter counts
+    double lenTT_c = basic_measures["lenTT_c"].cast<double>();
+    double lenTF_c = basic_measures["lenTF_c"].cast<double>();
+    double lenFT_c = basic_measures["lenFT_c"].cast<double>();
+    double lenFF_c = basic_measures["lenFF_c"].cast<double>();
+
+    double condition_T_support = dround(cond_T_count / total_calculated_timepoints, 5);
+    double condition_F_support = dround(cond_F_count / total_calculated_timepoints, 5);
+    double target_T_support = dround(target_T_count / total_calculated_timepoints, 5);
+    double target_F_support = dround(target_F_count / total_calculated_timepoints, 5);
+
+    // Final p(B if A)=p(B and A)/p(A), A=conditions, B is the target
+    double confidence_TT = 0;
+    double confidence_FT = 0;
+    if (cond_T_count > 0) {
+        confidence_TT = dround(lenTT / cond_T_count, 5);
+        confidence_FT = dround(lenFT / cond_T_count, 5);
+    }
+
+    double confidence_TF = 0;
+    double confidence_FF = 0;
+    if (cond_F_count > 0) {
+        confidence_TF = dround(lenTF / cond_F_count, 5);
+        confidence_FF = dround(lenFF / cond_F_count, 5);
+    }
+
+    // Final p(A if B)=p(B and A)/p(B), A=conditions, B is the target
+    double counter_confidence_TT = 0;
+    double counter_confidence_FT = 0;
+    double counter_confidence_TF = 0;
+    double counter_confidence_FF = 0;
+    if (cond_T_count_c > 0) {
+        counter_confidence_TT = dround(lenTT_c / cond_T_count_c, 5);
+        counter_confidence_FT = dround(lenFT_c / cond_T_count_c, 5);
+    }
+
+    if (cond_F_count_c > 0) {
+        counter_confidence_TF = dround(lenTF_c / cond_F_count_c, 5);
+        counter_confidence_FF = dround(lenFF_c / cond_F_count_c, 5);
+    }
+
+    // Create contingency table for Fisher test, named pTable, type is py::array_t<double> and the shape is (2, 2), elements are lenTT, lenTF, lenFT and lenFF.
+    py::array_t<double> pTable = py::array_t<double>({2, 2});
+    auto pTable_buf = pTable.mutable_unchecked<2>();
+    pTable_buf(0, 0) = lenTT;
+    pTable_buf(0, 1) = lenTF;
+    pTable_buf(1, 0) = lenFT;
+    pTable_buf(1, 1) = lenFF;
+    // Create contingency table for counter Fisher test, named pTable_c, type is py::array_t<double> and the shape is (2, 2), elements are lenTT_c, lenTF_c, lenFT_c and lenFF_c.
+    py::array_t<double> pTable_c = py::array_t<double>({2, 2});
+    auto pTable_c_buf = pTable_c.mutable_unchecked<2>();
+    pTable_c_buf(0, 0) = lenTT_c;
+    pTable_c_buf(0, 1) = lenTF_c;
+    pTable_c_buf(1, 0) = lenFT_c;
+    pTable_c_buf(1, 1) = lenFF_c;
+ 
+    // Fisher test
+    py::dict pTest = fisher_test_cpp(pTable, 0.95);
+    double p_value = pTest["p.value"].cast<double>();
+
+    //df = (r-1)(c-1) where r is the number of rows and c is the number of columns.
+    //chiSQ = chisq.test(pTable,correct = FALSE,simulate.p.value = TRUE)
+
+    std::vector<double> chiSQ = {0.0, 0.0}; // Placeholder
+    
+    bool isNegativeCorrelated = false;
+    bool isPossitiveCorrelated = false;
+    double test1 = (lenTF / total_calculated_timepoints) * (lenFT / total_calculated_timepoints);
+    double test2 = (lenTT / total_calculated_timepoints) * (lenFF / total_calculated_timepoints);
+    if (test1 > test2) {
+        isNegativeCorrelated = true;
+    }
+    if (test1 < test2) {
+        isPossitiveCorrelated = true;
+    }
+
+    // Shannon entropy calculations
+    double p_x1 = cond_T_count / total_calculated_timepoints;
+    double p_x2 = cond_F_count / total_calculated_timepoints;
+    double HX = -1 * (p_x1 * log(p_x1) + p_x2 * log(p_x2));
+
+    double p_y1 = target_T_count / total_calculated_timepoints;
+    double p_y2 = target_F_count / total_calculated_timepoints;
+    double HY = -1 * (p_y1 * log(p_y1) + p_y2 * log(p_y2));
+
+    if (isReallyNA(HX)) HX = 0;
+    if (isReallyNA(HY)) HY = 0;
+
+    // Conditional entropy calculations
+    double HXT_YT = -1.0 * confidence_TT * log(confidence_TT);
+    double HXF_YT = -1.0 * confidence_TF * log(confidence_TF);
+    double HXT_YF = -1.0 * confidence_FT * log(confidence_FT);
+    double HXF_YF = -1.0 * confidence_FF * log(confidence_FF);
+
+    if (isReallyNA(HXT_YT)) HXT_YT = 0;
+    if (isReallyNA(HXF_YT)) HXF_YT = 0;
+    if (isReallyNA(HXT_YF)) HXT_YF = 0;
+    if (isReallyNA(HXF_YF)) HXF_YF = 0;
+
+    // Mutual Information
+    double MXT_YT = HX - HXT_YT;
+    double MXF_YT = HX - HXF_YT;
+    double MXT_YF = HX - HXT_YF;
+    double MXF_YF = HX - HXF_YF;
+
+    // Conditional entropy
+    double conditional_entropy_TT = dround(std::abs(MXT_YT / HX), 5);
+    double conditional_entropy_TF = dround(std::abs(MXF_YT / HX), 5);
+    double conditional_entropy_FT = dround(std::abs(MXT_YF / HX), 5);
+    double conditional_entropy_FF = dround(std::abs(MXF_YF / HX), 5);
+
+    double pickT_mutualInfo = 0;
+    double pickF_mutualInfo = 0;
+    
+    double supportTT = 0;
+    if (total_calculated_timepoints > 0) {
+        supportTT = dround(lenTT / total_calculated_timepoints, 5);
+    }
+    double supportFT = 0;
+    if (total_calculated_timepoints > 0) {
+        supportFT = dround(lenFT / total_calculated_timepoints, 5);
+    }
+    double supportTF = 0;
+    if (total_calculated_timepoints > 0) {
+        supportTF = dround(lenTF / total_calculated_timepoints, 5);
+    }
+    double supportFF = 0;
+    if (total_calculated_timepoints > 0) {
+        supportFF = dround(lenFF / total_calculated_timepoints, 5);
+    }
+
+    // Calculate all confidence and max confidence
+    double max_confidence_TT = dround(std::max(confidence_TT, counter_confidence_TT), 5);
+    double all_confidence_TT = dround(std::min(confidence_TT, counter_confidence_TT), 5);
+    double max_confidence_TF = dround(std::max(confidence_TF, counter_confidence_TF), 5);
+    double all_confidence_TF = dround(std::min(confidence_TF, counter_confidence_TF), 5);
+    double max_confidence_FT = dround(std::max(confidence_FT, counter_confidence_FT), 5);
+    double all_confidence_FT = dround(std::min(confidence_FT, counter_confidence_FT), 5);
+    double max_confidence_FF = dround(std::max(confidence_FF, counter_confidence_FF), 5);
+    double all_confidence_FF = dround(std::min(confidence_FF, counter_confidence_FF), 5);
+
+    // Conditional causality test
+    double causality_test_TT = 99999;
+    if (counter_confidence_TT != 0) {
+        causality_test_TT = dround(confidence_TT / counter_confidence_TT, 2);
+    }
+
+    double causality_test_TF = 99999;
+    if (counter_confidence_TF != 0) {
+        causality_test_TF = dround(confidence_TF / counter_confidence_TF, 2);
+    }
+
+    double causality_test_FT = 99999;
+    if (counter_confidence_FT != 0) {
+        causality_test_FT = dround(confidence_FT / counter_confidence_FT, 2);
+    }
+
+    double causality_test_FF = 99999;
+    if (counter_confidence_FF != 0) {
+        causality_test_FF = dround(confidence_FF / counter_confidence_FF, 2);
+    }
+
+    double signal_activator = 0;
+    double signal_inhibitor = 0;
+    double error_activator = 0;
+    double error_inhibitor = 0;
+    double pickT_support = 0;
+    double pickT_causality_test = 0;
+    double pickT_confidenceCounter = 0;
+    double pickT_all_confidence = 0;
+    double pickT_max_confidence = 0;
+    std::string signal_sign_T = "";
+    double pickF_support = 0;
+    double pickF_causality_test = 0;
+    double pickF_confidenceCounter = 0;
+    double pickF_all_confidence = 0;
+    double pickF_max_confidence = 0;
+    std::string signal_sign_F = "";
+
+    if (confidence_TT >= confidence_TF) {
+        signal_activator = confidence_TT;
+        error_activator = 1 - confidence_TT;
+        pickT_support = supportTT;
+        pickT_causality_test = causality_test_TT;
+        pickT_confidenceCounter = counter_confidence_TT;
+        pickT_all_confidence = all_confidence_TT;
+        pickT_max_confidence = max_confidence_TT;
+        signal_sign_T = "TT";
+        pickT_mutualInfo = conditional_entropy_TT;
+    } else {
+        signal_activator = confidence_TF;
+        error_activator = 1 - confidence_TF;
+        pickT_support = supportTF;
+        pickT_causality_test = causality_test_TF;
+        pickT_confidenceCounter = counter_confidence_TF;
+        pickT_all_confidence = all_confidence_TF;
+        pickT_max_confidence = max_confidence_TF;
+        signal_sign_T = "TF";
+        pickT_mutualInfo = conditional_entropy_TF;
+    }
+
+    if (confidence_FT >= confidence_FF) {
+        signal_inhibitor = confidence_FT;
+        error_inhibitor = 1 - confidence_FT;
+        pickF_support = supportFT;
+        pickF_causality_test = causality_test_FT;
+        pickF_confidenceCounter = counter_confidence_FT;
+        pickF_all_confidence = all_confidence_FT;
+        pickF_max_confidence = max_confidence_FT;
+        signal_sign_F = "FT";
+        pickF_mutualInfo = conditional_entropy_FT;
+    } else {
+        signal_inhibitor = confidence_FF;
+        error_inhibitor = 1 - confidence_FF;
+        pickF_support = supportFF;
+        pickF_causality_test = causality_test_FF;
+        pickF_confidenceCounter = counter_confidence_FF;
+        pickF_all_confidence = all_confidence_FF;
+        pickF_max_confidence = max_confidence_FF;
+        signal_sign_F = "FF";
+        pickF_mutualInfo = conditional_entropy_FF;
+    }
+
+    bool is_Essential = true;
+    if (signal_activator == 1 && confidence_TT == confidence_TF)
+        is_Essential = false;
+
+    if (signal_inhibitor == 1 && confidence_FT == confidence_FF)
+        is_Essential = false;
+
+    if (!isNegativeCorrelated && !isPossitiveCorrelated)
+        is_Essential = false;
+
+    if (p_value > 0.05)
+        is_Essential = false;
+
+    int essential = 0;
+    if (is_Essential) essential = 1;
+
+    int causality_test_T = 0;
+    if (pickT_causality_test >= 1) causality_test_T = 1;
+
+    int causality_test_F = 0;
+    if (pickF_causality_test >= 1) causality_test_F = 1;
+
+    // Calculate best fit values
+    double bestFitP = sqrt(pow((pickT_max_confidence - signal_activator), 2) + 
+                          pow((pickT_all_confidence - pickT_confidenceCounter), 2) + 
+                          pow((signal_activator - 1), 2) + 
+                          pow((causality_test_T - 1), 2) + 
+                          pow((essential - 1), 2));
+
+    double bestFitN = sqrt(pow((pickF_max_confidence - signal_inhibitor), 2) + 
+                      pow((pickF_all_confidence - pickF_confidenceCounter), 2) + 
+                      pow((signal_inhibitor - 1), 2) + 
+                      pow((causality_test_F - 1), 2) + 
+                      pow((essential - 1), 2));
+
+    if (std::isinf(bestFitP) || isReallyNA(bestFitP))
+        bestFitP = 99999;
+
+    if (std::isinf(bestFitN) || isReallyNA(bestFitN))
+        bestFitN = 99999;
+
+    // Prepare result dictionary
+    py::dict result;
+    
+    // Add all results to the dictionary
+    result["TT"] = confidence_TT;
+    result["TF"] = confidence_TF;
+    result["FT"] = confidence_FT;
+    result["FF"] = confidence_FF;
+    result["TT_c"] = counter_confidence_TT;
+    result["TF_c"] = counter_confidence_TF;
+    result["FT_c"] = counter_confidence_FT;
+    result["FF_c"] = counter_confidence_FF;
+    result["conditionT"] = condition_T_support;
+    result["conditionF"] = condition_F_support;
+    result["targetT"] = target_T_support;
+    result["targetF"] = target_F_support;
+    result["isNegativeCorrelated"] = isNegativeCorrelated;
+    result["isPossitiveCorrelated"] = isPossitiveCorrelated;
+    result["supportTT"] = supportTT;
+    result["supportFT"] = supportFT;
+    result["supportTF"] = supportTF;
+    result["supportFF"] = supportFF;
+    result["signal_sign_T"] = signal_sign_T;
+    result["signal_sign_F"] = signal_sign_F;
+    result["timestep"] = time_step;
+    result["bestFitP"] = bestFitP;
+    result["bestFitN"] = bestFitN;
+    result["is_essential_gene"] = is_Essential;
+    result["Noise_P"] = error_activator;
+    result["Noise_N"] = error_inhibitor;
+    result["Signal_P"] = signal_activator;
+    result["Signal_N"] = signal_inhibitor;
+    result["pickT_support"] = pickT_support;
+    result["pickF_support"] = pickF_support;
+    result["pickT_causality_test"] = pickT_causality_test;
+    result["pickF_causality_test"] = pickF_causality_test;
+    result["pickT_confidenceCounter"] = pickT_confidenceCounter;
+    result["pickF_confidenceCounter"] = pickF_confidenceCounter;
+    result["pickT_all_confidence"] = pickT_all_confidence;
+    result["pickF_all_confidence"] = pickF_all_confidence;
+    result["pickT_max_confidence"] = pickT_max_confidence;
+    result["pickF_max_confidence"] = pickF_max_confidence;
+    result["basic_measures"] = basic_measures;
+    result["p_value"] = p_value;
+    result["chiSQ_value"] = chiSQ;
+    result["pickT_mutualInfo"] = pickT_mutualInfo;
+    result["pickF_mutualInfo"] = pickF_mutualInfo;
+
+    return result;
+}
+
 PYBIND11_MODULE(fbnnet_core, m) {
     m.def("extract_gene_state_from_time_series_cube", 
           &extract_gene_state_from_time_series_cube,
@@ -616,4 +952,5 @@ PYBIND11_MODULE(fbnnet_core, m) {
     //     py::arg("temporal"));
     m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
     m.def("getGeneProbabilities_basic", &getGeneProbabilities_basic, "A function to get gene probabilities");
+    m.def("getAdvancedMeasures", &getAdvancedMeasures, "Calculate advanced FBN measures");
 }
