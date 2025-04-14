@@ -62,7 +62,7 @@ py::dict orderByName(const py::dict& x, const std::vector<std::string>& names);
 py::list removeEmptyElement(const py::list& x);
 
 // Matrix math operations
-py::array_t<double> substractM(py::array_t<double>& m, py::array_t<double>& v);
+py::array_t<double> subtractM(py::array_t<double>& m, py::array_t<double>& v);
 
 int matchCount(py::array_t<double>& m, py::array_t<double>& v);
 

@@ -96,7 +96,22 @@
         "mrbind",
         "ncol",
         "ndim",
+        "nrow",
+        "numpy",
+        "oddsratio",
+        "patlen",
         "pybind",
-        "setuptools"
+        "Rcpp's",
+        "replen",
+        "repr",
+        "resizel",
+        "rownames",
+        "setupdata",
+        "setuptools",
+        "submatrices",
+        "Teste",
+        "testseries",
+        "timepoints",
+        "timestep"
     ]
 }

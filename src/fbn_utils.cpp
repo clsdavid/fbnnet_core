@@ -419,7 +419,7 @@ py::list removeEmptyElement(const py::list& x) {
     return result;
 }
 
-py::array_t<double> substractM(py::array_t<double>& m, py::array_t<double>& v) {
+py::array_t<double> subtractM(py::array_t<double>& m, py::array_t<double>& v) {
     // Access the input arrays
     auto m_buf = m.request();
     auto v_buf = v.request();
@@ -453,7 +453,7 @@ py::array_t<double> substractM(py::array_t<double>& m, py::array_t<double>& v) {
 }
 
 int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
-    py::array_t<double> diff = substractM(m, v);
+    py::array_t<double> diff = subtractM(m, v);
     auto diff_buf = diff.request();
     size_t nrow = diff_buf.shape[0];
     size_t ncol = diff_buf.shape[1];
@@ -621,7 +621,7 @@ PYBIND11_MODULE(fbnnet_utils, m) {
         "Reorder dictionary items according to specified names",
         py::arg("x"), py::arg("names"));
     m.def("removeEmptyElement", &removeEmptyElement);
-    m.def("substractM", &substractM, "Subtract vector from matrix columns and take absolute value");
+    m.def("subtractM", &subtractM, "Subtract vector from matrix columns and take absolute value");
     m.def("matchCount", &matchCount, "Count how many matrix columns exactly match the vector");
 
     m.def("fisher_test_cpp", &fisher_test_cpp,

@@ -154,18 +154,18 @@ class TestMathBindings(unittest.TestCase):
         print(result)
         self.assertTrue(result, ["A", "B", "C"])
 
-    def test_substractM(self):
-        # Test the substractM function
+    def test_subtractM(self):
+        # Test the subtractM function
         arr1 = np.array([[1, 2], [3, 4,]])
         arr2 = np.array([1,1,])
-        result = fbnnet_utils.substractM(arr1, arr2)
+        result = fbnnet_utils.subtractM(arr1, arr2)
         print(result)
         self.assertTrue(np.array_equal(result, [[0, 1], [2, 3]]))
 
-        # Test the substractM function
+        # Test the subtractM function
         arr1 = np.array([[1, 2, 2], [3, 4, 3]])
         arr2 = np.array([1,1,])
-        result = fbnnet_utils.substractM(arr1, arr2)
+        result = fbnnet_utils.subtractM(arr1, arr2)
         print(result)
         # convert result to int
         result = result.astype(int)
@@ -173,14 +173,14 @@ class TestMathBindings(unittest.TestCase):
         # test number
         arr1 = np.array([[2, 1, 2], [1, 2, 1], [2, 2, 2], [1, 2, 1]])
         arr2 = np.array([0, 1, 1, 1])
-        result = fbnnet_utils.substractM(arr1, arr2)
+        result = fbnnet_utils.subtractM(arr1, arr2)
         print(result)
         self.assertTrue(np.array_equal(result, [[2, 1, 2], [0, 1, 0], [1, 1, 1], [0, 1, 0]]))
 
         # test binary operation
         arr1 = np.array([[1, 0, 1], [0, 1, 0], [1, 1, 0], [0, 1, 0]])
         arr2 = np.array([0, 1, 1, 1])
-        result = fbnnet_utils.substractM(arr1, arr2)
+        result = fbnnet_utils.subtractM(arr1, arr2)
         print(result)
         self.assertTrue(np.array_equal(result, [[1, 0, 1], [1, 0, 1], [0, 0, 1], [1, 0, 1]]))
 

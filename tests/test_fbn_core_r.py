@@ -23,7 +23,7 @@ def setupdata():
 #' @param temporal A value that used to be 1 indicates the previous steps the
 #'  current one can depend on
 #' @param useParallel If it is TRUE, the constructing will run it in parallel,
-#'  otherwise in a singl thread
+#'  otherwise in a single thread
 
     genes_input = ["CycD", "p27", "CycE", "E2F"]
     #     testseries <- list()

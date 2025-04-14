@@ -23,7 +23,7 @@ def setupdata():
 #' @param temporal A value that used to be 1 indicates the previous steps the
 #'  current one can depend on
 #' @param useParallel If it is TRUE, the constructing will run it in parallel,
-#'  otherwise in a singl thread
+#'  otherwise in a single thread
 
     genes_input = ["CycD", "p27", "CycE", "E2F"]
     
@@ -107,7 +107,7 @@ def setupdata2():
 #' @param temporal A value that used to be 1 indicates the previous steps the
 #'  current one can depend on
 #' @param useParallel If it is TRUE, the constructing will run it in parallel,
-#'  otherwise in a singl thread
+#'  otherwise in a single thread
 
     genes_input = ["CycD", "p27", "CycE", "E2F"]
     #     testseries <- list()
@@ -496,7 +496,7 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["cond_T_count_c"] == 6)
         self.assertTrue(probability["cond_F_count_c"] == 3)
         # # Uncomment the following lines to test with different parameters
-        # probability <- getGenePrababilities_basic(mainParameters, NULL, "CycD", "p27", 1, NULL)[[1]]
+        # probability <- getGeneProbabilities_basic(mainParameters, NULL, "CycD", "p27", 1, NULL)[[1]]
 
     def test_getGeneProbabilities_basic_p27_CycD(self):
         # Prepare input data
