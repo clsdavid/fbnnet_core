@@ -275,6 +275,15 @@ py::list generate_temporal_gene_states(
 }
 
 // basic calculation of measures
+// cond_T_target_T_state_c (lenTT_c) is counterpart of cond_T_target_T_state (lenTT)
+// cond_F_target_T_state_c (lenTF_c) is counterpart of cond_F_target_T_state (lenTF)
+// cond_T_target_F_state_c (lenFT_c) is counterpart of cond_T_target_F_state (lenFT)
+// cond_F_target_F_state_c (lenFF_c) is counterpart of cond_F_target_F_state (lenFF)
+// When calculation, we combined conditional matrix and target matrix by row binding, 
+// where target matrix is on the bottom and conditional matrix is on the top.
+// When we calculate the conterpart of conditional matrix, we need to swith the position of target matrix and conditional matrix.
+// For example, lenTT_c is the count of cond_T_target_T_state_c in the concatenated matrix, 
+// where target matrix in on the upper and conditional matrix is on the bottom.
 py::dict getBasicMeasures(
     py::array_t<double>& stateTCond,
     py::array_t<double>& m,
@@ -283,10 +292,10 @@ py::dict getBasicMeasures(
     py::array_t<double>& cond_F_target_T_state,
     py::array_t<double>& cond_T_target_F_state,
     py::array_t<double>& cond_F_target_F_state,
-    py::array_t<double>& target_T_cond_T_state,
-    py::array_t<double>& target_F_cond_T_state,
-    py::array_t<double>& target_T_cond_F_state,
-    py::array_t<double>& target_F_cond_F_state) {
+    py::array_t<double>& cond_T_target_T_state_c,
+    py::array_t<double>& cond_F_target_T_state_c,
+    py::array_t<double>& cond_T_target_F_state_c,
+    py::array_t<double>& cond_F_target_F_state_c) {
     
     int target_T_count = 0;
     int target_F_count = 0;
@@ -354,14 +363,19 @@ py::dict getBasicMeasures(
         target_F_count = count_cond_T_target_F + count_cond_F_target_F;
     }
     
-    // rename lenTT_c to count_target_T_cond_T, 
-    // rename lenTF_c to count_target_F_cond_T, 
-    // rename lenFT_c to count_target_T_cond_F, 
-    // rename lenFF_c to count_target_F_cond_F  
-    int count_target_T_cond_T = matchCount(mc, target_T_cond_T_state);
-    int count_target_F_cond_T = matchCount(mc, target_F_cond_T_state);
-    int count_target_T_cond_F = matchCount(mc, target_T_cond_F_state);
-    int count_target_F_cond_F = matchCount(mc, target_F_cond_F_state);
+    // rename lenTT_c to count_cond_T_target_T_c, 
+    // rename lenTF_c to count_cond_T_target_F_c, 
+    // rename lenFT_c to count_cond_F_target_T_c, 
+    // rename lenFF_c to count_cond_F_target_F_c  
+    // int lenTT_c = matchCount(mc,cond_T_target_T_state_c);
+    // int lenTF_c = matchCount(mc,cond_F_target_T_state_c);
+    // int lenFT_c = matchCount(mc,cond_T_target_F_state_c);
+    // int lenFF_c = matchCount(mc,cond_F_target_F_state_c);
+
+    int count_cond_T_target_T_c = matchCount(mc, cond_T_target_T_state_c);
+    int count_cond_F_target_T_c = matchCount(mc, cond_F_target_T_state_c);
+    int count_cond_T_target_F_c= matchCount(mc, cond_T_target_F_state_c);
+    int count_cond_F_target_F_c = matchCount(mc, cond_F_target_F_state_c);
 
     // Create and return result dictionary
     py::dict result;
@@ -369,16 +383,16 @@ py::dict getBasicMeasures(
     result["target_F_count"] = target_F_count;
     result["cond_T_count"] = count_cond_T_target_T + count_cond_T_target_F;
     result["cond_F_count"] = count_cond_F_target_T + count_cond_F_target_F;
-    result["cond_T_count_c"] = count_target_T_cond_T + count_target_F_cond_T;
-    result["cond_F_count_c"] = count_target_T_cond_F + count_target_F_cond_F;
+    result["cond_T_count_c"] = count_cond_T_target_T_c + count_cond_T_target_F_c;
+    result["cond_F_count_c"] = count_cond_F_target_T_c + count_cond_F_target_F_c;
     result["count_cond_T_target_T"] = count_cond_T_target_T;
     result["count_cond_F_target_T"] = count_cond_F_target_T;
     result["count_cond_T_target_F"] = count_cond_T_target_F;
     result["count_cond_F_target_F"] = count_cond_F_target_F;
-    result["count_target_T_cond_T"] = count_target_T_cond_T;
-    result["count_target_F_cond_T"] = count_target_F_cond_T;
-    result["count_target_T_cond_F"] = count_target_T_cond_F;
-    result["count_target_F_cond_F"] = count_target_F_cond_F;
+    result["count_cond_T_target_T_c"] = count_cond_T_target_T_c;
+    result["count_cond_F_target_T_c"] = count_cond_F_target_T_c;
+    result["count_cond_T_target_F_c"] = count_cond_T_target_F_c;
+    result["count_cond_F_target_F_c"] = count_cond_F_target_F_c;
     
     return result;
 }
@@ -518,11 +532,16 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     std::vector<double> cond_T_target_F_state = concatenate(stateTCond, mFALSE);
     std::vector<double> cond_F_target_F_state = concatenate(stateFCond, mFALSE);
     
+    // NumericVector cond_T_target_T_state_c = concatenatorN(mTRUE, stateTCond);
+    // NumericVector cond_F_target_T_state_c = concatenatorN(mFALSE, stateTCond);
+    // NumericVector cond_T_target_F_state_c = concatenatorN(mTRUE, stateFCond);
+    // NumericVector cond_F_target_F_state_c = concatenatorN(mFALSE, stateFCond);
+
     // Prepare counter vectors
-    std::vector<double> target_T_cond_T_state = concatenate(mTRUE, stateTCond);
-    std::vector<double> target_F_cond_T_state = concatenate(mFALSE, stateTCond);
-    std::vector<double> target_T_cond_F_state = concatenate(mTRUE, stateFCond);
-    std::vector<double> target_F_cond_F_state = concatenate(mFALSE, stateFCond);
+    std::vector<double> cond_T_target_T_state_c = concatenate(mTRUE, stateTCond);
+    std::vector<double> cond_F_target_T_state_c = concatenate(mFALSE, stateTCond);
+    std::vector<double> cond_T_target_F_state_c = concatenate(mTRUE, stateFCond);
+    std::vector<double> cond_F_target_F_state_c = concatenate(mFALSE, stateFCond);
 
     // Get all combinations of temporal timeseries
     py::list getAllTemporalStates = generate_temporal_gene_states(
@@ -562,10 +581,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
         py::array_t<double> cond_F_target_T_state_array(cond_F_target_T_state.size(), cond_F_target_T_state.data());
         py::array_t<double> cond_T_target_F_state_array(cond_T_target_F_state.size(), cond_T_target_F_state.data());
         py::array_t<double> cond_F_target_F_state_array(cond_F_target_F_state.size(), cond_F_target_F_state.data());
-        py::array_t<double> target_T_cond_T_state_array(target_T_cond_T_state.size(), target_T_cond_T_state.data());
-        py::array_t<double> target_F_cond_T_state_array(target_F_cond_T_state.size(), target_F_cond_T_state.data());
-        py::array_t<double> target_T_cond_F_state_array(target_T_cond_F_state.size(), target_T_cond_F_state.data());
-        py::array_t<double> target_F_cond_F_state_array(target_F_cond_F_state.size(), target_F_cond_F_state.data());
+        py::array_t<double> cond_T_target_T_state_c_array(cond_T_target_T_state_c.size(), cond_T_target_T_state_c.data());
+        py::array_t<double> cond_F_target_T_state_c_array(cond_F_target_T_state_c.size(), cond_F_target_T_state_c.data());
+        py::array_t<double> cond_T_target_F_state_c_array(cond_T_target_F_state_c.size(), cond_T_target_F_state_c.data());
+        py::array_t<double> cond_F_target_F_state_c_array(cond_F_target_F_state_c.size(), cond_F_target_F_state_c.data());
         
         py::dict result = getBasicMeasures(
             stateTCond_array,
@@ -575,10 +594,10 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
             cond_F_target_T_state_array,
             cond_T_target_F_state_array,
             cond_F_target_F_state_array,
-            target_T_cond_T_state_array,
-            target_F_cond_T_state_array,
-            target_T_cond_F_state_array,
-            target_F_cond_F_state_array
+            cond_T_target_T_state_c_array,
+            cond_F_target_T_state_c_array,
+            cond_T_target_F_state_c_array,
+            cond_F_target_F_state_c_array
         );
         if (!result.contains("target_T_count") || !result.contains("target_F_count")) {
             throw std::runtime_error("result missing required keys!");
@@ -605,18 +624,18 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     int time_step = basic_measures["timestep"].cast<int>();
     
     // Condition counts
-    double lenTT = basic_measures["lenTT"].cast<double>();
-    double lenTF = basic_measures["lenTF"].cast<double>();
-    double lenFT = basic_measures["lenFT"].cast<double>();
-    double lenFF = basic_measures["lenFF"].cast<double>();
+    double lenTT = basic_measures["count_cond_T_target_T"].cast<double>();
+    double lenTF = basic_measures["count_cond_F_target_T"].cast<double>();
+    double lenFT = basic_measures["count_cond_T_target_F"].cast<double>();
+    double lenFF = basic_measures["count_cond_F_target_F"].cast<double>();
 
     double total_calculated_timepoints = basic_measures["total_calculated_timepoints"].cast<double>();
     
     // Condition counter counts
-    double lenTT_c = basic_measures["lenTT_c"].cast<double>();
-    double lenTF_c = basic_measures["lenTF_c"].cast<double>();
-    double lenFT_c = basic_measures["lenFT_c"].cast<double>();
-    double lenFF_c = basic_measures["lenFF_c"].cast<double>();
+    double lenTT_c = basic_measures["count_cond_T_target_T_c"].cast<double>();
+    double lenTF_c = basic_measures["count_cond_F_target_T_c"].cast<double>();
+    double lenFT_c = basic_measures["count_cond_T_target_F_c"].cast<double>();
+    double lenFF_c = basic_measures["count_cond_F_target_F_c"].cast<double>();
 
     double condition_T_support = dround(cond_T_count / total_calculated_timepoints, 5);
     double condition_F_support = dround(cond_F_count / total_calculated_timepoints, 5);
@@ -669,14 +688,16 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     pTable_c_buf(1, 1) = lenFF_c;
  
     // Fisher test
+    py::print("process fisher test");
     py::dict pTest = compute_fisher_test(pTable, 0.95);
-    double p_value = pTest["p.value"].cast<double>();
+    py::print(pTest);
+    double p_value = pTest["p_value"].cast<double>();
 
     //df = (r-1)(c-1) where r is the number of rows and c is the number of columns.
-    //chiSQ = chisq.test(pTable,correct = FALSE,simulate.p.value = TRUE)
-
+    py::print("process chisq test");
     double chiSQ =  compute_chisq(lenTT, lenFT, lenTF, lenFF); 
-    
+    py::print(chiSQ);
+
     bool isNegativeCorrelated = false;
     bool isPossitiveCorrelated = false;
     double test1 = (lenTF / total_calculated_timepoints) * (lenFT / total_calculated_timepoints);

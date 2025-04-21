@@ -118,22 +118,7 @@ class TesteProbabilities(unittest.TestCase):
         probability = probability["1"]
         # # Access results
 
-        print("Time step:", probability["timestep"])
-        print("target_T_count:", probability["target_T_count"])
-        print("target_F_count:", probability["target_F_count"])
-        print("cond_T_count:", probability["cond_T_count"])
-        print("cond_F_count:", probability["cond_F_count"])
-        print("cond_T_count_c:", probability["cond_T_count_c"])
-        print("cond_F_count_c:", probability["cond_F_count_c"])
-        print("count_cond_T_target_T:", probability["count_cond_T_target_T"])
-        print("count_cond_F_target_T:", probability["count_cond_F_target_T"])
-        print("count_cond_T_target_F:", probability["count_cond_T_target_F"])
-        print("count_cond_F_target_F:", probability["count_cond_F_target_F"])
-        print("count_target_T_cond_T:", probability["count_target_T_cond_T"])
-        print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
-        print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
-        print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
-        
+
         # note conditional on top and target on bottom
         # computation_Matrix cond - target
         # when count, please disregard 9
@@ -152,12 +137,12 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["count_cond_F_target_F"] == 0)
         self.assertTrue(probability["cond_T_count"] == 8)
         self.assertTrue(probability["cond_F_count"] == 1)
-        self.assertTrue(probability["count_target_T_cond_T"] == 5)
-        self.assertTrue(probability["count_target_F_cond_T"] == 2)
-        self.assertTrue(probability["count_target_T_cond_F"] == 1)
-        self.assertTrue(probability["count_target_F_cond_F"] == 1)
-        self.assertTrue(probability["cond_T_count_c"] == 7)
-        self.assertTrue(probability["cond_F_count_c"] == 2)
+        self.assertTrue(probability["count_cond_T_target_T_c"] == 5)
+        self.assertTrue(probability["count_cond_F_target_T_c"] == 2)
+        self.assertTrue(probability["count_cond_T_target_F_c"] == 1)
+        self.assertTrue(probability["count_cond_F_target_F_c"] == 1)
+        self.assertTrue(probability["cond_T_count_c"] == 6)
+        self.assertTrue(probability["cond_F_count_c"] == 3)
 
     def test_getGeneProbabilities_basic_p27_CycD(self):
         # Prepare input data
@@ -172,21 +157,21 @@ class TesteProbabilities(unittest.TestCase):
         probability = probability["1"]
         # # Access results
 
-        print("Time step:", probability["timestep"])
-        print("target_T_count:", probability["target_T_count"])
-        print("target_F_count:", probability["target_F_count"])
-        print("cond_T_count:", probability["cond_T_count"])
-        print("cond_F_count:", probability["cond_F_count"])
-        print("cond_T_count_c:", probability["cond_T_count_c"])
-        print("cond_F_count_c:", probability["cond_F_count_c"])
-        print("count_cond_T_target_T:", probability["count_cond_T_target_T"])
-        print("count_cond_F_target_T:", probability["count_cond_F_target_T"])
-        print("count_cond_T_target_F:", probability["count_cond_T_target_F"])
-        print("count_cond_F_target_F:", probability["count_cond_F_target_F"])
-        print("count_target_T_cond_T:", probability["count_target_T_cond_T"])
-        print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
-        print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
-        print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
+        # print("Time step:", probability["timestep"])
+        # print("target_T_count:", probability["target_T_count"])
+        # print("target_F_count:", probability["target_F_count"])
+        # print("cond_T_count:", probability["cond_T_count"])
+        # print("cond_F_count:", probability["cond_F_count"])
+        # print("cond_T_count_c:", probability["cond_T_count_c"])
+        # print("cond_F_count_c:", probability["cond_F_count_c"])
+        # print("count_cond_T_target_T:", probability["count_cond_T_target_T"])
+        # print("count_cond_F_target_T:", probability["count_cond_F_target_T"])
+        # print("count_cond_T_target_F:", probability["count_cond_T_target_F"])
+        # print("count_cond_F_target_F:", probability["count_cond_F_target_F"])
+        # print("count_target_T_cond_T:", probability["count_target_T_cond_T"])
+        # print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
+        # print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
+        # print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
 
         # note conditional on top and target on bottom
         # computation_Matrix cond - target
@@ -205,12 +190,12 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["count_cond_F_target_F"] == 1)
         self.assertTrue(probability["cond_T_count"] == 6)
         self.assertTrue(probability["cond_F_count"] == 3)
-        self.assertTrue(probability["count_target_T_cond_T"] == 4)
-        self.assertTrue(probability["count_target_F_cond_T"] == 1)
-        self.assertTrue(probability["count_target_T_cond_F"] == 4)
-        self.assertTrue(probability["count_target_F_cond_F"] == 0)
-        self.assertTrue(probability["cond_T_count_c"] == 5)
-        self.assertTrue(probability["cond_F_count_c"] == 4)
+        self.assertTrue(probability["count_cond_T_target_T_c"] == 4)
+        self.assertTrue(probability["count_cond_F_target_T_c"] == 1)
+        self.assertTrue(probability["count_cond_T_target_F_c"] == 4)
+        self.assertTrue(probability["count_cond_F_target_F_c"] == 0)
+        self.assertTrue(probability["cond_T_count_c"] == 8)
+        self.assertTrue(probability["cond_F_count_c"] == 1)
 
 
     def test_getGeneProbabilities_basic_p27_CycE(self):
@@ -226,21 +211,6 @@ class TesteProbabilities(unittest.TestCase):
         probability = probability["1"]
         # # Access results
 
-        print("Time step:", probability["timestep"])
-        print("target_T_count:", probability["target_T_count"])
-        print("target_F_count:", probability["target_F_count"])
-        print("cond_T_count:", probability["cond_T_count"])
-        print("cond_F_count:", probability["cond_F_count"])
-        print("cond_T_count_c:", probability["cond_T_count_c"])
-        print("cond_F_count_c:", probability["cond_F_count_c"])
-        print("count_cond_T_target_T:", probability["count_cond_T_target_T"])
-        print("count_cond_F_target_T:", probability["count_cond_F_target_T"])
-        print("count_cond_T_target_F:", probability["count_cond_T_target_F"])
-        print("count_cond_F_target_F:", probability["count_cond_F_target_F"])
-        print("count_target_T_cond_T:", probability["count_target_T_cond_T"])
-        print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
-        print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
-        print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
 
         # note conditional on top and target on bottom
         # computation_Matrix cond - target
@@ -260,12 +230,12 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["count_cond_F_target_F"] == 1)
         self.assertTrue(probability["cond_T_count"] == 2)
         self.assertTrue(probability["cond_F_count"] == 7)
-        self.assertTrue(probability["count_target_T_cond_T"] == 1)
-        self.assertTrue(probability["count_target_F_cond_T"] == 0)
-        self.assertTrue(probability["count_target_T_cond_F"] == 7)
-        self.assertTrue(probability["count_target_F_cond_F"] == 1)
-        self.assertTrue(probability["cond_T_count_c"] == 1)
-        self.assertTrue(probability["cond_F_count_c"] == 8)
+        self.assertTrue(probability["count_cond_T_target_T_c"] == 1)
+        self.assertTrue(probability["count_cond_F_target_T_c"] == 0)
+        self.assertTrue(probability["count_cond_T_target_F_c"] == 7)
+        self.assertTrue(probability["count_cond_F_target_F_c"] == 1)
+        self.assertTrue(probability["cond_T_count_c"] == 8)
+        self.assertTrue(probability["cond_F_count_c"] == 1)
 
     def test_getGeneProbabilities_basic_CycE_E2F(self):
         # Prepare input data
@@ -286,21 +256,7 @@ class TesteProbabilities(unittest.TestCase):
         probability = probability["1"]
         # # Access results
 
-        print("Time step:", probability["timestep"])
-        print("target_T_count:", probability["target_T_count"])
-        print("target_F_count:", probability["target_F_count"])
-        print("cond_T_count:", probability["cond_T_count"])
-        print("cond_F_count:", probability["cond_F_count"])
-        print("cond_T_count_c:", probability["cond_T_count_c"])
-        print("cond_F_count_c:", probability["cond_F_count_c"])
-        print("count_cond_T_target_T:", probability["count_cond_T_target_T"])
-        print("count_cond_F_target_T:", probability["count_cond_F_target_T"])
-        print("count_cond_T_target_F:", probability["count_cond_T_target_F"])
-        print("count_cond_F_target_F:", probability["count_cond_F_target_F"])
-        print("count_target_T_cond_T:", probability["count_target_T_cond_T"])
-        print("count_target_F_cond_T:", probability["count_target_F_cond_T"])
-        print("count_target_T_cond_F:", probability["count_target_T_cond_F"])
-        print("count_target_F_cond_F:", probability["count_target_F_cond_F"])
+
 
 
         # note conditional on top and target on bottom
@@ -325,12 +281,12 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["count_cond_F_target_F"] == 0)
         self.assertTrue(probability["cond_T_count"] == 3)
         self.assertTrue(probability["cond_F_count"] == 0)
-        self.assertTrue(probability["count_target_T_cond_T"] == 1)
-        self.assertTrue(probability["count_target_F_cond_T"] == 2)
-        self.assertTrue(probability["count_target_T_cond_F"] == 0)
-        self.assertTrue(probability["count_target_F_cond_F"] == 0)
-        self.assertTrue(probability["cond_T_count_c"] == 3)
-        self.assertTrue(probability["cond_F_count_c"] == 0)
+        self.assertTrue(probability["count_cond_T_target_T_c"] == 1)
+        self.assertTrue(probability["count_cond_F_target_T_c"] == 2)
+        self.assertTrue(probability["count_cond_T_target_F_c"] == 0)
+        self.assertTrue(probability["count_cond_F_target_F_c"] == 0)
+        self.assertTrue(probability["cond_T_count_c"] == 1)
+        self.assertTrue(probability["cond_F_count_c"] == 2)
 
 class TesteProbabilitiesAdvanced(unittest.TestCase):
        
@@ -352,15 +308,107 @@ class TesteProbabilitiesAdvanced(unittest.TestCase):
 
         self.assertTrue(probability["TT"] == 0.5)
         self.assertTrue(probability["FT"] == 0.5)
-        self.assertTrue(probability["TF"] == 1)
+        self.assertTrue(probability["TF"] == 1.0)
         self.assertTrue(probability["FF"] == 0)
         
         # test counter
-        self.assertTrue(probability["TT_c"] == 0.833)
-        self.assertTrue(probability["FT_c"] == 0.167)
-        self.assertTrue(probability["TF_c"] == 0.667)
-        self.assertTrue(probability["FF_c"] == 0.333)
+        self.assertTrue(probability["TT_c"] == 0.83333)
+        self.assertTrue(probability["FT_c"] == 0.16667)
+        self.assertTrue(probability["TF_c"] == 0.66667)
+        self.assertTrue(probability["FF_c"] == 0.33333)
+
  
+    def test_getGeneProbabilities_Advanced_p27_CycD(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["p27"]
+        conditional_genes = ["CycD"]
+        temporal = 1
+
+        # Call the function
+        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = probability["getBestFitP"]
+
+        self.assertTrue(probability["TT"] == 0.83333)
+        self.assertTrue(probability["FT"] == 0.16667)
+        self.assertTrue(probability["TF"] == 0.66667)
+        self.assertTrue(probability["FF"] == 0.33333)
+
+        
+        # test counter
+        self
+        self.assertTrue(probability["TT_c"] == 0.5)
+        self.assertTrue(probability["FT_c"] == 0.5)
+        self.assertTrue(probability["TF_c"] == 1.0)
+        self.assertTrue(probability["FF_c"] == 0)
+
+    def test_getGeneProbabilities_Advanced_p27_CycE(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["p27"]
+        conditional_genes = ["CycE"]
+        temporal = 1
+
+        # Call the function
+        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = probability["getBestFitP"]
+
+        self.assertTrue(probability["TT"] == 0.5)
+        self.assertTrue(probability["FT"] == 0.5)
+        self.assertTrue(probability["TF"] == 0.85714)
+        self.assertTrue(probability["FF"] == 0.14286)
+
+        
+        # test counter
+        self.assertTrue(probability["TT_c"] == 0.125)
+        self.assertTrue(probability["FT_c"] == 0.875)
+        self.assertTrue(probability["TF_c"] == 0)
+        self.assertTrue(probability["FF_c"] == 1)
+
+
+    def test_getGeneProbabilities_Advanced_CycE_E2F(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+        target_gene = ["CycE"]
+        conditional_genes = ["E2F"]
+        temporal = 1
+
+        fixedgenestate = {
+            "p27": 1,
+            "CycD": 0
+        }
+  
+        # Call the function
+        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        # # Access results
+        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = probability["getBestFitP"]
+
+        self.assertTrue(probability["TT"] == 0.33333)
+        self.assertTrue(probability["FT"] == 0.66667)
+        self.assertTrue(probability["TF"] == 0)
+        self.assertTrue(probability["FF"] == 0)
+
+        
+        # test counter
+        self.assertTrue(probability["TT_c"] == 1)
+        self.assertTrue(probability["FT_c"] == 0)
+        self.assertTrue(probability["TF_c"] == 1)
+        self.assertTrue(probability["FF_c"] == 0)
+
+
 if __name__ == "__main__":
 
     unittest.main()
