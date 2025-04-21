@@ -54,4 +54,5 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     int temporal);
 
 py::dict getAdvancedMeasures(py::dict& basic_measures);
+py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic);
 #endif

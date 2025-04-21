@@ -354,7 +354,10 @@ py::dict getBasicMeasures(
         target_F_count = count_cond_T_target_F + count_cond_F_target_F;
     }
     
-
+    // rename lenTT_c to count_target_T_cond_T, 
+    // rename lenTF_c to count_target_F_cond_T, 
+    // rename lenFT_c to count_target_T_cond_F, 
+    // rename lenFF_c to count_target_F_cond_F  
     int count_target_T_cond_T = matchCount(mc, target_T_cond_T_state);
     int count_target_F_cond_T = matchCount(mc, target_F_cond_T_state);
     int count_target_T_cond_F = matchCount(mc, target_T_cond_F_state);
@@ -924,6 +927,86 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     return result;
 }
 
+py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic)
+{
+    // get keys from the dictionary
+    py::print("print items step 1");
+    py::list keys = getGeneProbabilities_basic.attr("keys")();
+    py::print("keys: ", keys);
+    // Convert dictionary values to a list for processing
+    py::dict items = getGeneProbabilities_basic;
+
+    // get len from keys and create list of resultGroups and targetCounts
+    size_t len = keys.size();
+    py::print("len: ", len);
+    py::list resultGroup(len);
+    py::list targetCounts(len);
+    
+    // data cleaning
+    py::dict bestFitP;
+    py::dict bestFitN;
+    py::print("print items step 2");
+    // for key in keys, loop through the dictionary
+    for (size_t j = 0; j < keys.size(); j++) {
+        py::print("print items step 2.0." + std::to_string(j));
+        py::str key = keys[j].cast<py::str>();
+        py::dict basic = items[key].cast<py::dict>();
+        py::print("print items step 2.1." + std::to_string(j));
+        resultGroup[j] = getAdvancedMeasures(basic);
+        // print("resultGroup[j]: ", resultGroup[j]); for debug
+        py::print("debug resultGroup");
+        py::print("resultGroup[j]: ", resultGroup[j]);
+        py::dict targets;
+        targets["target_T_count"] = 0;
+        targets["target_F_count"] = 0;
+        
+        py::dict temp = resultGroup[j].cast<py::dict>();
+        int timestep = temp["timestep"].cast<int>();
+        
+        targets["target_T_count"] = basic["target_T_count"].cast<int>();
+        targets["target_F_count"] = basic["target_F_count"].cast<int>();
+        py::print("print items step 2.2." + std::to_string(j));
+        if(j == 0) {
+            bestFitP = temp;
+            bestFitN = temp;
+        } else {
+            double this_bestFitP = bestFitP["bestFitP"].cast<double>();
+            double this_bestFitN = bestFitN["bestFitN"].cast<double>();
+            double this_temp_bestFitP = temp["bestFitP"].cast<double>();
+            double this_temp_bestFitN = temp["bestFitN"].cast<double>();
+            
+            if(this_bestFitP > this_temp_bestFitP) {
+                bestFitP = temp;
+            }
+            
+            if(this_bestFitN > this_temp_bestFitN) {
+                bestFitN = temp;
+            }
+            
+            if(this_bestFitP == this_temp_bestFitP) {
+                if(bestFitP["timestep"].cast<int>() > timestep) {
+                    bestFitP = temp;
+                }
+            }
+            
+            if(this_bestFitN == this_temp_bestFitN) {
+                if(bestFitN["timestep"].cast<int>() > timestep) {
+                    bestFitN = temp;
+                }
+            }
+        }
+        
+        targetCounts[j] = targets;
+    }
+    
+    py::dict result;
+    result["getBestFitP"] = bestFitP;
+    result["getBestFitN"] = bestFitN;
+    result["targetCounts"] = targetCounts;
+    
+    return result;
+}
+
 PYBIND11_MODULE(fbnnet_core, m) {
     m.def("extract_gene_state_from_time_series_cube", 
           &extract_gene_state_from_time_series_cube,
@@ -951,4 +1034,7 @@ PYBIND11_MODULE(fbnnet_core, m) {
 
     m.attr("__version__") = "1.0.0";
     m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
+
+    m.def("getGeneProbabilities_advanced", &getGeneProbabilities_advanced, 
+        "The main function to main FBN probabilities from time series data");
 }

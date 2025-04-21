@@ -332,6 +332,34 @@ class TesteProbabilities(unittest.TestCase):
         self.assertTrue(probability["cond_T_count_c"] == 3)
         self.assertTrue(probability["cond_F_count_c"] == 0)
 
+class TesteProbabilitiesAdvanced(unittest.TestCase):
+       
+    def test_getGeneProbabilities_Advanced_CycD_p27(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["CycD"]
+        conditional_genes = ["p27"]
+        temporal = 1
+
+        # Call the function
+        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = probability["getBestFitP"]
+
+        self.assertTrue(probability["TT"] == 0.5)
+        self.assertTrue(probability["FT"] == 0.5)
+        self.assertTrue(probability["TF"] == 1)
+        self.assertTrue(probability["FF"] == 0)
+        
+        # test counter
+        self.assertTrue(probability["TT_c"] == 0.833)
+        self.assertTrue(probability["FT_c"] == 0.167)
+        self.assertTrue(probability["TF_c"] == 0.667)
+        self.assertTrue(probability["FF_c"] == 0.333)
  
 if __name__ == "__main__":
 
