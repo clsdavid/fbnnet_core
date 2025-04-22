@@ -408,6 +408,261 @@ class TesteProbabilitiesAdvanced(unittest.TestCase):
         self.assertTrue(probability["TF_c"] == 1)
         self.assertTrue(probability["FF_c"] == 0)
 
+class TestGetProbabilities(unittest.TestCase):
+    def test_getGeneProbabilities_CycD_p27(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+        target_gene = ["CycD"]
+        conditional_genes = ["p27"]
+        temporal = 1
+
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+
+
+        self.assertTrue(getBestFitP["TT"] == 0.5)
+        self.assertTrue(getBestFitP["FT"] == 0.5)
+        self.assertTrue(getBestFitP["TF"] == 1.0)
+        self.assertTrue(getBestFitP["FF"] == 0)
+        
+        # test counter
+        self.assertTrue(getBestFitP["TT_c"] == 0.83333)
+        self.assertTrue(getBestFitP["FT_c"] == 0.16667)
+        self.assertTrue(getBestFitP["TF_c"] == 0.66667)
+        self.assertTrue(getBestFitP["FF_c"] == 0.33333)
+
+    def test_getGeneProbabilities_Advanced_p27_CycD(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["p27"]
+        conditional_genes = ["CycD"]
+        temporal = 1
+
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+
+        self.assertTrue(getBestFitP["TT"] == 0.83333)
+        self.assertTrue(getBestFitP["FT"] == 0.16667)
+        self.assertTrue(getBestFitP["TF"] == 0.66667)
+        self.assertTrue(getBestFitP["FF"] == 0.33333)
+
+        
+        # test counter
+        self
+        self.assertTrue(getBestFitP["TT_c"] == 0.5)
+        self.assertTrue(getBestFitP["FT_c"] == 0.5)
+        self.assertTrue(getBestFitP["TF_c"] == 1.0)
+        self.assertTrue(getBestFitP["FF_c"] == 0)
+
+    def test_getGeneProbabilities_Advanced_p27_CycE(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["p27"]
+        conditional_genes = ["CycE"]
+        temporal = 1
+
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+
+        self.assertTrue(getBestFitP["TT"] == 0.5)
+        self.assertTrue(getBestFitP["FT"] == 0.5)
+        self.assertTrue(getBestFitP["TF"] == 0.85714)
+        self.assertTrue(getBestFitP["FF"] == 0.14286)
+
+        
+        # test counter
+        self.assertTrue(getBestFitP["TT_c"] == 0.125)
+        self.assertTrue(getBestFitP["FT_c"] == 0.875)
+        self.assertTrue(getBestFitP["TF_c"] == 0)
+        self.assertTrue(getBestFitP["FF_c"] == 1)
+
+
+    def test_getGeneProbabilities_Advanced_CycE_E2F(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+        target_gene = ["CycE"]
+        conditional_genes = ["E2F"]
+        temporal = 1
+
+        fixedgenestate = {
+            "p27": 1,
+            "CycD": 0
+        }
+  
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        # # Access results
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+
+        self.assertTrue(getBestFitP["TT"] == 0.33333)
+        self.assertTrue(getBestFitP["FT"] == 0.66667)
+        self.assertTrue(getBestFitP["TF"] == 0)
+        self.assertTrue(getBestFitP["FF"] == 0)
+
+        
+        # test counter
+        self.assertTrue(getBestFitP["TT_c"] == 1)
+        self.assertTrue(getBestFitP["FT_c"] == 0)
+        self.assertTrue(getBestFitP["TF_c"] == 1)
+        self.assertTrue(getBestFitP["FF_c"] == 0)
+
+class TestGetProbabilitiesTemporal(unittest.TestCase):
+    def test_getGeneProbabilities_CycD_p27(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+        target_gene = ["CycD"]
+        conditional_genes = ["p27"]
+        temporal = 2
+
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+
+        self.assertTrue(getBestFitN["timestep"] == 1)
+        self.assertTrue(getBestFitP["TT"] == 0.5)
+        self.assertTrue(getBestFitP["FT"] == 0.5)
+        self.assertTrue(getBestFitP["TF"] == 1.0)
+        self.assertTrue(getBestFitP["FF"] == 0)
+        
+        # test counter
+        self.assertTrue(getBestFitP["TT_c"] == 0.83333)
+        self.assertTrue(getBestFitP["FT_c"] == 0.16667)
+        self.assertTrue(getBestFitP["TF_c"] == 0.66667)
+        self.assertTrue(getBestFitP["FF_c"] == 0.33333)
+
+
+    def test_getGeneProbabilities_Advanced_p27_CycD(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["p27"]
+        conditional_genes = ["CycD"]
+        temporal = 2
+
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+        self.assertTrue(getBestFitN["timestep"] == 2)
+        self.assertTrue(getBestFitP["TT"] == 1)
+        self.assertTrue(getBestFitP["FT"] == 0)
+        self.assertTrue(getBestFitP["TF"] == 0)
+        self.assertTrue(getBestFitP["FF"] == 1)
+
+        # test counter
+        self.assertTrue(getBestFitP["TT_c"] == 0.6)
+        self.assertTrue(getBestFitP["FT_c"] == 0.4)
+        self.assertTrue(getBestFitP["TF_c"] == 1.0)
+        self.assertTrue(getBestFitP["FF_c"] == 0)
+
+    def test_getGeneProbabilities_Advanced_p27_CycE(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+
+        target_gene = ["p27"]
+        conditional_genes = ["CycE"]
+        temporal = 2
+
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        # # Access results
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+        self.assertTrue(getBestFitN["timestep"] == 1)
+        self.assertTrue(getBestFitN["TT"] == 0.5)
+        self.assertTrue(getBestFitN["FT"] == 0.5)
+        self.assertTrue(getBestFitN["TF"] == 0.85714)
+        self.assertTrue(getBestFitN["FF"] == 0.14286)
+
+        
+        # test counter
+        self.assertTrue(getBestFitN["TT_c"] == 0.125)
+        self.assertTrue(getBestFitN["FT_c"] == 0.875)
+        self.assertTrue(getBestFitN["TF_c"] == 0)
+        self.assertTrue(getBestFitN["FF_c"] == 1)
+
+
+    def test_getGeneProbabilities_Advanced_CycE_E2F(self):
+        # Prepare input data
+        main_params = setupdata()
+        print(main_params["testseries"])
+
+        target_gene = ["CycE"]
+        conditional_genes = ["E2F"]
+        temporal = 2
+
+        fixedgenestate = {
+            "p27": 1,
+            "CycD": 0
+        }
+  
+        # Call the function
+        probability = fbnnet_core.getGeneProbabilities(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        # # Access results
+        
+        getBestFitP = probability["BestFitP"]
+        getBestFitN = probability["BestFitN"]
+
+        self.assertTrue(getBestFitP["TT"] == 0)
+        self.assertTrue(getBestFitP["FT"] == 1)
+        self.assertTrue(getBestFitP["TF"] == 0)
+        self.assertTrue(getBestFitP["FF"] == 0)
+        self.assertTrue(getBestFitN["timestep"] == 2)
+
+        
+        # test counter
+        self.assertTrue(getBestFitP["TT_c"] == 0)
+        self.assertTrue(getBestFitP["FT_c"] == 0)
+        self.assertTrue(getBestFitP["TF_c"] == 1)
+        self.assertTrue(getBestFitP["FF_c"] == 0)
+
+        #         expect_equal(round(probability$TT, 3), 0)
+        # expect_equal(round(probability$FT, 3), 1)
+        # expect_equal(round(probability$TF, 3), 0)
+        # expect_equal(round(probability$FF, 3), 0)
+        
+        # expect_equal(probability$basic_measures$target_T_count, 1)
+        # expect_equal(probability$basic_measures$target_F_count, 5)
+        # expect_equal(probability$basic_measures$lenTT, 0)
+        # expect_equal(probability$basic_measures$lenTF, 0)
+        # expect_equal(probability$basic_measures$lenFT, 2)
+        # expect_equal(probability$basic_measures$lenFF, 0)
+        # expect_equal(probability$basic_measures$cond_T_count, 2)
+        # expect_equal(probability$basic_measures$cond_F_count, 0)
 
 if __name__ == "__main__":
 

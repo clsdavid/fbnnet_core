@@ -53,6 +53,12 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
     std::vector<std::string>& new_conditional_gene,
     int temporal);
 
-py::dict getAdvancedMeasures(py::dict& basic_measures);
-py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic);
+py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures = false);
+py::dict getGeneProbabilities_advanced(py::dict& geneProbabilities_basic, bool show_basic_measures = false);
+py::dict getGeneProbabilities(py::dict& data,
+    py::object& prefix,
+    std::vector<std::string>& target,
+    std::vector<std::string>& condition,
+    int temporal,
+    bool show_basic_measures = false);
 #endif

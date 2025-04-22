@@ -612,7 +612,7 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
 }
 
 //Advantage methods:
-py::dict getAdvancedMeasures(py::dict& basic_measures) {
+py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures) {
     // Extract information
     double cond_T_count = basic_measures["cond_T_count"].cast<double>();
     double cond_F_count = basic_measures["cond_F_count"].cast<double>();
@@ -879,6 +879,9 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     if (pickF_causality_test >= 1) causality_test_F = 1;
 
     // Calculate best fit values
+    // Based on Euclidean distance between the best fit and the actual values
+    // The best fit is the one that is closest to the actual values
+    // Which means if Euclidean distance is 0, then the best fit is the actual values
     double bestFitP = sqrt(pow((pickT_max_confidence - signal_activator), 2) + 
                           pow((pickT_all_confidence - pickT_confidenceCounter), 2) + 
                           pow((signal_activator - 1), 2) + 
@@ -939,7 +942,9 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     result["pickF_all_confidence"] = pickF_all_confidence;
     result["pickT_max_confidence"] = pickT_max_confidence;
     result["pickF_max_confidence"] = pickF_max_confidence;
-    result["basic_measures"] = basic_measures;
+    if (show_basic_measures) {
+        result["basic_measures"] = basic_measures;
+    }
     result["p_value"] = p_value;
     result["chiSQ_value"] = chiSQ;
     result["pickT_mutualInfo"] = pickT_mutualInfo;
@@ -948,14 +953,14 @@ py::dict getAdvancedMeasures(py::dict& basic_measures) {
     return result;
 }
 
-py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic)
+py::dict getGeneProbabilities_advanced(py::dict& geneProbabilities_basic, bool show_basic_measures)
 {
     // get keys from the dictionary
     py::print("print items step 1");
-    py::list keys = getGeneProbabilities_basic.attr("keys")();
+    py::list keys = geneProbabilities_basic.attr("keys")();
     py::print("keys: ", keys);
     // Convert dictionary values to a list for processing
-    py::dict items = getGeneProbabilities_basic;
+    py::dict items = geneProbabilities_basic;
 
     // get len from keys and create list of resultGroups and targetCounts
     size_t len = keys.size();
@@ -973,7 +978,7 @@ py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic)
         py::str key = keys[j].cast<py::str>();
         py::dict basic = items[key].cast<py::dict>();
         py::print("print items step 2.1." + std::to_string(j));
-        resultGroup[j] = getAdvancedMeasures(basic);
+        resultGroup[j] = getAdvancedMeasures(basic, show_basic_measures);
         // print("resultGroup[j]: ", resultGroup[j]); for debug
         py::print("debug resultGroup");
         py::print("resultGroup[j]: ", resultGroup[j]);
@@ -995,7 +1000,7 @@ py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic)
             double this_bestFitN = bestFitN["bestFitN"].cast<double>();
             double this_temp_bestFitP = temp["bestFitP"].cast<double>();
             double this_temp_bestFitN = temp["bestFitN"].cast<double>();
-            
+            // The smaller the best fit, the better the fit
             if(this_bestFitP > this_temp_bestFitP) {
                 bestFitP = temp;
             }
@@ -1023,8 +1028,38 @@ py::dict getGeneProbabilities_advanced(py::dict& getGeneProbabilities_basic)
     py::dict result;
     result["getBestFitP"] = bestFitP;
     result["getBestFitN"] = bestFitN;
-    result["targetCounts"] = targetCounts;
-    
+
+    return result;
+}
+
+py::dict getGeneProbabilities(py::dict& data,
+                            py::object& prefix,
+                            std::vector<std::string>& target,
+                            std::vector<std::string>& condition,
+                            int temporal,
+                            bool show_basic_measures
+)
+{
+    // Call the basic measures function
+    py::dict basic_measures = getGeneProbabilities_basic(data,
+                                                        prefix,
+                                                        target,
+                                                        condition,
+                                                        temporal);
+
+    // Call the advanced function
+    py::dict probability = getGeneProbabilities_advanced(basic_measures, show_basic_measures);
+
+    // Check if probability is None (equivalent to R's NULL)
+    if(probability.is_none())
+    return py::dict();
+
+    // Extract targetCounts and return the result
+    py::dict result;
+    result["BestFitP"] = probability["getBestFitP"];
+    result["BestFitN"] = probability["getBestFitN"];
+
+
     return result;
 }
 
@@ -1051,11 +1086,26 @@ PYBIND11_MODULE(fbnnet_core, m) {
 
     m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
     m.def("getGeneProbabilities_basic", &getGeneProbabilities_basic, "A function to get gene probabilities");
-    m.def("getAdvancedMeasures", &getAdvancedMeasures, "Calculate advanced FBN measures");
+
+    m.def("getAdvancedMeasures", &getAdvancedMeasures, "Calculate advanced FBN measures",
+        py::arg("basic_measures"),
+        py::arg("show_basic_measures") = false);
+
+
+    m.def("getGeneProbabilities_advanced", &getGeneProbabilities_advanced, 
+        "The main function to main FBN probabilities from time series data",
+        py::arg("geneProbabilities_basic"),
+        py::arg("show_basic_measures") = false);
+
+    m.def("getGeneProbabilities", &getGeneProbabilities, 
+        "The main function to main FBN probabilities from time series data",
+        py::arg("data"),
+        py::arg("prefix") = py::none(),
+        py::arg("target"),
+        py::arg("condition"),
+        py::arg("temporal"),
+        py::arg("show_basic_measures") = false);
 
     m.attr("__version__") = "1.0.0";
     m.attr("__author__") = "Leshi Chen <chenleshi@hotmail.com>";
-
-    m.def("getGeneProbabilities_advanced", &getGeneProbabilities_advanced, 
-        "The main function to main FBN probabilities from time series data");
 }
