@@ -688,25 +688,25 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
     pTable_c_buf(1, 1) = lenFF_c;
  
     // Fisher test
-    py::print("process fisher test");
+    // py::print("process fisher test");
     py::dict pTest = compute_fisher_test(pTable, 0.95);
-    py::print(pTest);
+    // py::print(pTest);
     double p_value = pTest["p_value"].cast<double>();
 
     //df = (r-1)(c-1) where r is the number of rows and c is the number of columns.
-    py::print("process chisq test");
+    // py::print("process chisq test");
     double chiSQ =  compute_chisq(lenTT, lenFT, lenTF, lenFF); 
-    py::print(chiSQ);
+    // py::print(chiSQ);
 
     bool isNegativeCorrelated = false;
-    bool isPossitiveCorrelated = false;
+    bool isPositiveCorrelated = false;
     double test1 = (lenTF / total_calculated_timepoints) * (lenFT / total_calculated_timepoints);
     double test2 = (lenTT / total_calculated_timepoints) * (lenFF / total_calculated_timepoints);
     if (test1 > test2) {
         isNegativeCorrelated = true;
     }
     if (test1 < test2) {
-        isPossitiveCorrelated = true;
+        isPositiveCorrelated = true;
     }
 
     // Shannon entropy calculations
@@ -863,7 +863,7 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
     if (signal_inhibitor == 1 && confidence_FT == confidence_FF)
         is_Essential = false;
 
-    if (!isNegativeCorrelated && !isPossitiveCorrelated)
+    if (!isNegativeCorrelated && !isPositiveCorrelated)
         is_Essential = false;
 
     if (p_value > 0.05)
@@ -917,7 +917,7 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
     result["targetT"] = target_T_support;
     result["targetF"] = target_F_support;
     result["isNegativeCorrelated"] = isNegativeCorrelated;
-    result["isPossitiveCorrelated"] = isPossitiveCorrelated;
+    result["isPositiveCorrelated"] = isPositiveCorrelated;
     result["supportTT"] = supportTT;
     result["supportFT"] = supportFT;
     result["supportTF"] = supportTF;
@@ -956,32 +956,32 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
 py::dict getGeneProbabilities_advanced(py::dict& geneProbabilities_basic, bool show_basic_measures)
 {
     // get keys from the dictionary
-    py::print("print items step 1");
+    //py::print("print items step 1");
     py::list keys = geneProbabilities_basic.attr("keys")();
-    py::print("keys: ", keys);
+    //py::print("keys: ", keys);
     // Convert dictionary values to a list for processing
     py::dict items = geneProbabilities_basic;
 
     // get len from keys and create list of resultGroups and targetCounts
     size_t len = keys.size();
-    py::print("len: ", len);
+    //py::print("len: ", len);
     py::list resultGroup(len);
     py::list targetCounts(len);
     
     // data cleaning
     py::dict bestFitP;
     py::dict bestFitN;
-    py::print("print items step 2");
+    //py::print("print items step 2");
     // for key in keys, loop through the dictionary
     for (size_t j = 0; j < keys.size(); j++) {
-        py::print("print items step 2.0." + std::to_string(j));
+        //py::print("print items step 2.0." + std::to_string(j));
         py::str key = keys[j].cast<py::str>();
         py::dict basic = items[key].cast<py::dict>();
-        py::print("print items step 2.1." + std::to_string(j));
+        //py::print("print items step 2.1." + std::to_string(j));
         resultGroup[j] = getAdvancedMeasures(basic, show_basic_measures);
         // print("resultGroup[j]: ", resultGroup[j]); for debug
-        py::print("debug resultGroup");
-        py::print("resultGroup[j]: ", resultGroup[j]);
+        //py::print("debug resultGroup");
+        //py::print("resultGroup[j]: ", resultGroup[j]);
         py::dict targets;
         targets["target_T_count"] = 0;
         targets["target_F_count"] = 0;
@@ -991,7 +991,7 @@ py::dict getGeneProbabilities_advanced(py::dict& geneProbabilities_basic, bool s
         
         targets["target_T_count"] = basic["target_T_count"].cast<int>();
         targets["target_F_count"] = basic["target_F_count"].cast<int>();
-        py::print("print items step 2.2." + std::to_string(j));
+        //py::print("print items step 2.2." + std::to_string(j));
         if(j == 0) {
             bestFitP = temp;
             bestFitN = temp;

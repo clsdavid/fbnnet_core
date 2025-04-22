@@ -650,19 +650,7 @@ class TestGetProbabilitiesTemporal(unittest.TestCase):
         self.assertTrue(getBestFitP["TF_c"] == 1)
         self.assertTrue(getBestFitP["FF_c"] == 0)
 
-        #         expect_equal(round(probability$TT, 3), 0)
-        # expect_equal(round(probability$FT, 3), 1)
-        # expect_equal(round(probability$TF, 3), 0)
-        # expect_equal(round(probability$FF, 3), 0)
-        
-        # expect_equal(probability$basic_measures$target_T_count, 1)
-        # expect_equal(probability$basic_measures$target_F_count, 5)
-        # expect_equal(probability$basic_measures$lenTT, 0)
-        # expect_equal(probability$basic_measures$lenTF, 0)
-        # expect_equal(probability$basic_measures$lenFT, 2)
-        # expect_equal(probability$basic_measures$lenFF, 0)
-        # expect_equal(probability$basic_measures$cond_T_count, 2)
-        # expect_equal(probability$basic_measures$cond_F_count, 0)
+
 
 if __name__ == "__main__":
 

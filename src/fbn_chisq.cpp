@@ -138,7 +138,7 @@ int goodness_of_fit_df(int n_categories, int n_estimated_params) {
     return n_categories - 1 - n_estimated_params;
 }
 
-PYBIND11_MODULE(fbn_chisq, m) {
+PYBIND11_MODULE(fbnnet_chisq, m) {
     m.def("chisq_statistic_np", &chisq_statistic_np, 
           "Calculate chi-square statistic between observed and expected values",
           py::arg("observed"), py::arg("expected"));
