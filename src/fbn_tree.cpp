@@ -243,7 +243,7 @@ py::dict buildProbabilityTreeOnTargetGene(
         double pickT_all_confidence = probabilityOfFourCombines_P["pickT_all_confidence"].cast<double>();
         double pickT_max_confidence = probabilityOfFourCombines_P["pickT_max_confidence"].cast<double>();
         bool isNegativeCorrelated_T = probabilityOfFourCombines_P["isNegativeCorrelated"].cast<bool>();
-        bool isPossitiveCorrelated_T = probabilityOfFourCombines_P["isPossitiveCorrelated"].cast<bool>();
+        bool isPositiveCorrelated_T = probabilityOfFourCombines_P["isPositiveCorrelated"].cast<bool>();
         int timestep_T = probabilityOfFourCombines_P["timestep"].cast<int>();
         double bestFitP = probabilityOfFourCombines_P["bestFitP"].cast<double>();
         double p_value_P = probabilityOfFourCombines_P["p_value"].cast<double>();
@@ -258,7 +258,7 @@ py::dict buildProbabilityTreeOnTargetGene(
         double pickF_all_confidence = probabilityOfFourCombines_N["pickF_all_confidence"].cast<double>();
         double pickF_max_confidence = probabilityOfFourCombines_N["pickF_max_confidence"].cast<double>();
         bool isNegativeCorrelated_F = probabilityOfFourCombines_N["isNegativeCorrelated"].cast<bool>();
-        bool isPossitiveCorrelated_F = probabilityOfFourCombines_N["isPossitiveCorrelated"].cast<bool>();
+        bool isPositiveCorrelated_F = probabilityOfFourCombines_N["isPositiveCorrelated"].cast<bool>();
         int timestep_F = probabilityOfFourCombines_N["timestep"].cast<int>();
         double bestFitN = probabilityOfFourCombines_N["bestFitN"].cast<double>();
         double p_value_N = probabilityOfFourCombines_N["p_value"].cast<double>();
@@ -306,7 +306,7 @@ py::dict buildProbabilityTreeOnTargetGene(
         activator["type"] = sign_P;
         activator["timestep"] = std::to_string(timestep_T);
         activator["isNegativeCorrelated"] = std::to_string(isNegativeCorrelated_T);
-        activator["isPossitiveCorrelated"] = std::to_string(isPossitiveCorrelated_T);
+        activator["isPositiveCorrelated"] = std::to_string(isPositiveCorrelated_T);
         activator["bestFitP"] = std::to_string(bestFitP);
         activator["p_value"] = std::to_string(p_value_P);
         activator["mutualInfo"] = std::to_string(pickT_mutualInfo);
@@ -349,7 +349,7 @@ py::dict buildProbabilityTreeOnTargetGene(
         inhibitor["type"] = sign_N;
         inhibitor["timestep"] = std::to_string(timestep_F);
         inhibitor["isNegativeCorrelated"] = std::to_string(isNegativeCorrelated_F);
-        inhibitor["isPossitiveCorrelated"] = std::to_string(isPossitiveCorrelated_F);
+        inhibitor["isPositiveCorrelated"] = std::to_string(isPositiveCorrelated_F);
         inhibitor["bestFitN"] = std::to_string(bestFitN);
         inhibitor["p_value"] = std::to_string(p_value_N);
         inhibitor["mutualInfo"] = std::to_string(pickF_mutualInfo);

@@ -102,6 +102,62 @@ def setupdata():
     return main_parameters
 
 
+def generate_test_example():
+    from py.boolnet import load_network
+    from py.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+    # Write the network definition to a file
+    with open("example.bn", "w") as f:
+        f.write("targets, factors\n")
+        f.write("Gene1, Gene1\n")
+        f.write("Gene2, Gene1 & Gene5 & !Gene4\n")
+        f.write("Gene3, Gene3\n")
+        f.write("Gene4, Gene3 & !(Gene1 & Gene5)\n")
+        f.write("Gene5, !Gene2\n")
+    
+    network = load_network("example.bn")
+    print(network)
+    initialStates = generateAllCombinationBinary(network["genes"])
+    trainingseries = generateBoolNetTimeseries(network, initialStates, 43, transition_type = "synchronous")
+
+    getCurrentStates = []
+    getPreviousStates = []
+    getCurrentStates_c = []
+    getPreviousStates_c = []
+    
+        # Convert numpy arrays to FBNMatrix objects
+    for i, mat in enumerate(trainingseries):
+        trainingseries[i] = fbnnet_matrix.FBNMatrix(mat, network["genes"], [str(j+1) for j in range(mat.shape[1])])
+
+    # Process matrices (note: we're skipping the extractGeneStateFromTimeSeriesCube calls)
+    for index in range(3):
+        # In R this would be: 1-3 but in Python we use 0-2
+        # In Python we'll just store the original matrices since we can't call the R function
+        # In a real implementation, you would call your Python equivalent here
+        # initializing all states and combined all sample's states with 9s.
+        temporal = index + 1
+        getCurrentStates.append(fbnnet_core.extract_gene_state_from_time_series_cube(trainingseries, temporal))
+        getPreviousStates.append(getCurrentStates[index])
+        getCurrentStates_c.append(getCurrentStates[index])
+        getPreviousStates_c.append(getCurrentStates[index])
+    
+    # Calculate totals
+    total_timepoints = sum(mat.matrix_t().shape[1] for mat in trainingseries)
+    total_samples = len(trainingseries)
+    all_gene_names = network["genes"]
+    
+    # Create namespace object similar to R's environment
+    main_parameters = {
+        "currentStates": getCurrentStates,
+        "previousStates": getPreviousStates,
+        "currentStates_c": getCurrentStates_c,
+        "previousStates_c": getPreviousStates_c,
+        "total_samples": total_samples,
+        "rownames": all_gene_names,
+        "total_timepoints": total_timepoints,
+        "testseries": trainingseries
+    }
+
+    return main_parameters
 
 class TestFBNTree(unittest.TestCase):
     def test_fbn_tree_CycD(self):
@@ -136,10 +192,53 @@ class TestFBNTree(unittest.TestCase):
         print(measurements)
 
     
+class TestFBNTreeBuild(unittest.TestCase):
+    def test_fbn_tree_build(self):
+        # Prepare input data
+        main_params = generate_test_example()
+        print(main_params["testseries"])
 
+        genes = main_params["rownames"]
+        for gene in genes:
+            cube = fbnnet_tree.buildProbabilityTreeOnTargetGene([gene], main_params, genes, None, None, 4, 1)
+            print("cude for gene: ", gene)
+            print(cube)
+
+    def test_fbn_tree_individual(self):
+        # Prepare input data
+        main_params = setupdata()
+
+        genesInput = ["CycD", "p27", "CycE", "E2F"]
+        # # Access results
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["CycD"], main_params, genesInput, None, None, 4, 1)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["CycD"], main_params, genesInput, None, None, 4, 2)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["CycD"], main_params, genesInput, None, None, 4, 3)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["p27"], main_params, genesInput, None, None, 4, 1)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["p27"], main_params, genesInput, None, None, 4, 2)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["p27"], main_params, genesInput, None, None, 4, 3)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["CycE"], main_params, genesInput, None, None, 4, 1)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["CycE"], main_params, genesInput, None, None, 4, 2)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["CycE"], main_params, genesInput, None, None, 4, 3)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["E2F"], main_params, genesInput, None, None, 4, 1)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["E2F"], main_params, genesInput, None, None, 4, 2)
+
+        cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(["E2F"], main_params, genesInput, None, None, 4, 3)
+
+        print(cube)
 
 if __name__ == "__main__":
 
     unittest.main()
-
+    network = generate_test_example_file()
+    print(network)
         # self.assertEqual(fbnnet_core.add(-1, 1), 0)
