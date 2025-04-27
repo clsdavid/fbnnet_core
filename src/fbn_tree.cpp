@@ -1,14 +1,17 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 #include <vector>
 #include <string>
 #include <map>
+#include <algorithm>
+#include <sstream>
+#include <cmath>
 #include "fbn_core.h"
 #include "fbn_tree.h"
 #include "fbn_utils.h"
 
 namespace py = pybind11;
-
 
 // Main function
 py::dict getGeneProbabilities_measurements(
@@ -88,6 +91,300 @@ py::dict getGeneProbabilities_measurements(
     return result_dict;
 }
 
+py::dict buildProbabilityTreeOnTargetGene(
+    std::vector<std::string>& targetGene,
+    py::dict& mainParameters,
+    std::vector<std::string>& genes,
+    py::object& matchedgenes,
+    py::object& matchedexpression,
+    int maxK,
+    int temporal,
+    bool show_basic_measures,
+    bool findPositiveRegulate,
+    bool findNegativeRegulate) {
+    
+    // Get measurements
+    py::dict measurements = getGeneProbabilities_measurements(
+        targetGene, mainParameters, genes, matchedgenes, temporal, show_basic_measures);
+    
+    std::vector<std::string> new_genes;
+    for (auto item : measurements) {
+        new_genes.push_back(item.first.cast<std::string>());
+    }
+    
+    std::vector<std::string> unprocessedGenes = new_genes;
+    std::vector<std::string> processedGenes;
+    std::vector<py::object> res(new_genes.size());
+    
+    if (maxK > static_cast<int>(unprocessedGenes.size())) {
+        maxK = static_cast<int>(unprocessedGenes.size());
+    }
+    
+    for (size_t i = 0; i < new_genes.size(); ++i) {
+        int pmaxK = maxK;
+        
+        std::string gene = new_genes[i];
+        std::vector<std::string> vgene = {gene};
+        
+        std::vector<size_t> unprocessed_index = a_not_in_b_index(unprocessedGenes, vgene);
+        std::vector<std::string> temp_unprocessed;
+        for (auto idx : unprocessed_index) {
+            temp_unprocessed.push_back(unprocessedGenes[idx]);
+        }
+        unprocessedGenes = temp_unprocessed;
+        
+        py::dict newMatchedGenesT;
+        py::dict newMatchedGenesF;
+        std::vector<std::string> preprocessed;
+        
+        if (!matchedgenes.is_none()) {
+            newMatchedGenesT = matchedgenes.cast<py::dict>();
+            newMatchedGenesF = matchedgenes.cast<py::dict>();
+            for (auto item : newMatchedGenesT) {
+                preprocessed.push_back(item.first.cast<std::string>());
+            }
+        }
+        
+        std::vector<std::string> expressionT;
+        std::vector<std::string> expressionF;
+        
+        if (!matchedexpression.is_none()) {
+            std::vector<std::string> pmatchedexpression = matchedexpression.cast<std::vector<std::string>>();
+            expressionT = {"&", gene};
+            expressionF = {"&", "!", gene};
+            expressionT = concatenate(pmatchedexpression, expressionT);
+            expressionF = concatenate(pmatchedexpression, expressionF);
+            
+            if (!newMatchedGenesT.contains(gene.c_str())) {
+                newMatchedGenesT[gene.c_str()] = 1;
+            }
+            
+            if (!newMatchedGenesF.contains(gene.c_str())) {
+                newMatchedGenesF[gene.c_str()] = 0;
+            }
+        } else {
+            newMatchedGenesT[gene.c_str()] = 1;
+            newMatchedGenesF[gene.c_str()] = 0;
+            expressionT = {gene};
+            expressionF = {"!", gene};
+        }
+        
+        std::string expT = mpaste(expressionT);
+        std::string expF = mpaste(expressionF);
+        
+        std::vector<std::string> inputgenes;
+        for (auto item : newMatchedGenesT) {
+            inputgenes.push_back(item.first.cast<std::string>());
+        }
+        inputgenes = char_sort(inputgenes, true);
+        
+        if (!preprocessed.empty() && std::find(preprocessed.begin(), preprocessed.end(), gene) != preprocessed.end()) {
+            continue;
+        }
+        
+        py::dict measuement = measurements[gene.c_str()].cast<py::dict>();
+        py::dict probabilityOfFourCombines_P = measuement["probabilityOfFourCombines_P"].cast<py::dict>();
+        py::dict probabilityOfFourCombines_N = measuement["probabilityOfFourCombines_N"].cast<py::dict>();
+    
+        
+        double bestFit_P = probabilityOfFourCombines_P["bestFitP"].cast<double>();
+        bool is_essential_gene_P = probabilityOfFourCombines_P["is_essential_gene"].cast<bool>();
+        double bestFit_N = probabilityOfFourCombines_N["bestFitN"].cast<double>();
+        bool is_essential_gene_N = probabilityOfFourCombines_N["is_essential_gene"].cast<bool>();
+        std::string sign_P = probabilityOfFourCombines_P["signal_sign_T"].cast<std::string>();
+        std::string sign_N = probabilityOfFourCombines_N["signal_sign_F"].cast<std::string>();
+        
+        // Find next branch
+        py::dict subresultT;
+        py::dict subresultF;
+        
+        std::vector<std::string> exlcudedSubgenes;
+        std::vector<std::string> nextGenes_T;
+        std::vector<std::string> nextGenes_F;
+        
+        if (pmaxK > 1 && !(findPositiveRegulate && findNegativeRegulate)) {
+            findPositiveRegulate = findPositiveRegulate || bestFit_P == 0;
+            findNegativeRegulate = findNegativeRegulate || bestFit_N == 0;
+            pmaxK = pmaxK - 1;
+            
+            exlcudedSubgenes = inputgenes;
+            std::vector<size_t> unprocessed_index2 = a_not_in_b_index(unprocessedGenes, exlcudedSubgenes);
+            for (auto idx : unprocessed_index2) {
+                nextGenes_T.push_back(unprocessedGenes[idx]);
+            }
+            
+            if (!nextGenes_T.empty() && is_essential_gene_P && (bestFit_P > 0 || bestFit_N > 0)) {
+                py::object v_expT = py::cast(std::vector<std::string>{expT});
+                subresultT = buildProbabilityTreeOnTargetGene(
+                    targetGene, mainParameters, nextGenes_T, newMatchedGenesT, v_expT, 
+                    pmaxK, temporal, show_basic_measures, findPositiveRegulate, findNegativeRegulate);
+            }
+            
+            exlcudedSubgenes = inputgenes;
+            unprocessed_index2 = a_not_in_b_index(unprocessedGenes, exlcudedSubgenes);
+            for (auto idx : unprocessed_index2) {
+                nextGenes_F.push_back(unprocessedGenes[idx]);
+            }
+            
+            if (!nextGenes_F.empty() && is_essential_gene_N && (bestFit_P > 0 || bestFit_N > 0)) {
+                py::object v_expF = py::cast(std::vector<std::string>{expF});
+                subresultF = buildProbabilityTreeOnTargetGene(
+                    targetGene, mainParameters, nextGenes_F, newMatchedGenesF, v_expF, 
+                    pmaxK, temporal, show_basic_measures, findPositiveRegulate, findNegativeRegulate);
+            }
+        }
+        
+        // Positive regulation
+        double pickT_support = probabilityOfFourCombines_P["pickT_support"].cast<double>();
+        double pickT_causality_test = probabilityOfFourCombines_P["pickT_causality_test"].cast<double>();
+        double pickT_value = probabilityOfFourCombines_P["Signal_P"].cast<double>();
+        double pickT_noise = probabilityOfFourCombines_P["Noise_P"].cast<double>();
+        double pickT_confidenceCounter = probabilityOfFourCombines_P["pickT_confidenceCounter"].cast<double>();
+        double pickT_all_confidence = probabilityOfFourCombines_P["pickT_all_confidence"].cast<double>();
+        double pickT_max_confidence = probabilityOfFourCombines_P["pickT_max_confidence"].cast<double>();
+        bool isNegativeCorrelated_T = probabilityOfFourCombines_P["isNegativeCorrelated"].cast<bool>();
+        bool isPossitiveCorrelated_T = probabilityOfFourCombines_P["isPossitiveCorrelated"].cast<bool>();
+        int timestep_T = probabilityOfFourCombines_P["timestep"].cast<int>();
+        double bestFitP = probabilityOfFourCombines_P["bestFitP"].cast<double>();
+        double p_value_P = probabilityOfFourCombines_P["p_value"].cast<double>();
+        double pickT_mutualInfo = probabilityOfFourCombines_P["pickT_mutualInfo"].cast<double>();
+        
+        // Negative regulation
+        double pickF_support = probabilityOfFourCombines_N["pickF_support"].cast<double>();
+        double pickF_causality_test = probabilityOfFourCombines_N["pickF_causality_test"].cast<double>();
+        double pickF_value = probabilityOfFourCombines_N["Signal_N"].cast<double>();
+        double pickF_noise = probabilityOfFourCombines_N["Noise_N"].cast<double>();
+        double pickF_ConfidenceCounter = probabilityOfFourCombines_N["pickF_confidenceCounter"].cast<double>();
+        double pickF_all_confidence = probabilityOfFourCombines_N["pickF_all_confidence"].cast<double>();
+        double pickF_max_confidence = probabilityOfFourCombines_N["pickF_max_confidence"].cast<double>();
+        bool isNegativeCorrelated_F = probabilityOfFourCombines_N["isNegativeCorrelated"].cast<bool>();
+        bool isPossitiveCorrelated_F = probabilityOfFourCombines_N["isPossitiveCorrelated"].cast<bool>();
+        int timestep_F = probabilityOfFourCombines_N["timestep"].cast<int>();
+        double bestFitN = probabilityOfFourCombines_N["bestFitN"].cast<double>();
+        double p_value_N = probabilityOfFourCombines_N["p_value"].cast<double>();
+        double pickF_mutualInfo = probabilityOfFourCombines_N["pickF_mutualInfo"].cast<double>();
+        
+        std::string pick_expT;
+        std::string pick_expF;
+        std::string identity_T;
+        std::string identity_F;
+        std::vector<std::string> pattern;
+        
+        if (sign_P == "TT") {
+            for (const auto& inputgene : inputgenes) {
+                int gene_state = newMatchedGenesT[inputgene.c_str()].cast<int>();
+                std::string this_gene = inputgene + "$" + std::to_string(gene_state);
+                pattern.push_back(this_gene);
+            }
+            identity_T = mpaste(pattern, "_");
+            pick_expT = expT;
+        } else if (sign_P == "TF") {
+            for (const auto& inputgene : inputgenes) {
+                int gene_state = newMatchedGenesF[inputgene.c_str()].cast<int>();
+                std::string this_gene = inputgene + "$" + std::to_string(gene_state);
+                pattern.push_back(this_gene);
+            }
+            identity_T = mpaste(pattern, "_");
+            pick_expT = expF;
+        }
+        pattern.clear();
+        pattern.push_back(identity_T);
+        pattern.push_back("Activator_of");
+        pattern.push_back(targetGene[0]);
+        identity_T = mpaste(pattern, "_");
+        
+        py::dict activator;
+        activator["factor"] = pick_expT;
+        activator["Confidence"] = std::to_string(pickT_value);
+        activator["ConfidenceCounter"] = std::to_string(pickT_confidenceCounter);
+        activator["all_confidence"] = std::to_string(pickT_all_confidence);
+        activator["max_confidence"] = std::to_string(pickT_max_confidence);
+        activator["support"] = std::to_string(pickT_support);
+        activator["causality_test"] = std::to_string(pickT_causality_test);
+        activator["Noise"] = std::to_string(pickT_noise);
+        activator["Identity"] = identity_T;
+        activator["type"] = sign_P;
+        activator["timestep"] = std::to_string(timestep_T);
+        activator["isNegativeCorrelated"] = std::to_string(isNegativeCorrelated_T);
+        activator["isPossitiveCorrelated"] = std::to_string(isPossitiveCorrelated_T);
+        activator["bestFitP"] = std::to_string(bestFitP);
+        activator["p_value"] = std::to_string(p_value_P);
+        activator["mutualInfo"] = std::to_string(pickT_mutualInfo);
+        
+        pattern.clear();
+        if (sign_N == "FT") {
+            for (const auto& inputgene : inputgenes) {
+                int gene_state = newMatchedGenesT[inputgene.c_str()].cast<int>();
+                std::string this_gene = inputgene + "$" + std::to_string(gene_state);
+                pattern.push_back(this_gene);
+            }
+            identity_F = mpaste(pattern, "_");
+            pick_expF = expT;
+        } else if (sign_N == "FF") {
+            for (const auto& inputgene : inputgenes) {
+                int gene_state = newMatchedGenesF[inputgene.c_str()].cast<int>();
+                std::string this_gene = inputgene + "$" + std::to_string(gene_state);
+                pattern.push_back(this_gene);
+            }
+            identity_F = mpaste(pattern, "_");
+            pick_expF = expF;
+        }
+        pattern.clear();
+        pattern.push_back(identity_F);
+        pattern.push_back("Inhibitor_of");
+        pattern.push_back(targetGene[0]);
+
+        identity_F = mpaste(pattern, "_");
+        
+        py::dict inhibitor;
+        inhibitor["factor"] = pick_expF;
+        inhibitor["Confidence"] = std::to_string(pickF_value);
+        inhibitor["ConfidenceCounter"] = std::to_string(pickF_ConfidenceCounter);
+        inhibitor["all_confidence"] = std::to_string(pickF_all_confidence);
+        inhibitor["max_confidence"] = std::to_string(pickF_max_confidence);
+        inhibitor["support"] = std::to_string(pickF_support);
+        inhibitor["causality_test"] = std::to_string(pickF_causality_test);
+        inhibitor["Noise"] = std::to_string(pickF_noise);
+        inhibitor["Identity"] = identity_F;
+        inhibitor["type"] = sign_N;
+        inhibitor["timestep"] = std::to_string(timestep_F);
+        inhibitor["isNegativeCorrelated"] = std::to_string(isNegativeCorrelated_F);
+        inhibitor["isPossitiveCorrelated"] = std::to_string(isPossitiveCorrelated_F);
+        inhibitor["bestFitN"] = std::to_string(bestFitN);
+        inhibitor["p_value"] = std::to_string(p_value_N);
+        inhibitor["mutualInfo"] = std::to_string(pickF_mutualInfo);
+        
+        py::dict a_i_tor;
+        a_i_tor["Activator"] = activator;
+        a_i_tor["Inhibitor"] = inhibitor;
+        
+        py::dict in_res;
+        in_res["ActivatorAndInhibitor"] = a_i_tor;
+        in_res["Input"] = inputgenes;
+        
+        if (!subresultT.empty()) {
+            in_res["SubGenesT"] = subresultT;
+        }
+        
+        if (!subresultF.empty()) {
+            in_res["SubGenesF"] = subresultF;
+        }
+        
+        res[i] = in_res;
+    }
+    
+    // Remove empty elements
+    py::dict result_dict;
+    for (size_t i = 0; i < res.size(); ++i) {
+        if (!res[i].is_none()) {
+            result_dict[new_genes[i].c_str()] = res[i];
+        }
+    }
+    
+    return result_dict;
+}
+
+
 // PyBind11 module definition
 PYBIND11_MODULE(fbnnet_tree, m) {
     m.def("getGeneProbabilities_measurements", &getGeneProbabilities_measurements,
@@ -98,4 +395,17 @@ PYBIND11_MODULE(fbnnet_tree, m) {
         py::arg("prefix") = py::none(),
         py::arg("temporal") = 1,
         py::arg("show_basic_measures") = false);
+
+    m.def("buildProbabilityTreeOnTargetGene", &buildProbabilityTreeOnTargetGene,
+        "Build a probability tree on the target gene",
+        py::arg("targetGene"),
+        py::arg("mainParameters"),
+        py::arg("genes"),
+        py::arg("matchedgenes") = py::none(),
+        py::arg("matchedexpression") = py::none(),
+        py::arg("maxK") = 4,
+        py::arg("temporal") = 1,
+        py::arg("show_basic_measures") = false,
+        py::arg("findPositiveRegulate") = false,
+        py::arg("findNegativeRegulate") = false);
 }

@@ -16,4 +16,16 @@ py::dict getGeneProbabilities_measurements(
     int temporal = 1,
     bool show_basic_measures = false);
 
+py::dict buildProbabilityTreeOnTargetGene(
+    std::vector<std::string>& targetGene,
+    py::dict& mainParameters,
+    std::vector<std::string>& genes,
+    py::object& matchedgenes,
+    py::object& matchedexpression,
+    int maxK = 4,
+    int temporal = 1,
+    bool show_basic_measures = false,
+    bool findPositiveRegulate = false,
+    bool findNegativeRegulate = false);
+
 #endif // FBN_TREE_H
