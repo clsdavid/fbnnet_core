@@ -193,6 +193,17 @@ class TestFBNTree(unittest.TestCase):
 
     
 class TestFBNTreeBuild(unittest.TestCase):
+    def test_process_cube_algorithm(self):
+        # Prepare input data
+        main_params = generate_test_example()
+        # print(main_params["testseries"])
+
+        genes = main_params["rownames"]
+        for gene in genes:
+            cube = fbnnet_tree.process_cube_algorithm(gene, genes, 4, 1, main_params, None, None)
+            print("cube for gene: ", gene)
+            print(cube)
+
     def test_fbn_tree_build(self):
         # Prepare input data
         main_params = generate_test_example()

@@ -28,4 +28,14 @@ py::dict buildProbabilityTreeOnTargetGene(
     bool findPositiveRegulate = false,
     bool findNegativeRegulate = false);
 
+py::dict process_cube_algorithm(
+    std::string& target_gene,
+    std::vector<std::string>& conditional_genes,
+    int maxK,
+    int temporal,
+    py::dict& main_parameters,
+    py::object& matchedgenes,
+    py::object& matchedexpression
+);
+
 #endif // FBN_TREE_H

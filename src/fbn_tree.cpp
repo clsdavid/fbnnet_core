@@ -428,6 +428,40 @@ py::dict buildProbabilityTreeOnTargetGene(
 }
 
 
+py::dict process_cube_algorithm(
+    std::string& target_gene,
+    std::vector<std::string>& conditional_genes,
+    int maxK,
+    int temporal,
+    py::dict& main_parameters,
+    py::object& matchedgenes,
+    py::object& matchedexpression
+) {
+    // Create the nested result structure
+    py::dict res;
+    py::dict sub_res;
+    std::vector<std::string> target_genes;
+    target_genes.push_back(target_gene);
+    // Call the core function
+    sub_res["SubGenes"] = buildProbabilityTreeOnTargetGene(
+        target_genes,
+        main_parameters,
+        conditional_genes,
+        matchedgenes,
+        matchedexpression,
+        maxK,
+        temporal,
+        false,
+        false,
+        false
+    );
+    
+    // Set the target gene as the key in the result dictionary
+    res[target_gene.c_str()] = sub_res;
+    
+    return res;
+}
+
 // PyBind11 module definition
 PYBIND11_MODULE(fbnnet_tree, m) {
     m.def("getGeneProbabilities_measurements", &getGeneProbabilities_measurements,
@@ -451,4 +485,15 @@ PYBIND11_MODULE(fbnnet_tree, m) {
         py::arg("show_basic_measures") = false,
         py::arg("findPositiveRegulate") = false,
         py::arg("findNegativeRegulate") = false);
+
+    m.def("process_cube_algorithm", &process_cube_algorithm,
+        "Process the cube algorithm for gene regulation",
+        py::arg("target_gene"),
+        py::arg("conditional_genes"),
+        py::arg("maxK"),
+        py::arg("temporal"),
+        py::arg("main_parameters"),
+        py::arg("matchedgenes") = py::none(),
+        py::arg("matchedexpression") = py::none());
+    m.attr("__version__") = "0.1.0";
 }
