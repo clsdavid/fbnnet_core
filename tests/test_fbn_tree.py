@@ -196,12 +196,12 @@ class TestFBNTreeBuild(unittest.TestCase):
     def test_fbn_tree_build(self):
         # Prepare input data
         main_params = generate_test_example()
-        print(main_params["testseries"])
+        # print(main_params["testseries"])
 
         genes = main_params["rownames"]
         for gene in genes:
             cube = fbnnet_tree.buildProbabilityTreeOnTargetGene([gene], main_params, genes, None, None, 4, 1)
-            print("cude for gene: ", gene)
+            print("cube for gene: ", gene)
             print(cube)
 
     def test_fbn_tree_individual(self):
@@ -239,6 +239,6 @@ class TestFBNTreeBuild(unittest.TestCase):
 if __name__ == "__main__":
 
     unittest.main()
-    network = generate_test_example_file()
+    network = generate_test_example()
     print(network)
         # self.assertEqual(fbnnet_core.add(-1, 1), 0)

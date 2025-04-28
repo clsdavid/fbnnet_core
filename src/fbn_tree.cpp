@@ -26,7 +26,7 @@ py::dict getGeneProbabilities_measurements(
     py::dict result_dict;
     for(size_t i = 0; i < len; i++) {
         std::vector<std::string> gene = {genes[i]};
-        py::print("Processing gene:", genes[i]);
+        // py::print("Processing gene:", genes[i]);
 
         py::dict probabilityOfFourCombines = getGeneProbabilities(
             mainParameters,
@@ -37,7 +37,7 @@ py::dict getGeneProbabilities_measurements(
             show_basic_measures
         );
 
-        py::print("probabilityOfFourCombines:", probabilityOfFourCombines);
+        // py::print("probabilityOfFourCombines:", probabilityOfFourCombines);
         if(probabilityOfFourCombines.is_none()) {
             continue;
         }
@@ -103,6 +103,7 @@ py::dict buildProbabilityTreeOnTargetGene(
     bool findPositiveRegulate,
     bool findNegativeRegulate) {
     
+    //py::print("Building probability tree on target gene:", targetGene[0]);
     // Get measurements
     py::dict measurements = getGeneProbabilities_measurements(
         targetGene, mainParameters, genes, matchedgenes, temporal, show_basic_measures);
@@ -114,18 +115,21 @@ py::dict buildProbabilityTreeOnTargetGene(
     
     std::vector<std::string> unprocessedGenes = new_genes;
     std::vector<std::string> processedGenes;
-    std::vector<py::object> res(new_genes.size());
+    std::vector<py::dict> res(new_genes.size());
     
     if (maxK > static_cast<int>(unprocessedGenes.size())) {
         maxK = static_cast<int>(unprocessedGenes.size());
     }
     
+    //py::print("Debug MaxK:", maxK);
     for (size_t i = 0; i < new_genes.size(); ++i) {
+        // hard copy maxK to pmaxK
+        // because maxK is changed in the loop
         int pmaxK = maxK;
         
         std::string gene = new_genes[i];
         std::vector<std::string> vgene = {gene};
-        
+        //py::print("Debug Processing gene:", gene);
         std::vector<size_t> unprocessed_index = a_not_in_b_index(unprocessedGenes, vgene);
         std::vector<std::string> temp_unprocessed;
         for (auto idx : unprocessed_index) {
@@ -147,7 +151,7 @@ py::dict buildProbabilityTreeOnTargetGene(
         
         std::vector<std::string> expressionT;
         std::vector<std::string> expressionF;
-        
+        //py::print("Debug Matched genes:", matchedgenes);
         if (!matchedexpression.is_none()) {
             std::vector<std::string> pmatchedexpression = matchedexpression.cast<std::vector<std::string>>();
             expressionT = {"&", gene};
@@ -171,7 +175,8 @@ py::dict buildProbabilityTreeOnTargetGene(
         
         std::string expT = mpaste(expressionT);
         std::string expF = mpaste(expressionF);
-        
+        //py::print("Debug Expression T:", expT);
+        //py::print("Debug Expression F:", expF);
         std::vector<std::string> inputgenes;
         for (auto item : newMatchedGenesT) {
             inputgenes.push_back(item.first.cast<std::string>());
@@ -202,6 +207,10 @@ py::dict buildProbabilityTreeOnTargetGene(
         std::vector<std::string> nextGenes_T;
         std::vector<std::string> nextGenes_F;
         
+        //py::print("Debug unprocessed genes:", unprocessedGenes);
+        //py::print("Debug input genes:", inputgenes);
+        //py::print("Debug new matched genes T:", newMatchedGenesT);
+        //py::print("Debug new matched genes F:", newMatchedGenesF);
         if (pmaxK > 1 && !(findPositiveRegulate && findNegativeRegulate)) {
             findPositiveRegulate = findPositiveRegulate || bestFit_P == 0;
             findNegativeRegulate = findNegativeRegulate || bestFit_N == 0;
@@ -215,6 +224,18 @@ py::dict buildProbabilityTreeOnTargetGene(
             
             if (!nextGenes_T.empty() && is_essential_gene_P && (bestFit_P > 0 || bestFit_N > 0)) {
                 py::object v_expT = py::cast(std::vector<std::string>{expT});
+                //print the arguments
+                // py::print("Debug buildProbabilityTreeOnTargetGene T arguments:");
+                // py::print("targetGene:", targetGene);
+                // py::print("nextGenes_T:", nextGenes_T);
+                // py::print("newMatchedGenesT:", newMatchedGenesT);
+                // py::print("v_expT:", v_expT);
+                // py::print("pmaxK:", pmaxK);
+                // py::print("temporal:", temporal);
+                // py::print("show_basic_measures:", show_basic_measures);
+                // py::print("findPositiveRegulate:", findPositiveRegulate);
+                // py::print("findNegativeRegulate:", findNegativeRegulate);
+                // Call the function
                 subresultT = buildProbabilityTreeOnTargetGene(
                     targetGene, mainParameters, nextGenes_T, newMatchedGenesT, v_expT, 
                     pmaxK, temporal, show_basic_measures, findPositiveRegulate, findNegativeRegulate);
@@ -228,12 +249,26 @@ py::dict buildProbabilityTreeOnTargetGene(
             
             if (!nextGenes_F.empty() && is_essential_gene_N && (bestFit_P > 0 || bestFit_N > 0)) {
                 py::object v_expF = py::cast(std::vector<std::string>{expF});
+                //print the arguments
+                // py::print("Debug buildProbabilityTreeOnTargetGene F arguments:");
+                // py::print("targetGene:", targetGene);
+                // py::print("nextGenes_F:", nextGenes_F);
+                // py::print("newMatchedGenesF:", newMatchedGenesF);
+                // py::print("v_expF:", v_expF);
+                // py::print("pmaxK:", pmaxK);
+                // py::print("temporal:", temporal);
+                // py::print("show_basic_measures:", show_basic_measures);
+                // py::print("findPositiveRegulate:", findPositiveRegulate);
+                // py::print("findNegativeRegulate:", findNegativeRegulate);
+                // Call the function
                 subresultF = buildProbabilityTreeOnTargetGene(
                     targetGene, mainParameters, nextGenes_F, newMatchedGenesF, v_expF, 
                     pmaxK, temporal, show_basic_measures, findPositiveRegulate, findNegativeRegulate);
             }
         }
         
+        // py::print("Debug subresultT:", subresultT);
+        // py::print("Debug subresultF:", subresultF);
         // Positive regulation
         double pickT_support = probabilityOfFourCombines_P["pickT_support"].cast<double>();
         double pickT_causality_test = probabilityOfFourCombines_P["pickT_causality_test"].cast<double>();
@@ -270,6 +305,10 @@ py::dict buildProbabilityTreeOnTargetGene(
         std::string identity_F;
         std::vector<std::string> pattern;
         
+        // py::print("Debug sign_P:", sign_P);
+        // py::print("Debug sign_N:", sign_N);
+        // py::print("Debug pick_expT:", pick_expT);
+        // py::print("Debug pick_expF:", pick_expF);
         if (sign_P == "TT") {
             for (const auto& inputgene : inputgenes) {
                 int gene_state = newMatchedGenesT[inputgene.c_str()].cast<int>();
@@ -287,12 +326,13 @@ py::dict buildProbabilityTreeOnTargetGene(
             identity_T = mpaste(pattern, "_");
             pick_expT = expF;
         }
+        // py::print("debug load pattern for activator");
         pattern.clear();
         pattern.push_back(identity_T);
         pattern.push_back("Activator_of");
         pattern.push_back(targetGene[0]);
         identity_T = mpaste(pattern, "_");
-        
+        // py::print("Debug activator");
         py::dict activator;
         activator["factor"] = pick_expT;
         activator["Confidence"] = std::to_string(pickT_value);
@@ -329,13 +369,15 @@ py::dict buildProbabilityTreeOnTargetGene(
             identity_F = mpaste(pattern, "_");
             pick_expF = expF;
         }
+
+        // py::print("debug load pattern for inhibitor");
         pattern.clear();
         pattern.push_back(identity_F);
         pattern.push_back("Inhibitor_of");
         pattern.push_back(targetGene[0]);
 
         identity_F = mpaste(pattern, "_");
-        
+        // py::print("Debug Inhibitor");
         py::dict inhibitor;
         inhibitor["factor"] = pick_expF;
         inhibitor["Confidence"] = std::to_string(pickF_value);
@@ -369,10 +411,11 @@ py::dict buildProbabilityTreeOnTargetGene(
         if (!subresultF.empty()) {
             in_res["SubGenesF"] = subresultF;
         }
-        
+        // py::print("Debug in_res:", in_res);
         res[i] = in_res;
     }
     
+    // py::print("Debug res:", res);
     // Remove empty elements
     py::dict result_dict;
     for (size_t i = 0; i < res.size(); ++i) {
