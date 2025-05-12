@@ -6,7 +6,9 @@ import logging
 import fbnnet_tree
 import fbnnet_core
 import fbnnet_matrix
-from fbnnet_utils import fbn_data_reduction
+from .fbnnet_utils import fbn_data_reduction
+from concurrent.futures import ThreadPoolExecutor
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -71,7 +73,12 @@ def construct_fbn_cube(target_genes: List[str],
     
     # Data reduction
     reduced_cube = fbn_data_reduction(timeseries_cube)
+    # get first matrix's row names
     genes_input = reduced_cube[0].index.tolist()
+    # Convert each DataFrame to numpy array
+    for i, mat in enumerate(reduced_cube):
+        reduced_cube[i] = mat.to_numpy(dtype=np.float64)
+
     for i, mat in enumerate(reduced_cube):
         reduced_cube[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
     # Initialize state containers
@@ -82,27 +89,28 @@ def construct_fbn_cube(target_genes: List[str],
     
     # Set up data for each temporal level
     for index in range(temporal, 0, -1):
-        current_states[index-1] = fbnnet_core.extract_gene_state_from_timeseries_cube(reduced_cube, index)
+        current_states[index-1] = fbnnet_core.extract_gene_state_from_time_series_cube(reduced_cube, index)
         previous_states[index-1] = current_states[index-1]
         current_states_c[index-1] = current_states[index-1]
         previous_states_c[index-1] = current_states[index-1]
     
     # Calculate total timepoints and samples
-    total_timepoints = sum(df.shape[1] for df in reduced_cube)
+    total_timepoints = sum(mat.matrix_t().shape[1] for mat in reduced_cube)
     total_samples = len(reduced_cube)
-    all_gene_names = reduced_cube[0].index.tolist()
+    all_gene_names = genes_input
     
     # Create main parameters dictionary
     main_parameters = {
-        'currentStates': current_states,
-        'previousStates': previous_states,
-        'currentStates_c': current_states_c,
-        'previousStates_c': previous_states_c,
-        'total_samples': total_samples,
-        'all_gene_names': all_gene_names,
-        'total_timepoints': total_timepoints
+        "currentStates": current_states,
+        "previousStates": previous_states,
+        "currentStates_c": current_states_c,
+        "previousStates_c": previous_states_c,
+        "total_samples": total_samples,
+        "rownames": all_gene_names,
+        "total_timepoints": total_timepoints,
+        "testseries": reduced_cube
     }
-    
+
     # Process each target gene
     if use_parallel:
         res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
@@ -124,16 +132,21 @@ def construct_fbn_cube(target_genes: List[str],
 
 
 def do_parallel_work(target_genes: List[str], 
-                    conditional_genes: List[str], 
-                    max_k: int, 
-                    temporal: int, 
-                    main_parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Process genes in parallel"""
-    with multiprocessing.Pool() as pool:
-        results = pool.starmap(
-            fbnnet_tree.process_cube_algorithm,
-            [(gene, conditional_genes, max_k, temporal, main_parameters, None, None) for gene in target_genes]
+                     conditional_genes: List[str], 
+                     max_k: int, 
+                     temporal: int, 
+                     main_parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Process genes in parallel using threads (safe for C++/pybind11 functions)"""
+
+    # Define a wrapper for the target function
+    def worker(gene):
+        return fbnnet_tree.process_cube_algorithm(
+            gene, conditional_genes, max_k, temporal, main_parameters, None, None
         )
+
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(worker, target_genes))
+    
     return results
 
 def do_non_parallel_work(target_genes: List[str], 
@@ -148,3 +161,42 @@ def do_non_parallel_work(target_genes: List[str],
             fbnnet_tree.process_cube_algorithm(gene, conditional_genes, max_k, temporal, main_parameters, None, None)
         )
     return results
+
+if __name__ == "__main__":
+    # Example usage
+    from boolnet import load_network
+    from data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+    # Write the network definition to a file
+    with open("example.bn", "w") as f:
+        f.write("targets, factors\n")
+        f.write("Gene1, Gene1\n")
+        f.write("Gene2, Gene1 & Gene5 & !Gene4\n")
+        f.write("Gene3, Gene3\n")
+        f.write("Gene4, Gene3 & !(Gene1 & Gene5)\n")
+        f.write("Gene5, !Gene2\n")
+    
+    network = load_network("example.bn")
+    print(network)
+    initialStates = generateAllCombinationBinary(network["genes"])
+    trainingseries = generateBoolNetTimeseries(network, initialStates, 43, transition_type = "synchronous")
+    # convert numpy arrays to array of pandas DataFrames
+    trainingseries = [pd.DataFrame(mat, index=network["genes"], columns=[str(j+1) for j in range(mat.shape[1])]) for mat in trainingseries]
+    # output the keys of the network to list
+    genes = list(network['genes'])
+    # create timestampes to compare the results between parallel and non-parallel
+    start_time = pd.Timestamp.now()
+    result = construct_fbn_cube(genes, genes, trainingseries, max_k=5, temporal=1, use_parallel=False)
+    end_time = pd.Timestamp.now()
+    print(f"Time taken (non-parallel): {end_time - start_time}")
+    # print(result)
+
+    start_time = pd.Timestamp.now()
+    result2 = construct_fbn_cube(genes, genes, trainingseries, max_k=5, temporal=1, use_parallel=True)
+    end_time = pd.Timestamp.now()
+    print(f"Time taken (parallel): {(end_time - start_time)}")
+    # print(result)
+    # Compare results
+    if result == result2:
+        print("Results are the same.")
+    else:
+        print("Results are different.")
