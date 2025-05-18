@@ -1,9 +1,12 @@
 import unittest
-from py.fbnnet_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
-from py.fbnnet_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
-from py.fbnnet_utils import output_genes, output_timeseries_based_on_genes
+from py.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
+from py.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
+from py.general_utils import output_genes, output_timeseries_based_on_genes
+from py.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
+from py.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
 import pandas as pd
 import numpy as np
+import fbnnet_utils
 
 class TestFbnnet_utils(unittest.TestCase):
     def test_run_fbnnet_utils(self):
@@ -201,3 +204,29 @@ class TestFbnnet_utils(unittest.TestCase):
             output_timeseries_based_on_genes([[1,2],[3,4]], ['TP53'])
         except ValueError as e:
             print(f"\nExpected error: {e}")
+
+    def test_network_utils(self):
+        print("\n1. Testing atomic nodes:")
+        print(is_atom_node(['A', 'B']))       # True
+        print(is_atom_node(['A', '&']))       # False
+        
+        # Test De Morgan's Law
+        print("\n2. Testing De Morgan's Law:")
+        dm_expr = ['!', '(', 'A', '&', 'B', ')']
+        print(is_applied_de_morgan_law(dm_expr))  # True
+        print(flat_de_morgan_law(dm_expr))       # Flattened version
+        
+        # Test full pipeline
+        print("\n3. Testing full pipeline:")
+        expr = "!(A&B)"
+        genes = ["A", "B", "C"]
+        split_expr = fbnnet_utils.splitExpression(expr, 1, False)
+        tree = convert_into_expression_tree(split_expr)
+        fbn_funcs = construct_fbn_functions(tree)
+        interactions = regenerate_interactions("Gene1", expr, genes, 0.1, 1)
+        
+        print("Original:", expr)
+        print("Split:", split_expr)
+        print("Tree:", tree)
+        print("Functions:", fbn_funcs)
+        print("Interactions:", interactions)

@@ -6,7 +6,7 @@ import logging
 import fbnnet_tree
 import fbnnet_core
 import fbnnet_matrix
-from .fbnnet_utils import fbn_data_reduction
+from .general_utils import fbn_data_reduction
 from concurrent.futures import ThreadPoolExecutor
 
 
