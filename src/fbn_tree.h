@@ -8,6 +8,13 @@
 namespace py = pybind11;
 
 // Function declarations
+std::vector<std::string> filterTargetGenesByConditionGenes(
+      std::vector<std::string>& targetGenes,
+      py::dict& mainParameters,
+      std::vector<std::string>& genes,
+      py::object& prefix,
+      int temporal = 1);
+      
 py::dict getGeneProbabilities_measurements(
     std::vector<std::string>& targetGene,
     py::dict& mainParameters,

@@ -3,6 +3,32 @@ from typing import List, Dict, Union, Any
 from .general_utils import dissolve
 import fbnnet_utils
 
+def remove_duplicates(factors: Union[List[Dict], str]) -> List[Dict]:
+    """Remove duplicate factors based on identity.
+    
+    Args:
+        factors: Either a list of dictionaries (each with an "identity" key) or a string
+        
+    Returns:
+        List of unique dictionaries based on their identity
+    """
+    # Handle case where input is a string
+    if isinstance(factors, str):
+        return []
+    
+    seen = set()
+    unique_factors = []
+    for factor in factors:
+        # Ensure factor is a dictionary
+        if not isinstance(factor, dict):
+            continue
+            
+        identity = factor.get("identity", None)
+        if identity not in seen:
+            seen.add(identity)
+            unique_factors.append(factor)
+    return unique_factors
+
 def is_atom_node(sub_expression: List[str]) -> bool:
     """
     Check if an expression is an atomic node

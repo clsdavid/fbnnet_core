@@ -6,7 +6,7 @@ import fbnnet_utils
 import fbnnet_matrix
 import fbnnet_tree
 from types import SimpleNamespace
-
+import pandas as pd
 
 def setupdata():
     #' Create an Orchard cube
@@ -193,6 +193,37 @@ class TestFBNTree(unittest.TestCase):
 
     
 class TestFBNTreeBuild(unittest.TestCase):
+
+    def test_filterTargetGenesByConditionGenes(self):
+        # Prepare input data
+        from py.boolnet import load_network
+        from py.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+        from py.cube import convert_df_main_parameters
+        # Write the network definition to a file
+        with open("example.bn", "w") as f:
+            f.write("targets, factors\n")
+            f.write("Gene1, Gene1\n")
+            f.write("Gene2, Gene1 & Gene5 & !Gene4\n")
+            f.write("Gene3, Gene3\n")
+            f.write("Gene4, Gene3 & !(Gene1 & Gene5)\n")
+            f.write("Gene5, !Gene2\n")
+        
+        network = load_network("example.bn")
+        print(network)
+        initialStates = generateAllCombinationBinary(network["genes"])
+        trainingseries = generateBoolNetTimeseries(network, initialStates, 43, transition_type = "synchronous")
+        # convert numpy arrays to array of pandas DataFrames
+        trainingseries = [pd.DataFrame(mat, index=network["genes"], columns=[str(j+1) for j in range(mat.shape[1])]) for mat in trainingseries]
+        # output the keys of the network to list
+        genes = list(network['genes'])
+        main_params = convert_df_main_parameters(trainingseries, 1)
+
+        # Call the function
+        filtered_genes = fbnnet_tree.filterTargetGenesByConditionGenes(genes, main_params, genes, None, 1)
+        # Access results
+        self.assertTrue(filtered_genes == genes)  # In this case, all genes should be retained
+        print("Filtered genes: ", filtered_genes)
+
     def test_process_cube_algorithm(self):
         # Prepare input data
         main_params = generate_test_example()

@@ -9,10 +9,11 @@ import pandas as pd
 from py.cube import construct_fbn_cube
 from concurrent.futures import ThreadPoolExecutor
 from py.cube import construct_fbn_cube
+from py.network import mine_fbn_network
 
 
-class TestCube(unittest.TestCase):
-    def test_cube(self):
+class TestNetwork(unittest.TestCase):
+    def test_network(self):
        # Example usage
         from py.boolnet import load_network
         from py.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
@@ -38,20 +39,14 @@ class TestCube(unittest.TestCase):
         result = construct_fbn_cube(genes, genes, trainingseries, max_k=5, temporal=1, use_parallel=False)
         end_time = pd.Timestamp.now()
         print(f"Time taken (non-parallel): {end_time - start_time}")
-        # print(result)
 
-        start_time = pd.Timestamp.now()
-        result2 = construct_fbn_cube(genes, genes, trainingseries, max_k=5, temporal=1, use_parallel=True)
-        end_time = pd.Timestamp.now()
-        print(f"Time taken (parallel): {(end_time - start_time)}")
-        # print(result)
-        # Compare results
-        if result == result2:
-            print("Results are the same.")
-        else:
-            print("Results are different.")
+        print(result)
+        network = mine_fbn_network(result, genes, use_parallel=False)
 
-        self.assertEqual(result, result2)
+        # check if the network contains the expected genes
+        self.assertTrue(set(genes).issubset(set(network['genes'])))
+        print(network)
+       
 if __name__ == "__main__":
 
     unittest.main()

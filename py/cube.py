@@ -14,6 +14,52 @@ from concurrent.futures import ThreadPoolExecutor
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def convert_df_main_parameters(timeseries_cube: List[pd.DataFrame], temporal: int = 1) -> Dict[str, Any]:
+    """ Convert a list of pandas DataFrames into a main parameters dictionary for FBN cube construction.
+    This function processes the input time series data, reduces it, and prepares the necessary parameters
+    for further analysis in the FBN cube construction."""
+    # Data reduction
+    reduced_cube = fbn_data_reduction(timeseries_cube)
+    # get first matrix's row names
+    genes_input = reduced_cube[0].index.tolist()
+    # Convert each DataFrame to numpy array
+    for i, mat in enumerate(reduced_cube):
+        reduced_cube[i] = mat.to_numpy(dtype=np.float64)
+
+    for i, mat in enumerate(reduced_cube):
+        reduced_cube[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
+    # Initialize state containers
+    current_states = [None] * temporal
+    previous_states = [None] * temporal
+    current_states_c = [None] * temporal
+    previous_states_c = [None] * temporal
+    
+    # Set up data for each temporal level
+    for index in range(temporal, 0, -1):
+        current_states[index-1] = fbnnet_core.extract_gene_state_from_time_series_cube(reduced_cube, index)
+        previous_states[index-1] = current_states[index-1]
+        current_states_c[index-1] = current_states[index-1]
+        previous_states_c[index-1] = current_states[index-1]
+    
+    # Calculate total timepoints and samples
+    total_timepoints = sum(mat.matrix_t().shape[1] for mat in reduced_cube)
+    total_samples = len(reduced_cube)
+    all_gene_names = genes_input
+    
+    # Create main parameters dictionary
+    main_parameters = {
+        "currentStates": current_states,
+        "previousStates": previous_states,
+        "currentStates_c": current_states_c,
+        "previousStates_c": previous_states_c,
+        "total_samples": total_samples,
+        "rownames": all_gene_names,
+        "total_timepoints": total_timepoints,
+        "testseries": reduced_cube
+    }
+
+    return main_parameters
+
 def construct_fbn_cube(target_genes: List[str], 
                       conditional_genes: List[str], 
                       timeseries_cube: List[pd.DataFrame], 
@@ -71,46 +117,47 @@ def construct_fbn_cube(target_genes: List[str],
                f"temporal={temporal}, "
                f"use_parallel={use_parallel}")
     
-    # Data reduction
-    reduced_cube = fbn_data_reduction(timeseries_cube)
-    # get first matrix's row names
-    genes_input = reduced_cube[0].index.tolist()
-    # Convert each DataFrame to numpy array
-    for i, mat in enumerate(reduced_cube):
-        reduced_cube[i] = mat.to_numpy(dtype=np.float64)
+    # # Data reduction
+    # reduced_cube = fbn_data_reduction(timeseries_cube)
+    # # get first matrix's row names
+    # genes_input = reduced_cube[0].index.tolist()
+    # # Convert each DataFrame to numpy array
+    # for i, mat in enumerate(reduced_cube):
+    #     reduced_cube[i] = mat.to_numpy(dtype=np.float64)
 
-    for i, mat in enumerate(reduced_cube):
-        reduced_cube[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
-    # Initialize state containers
-    current_states = [None] * temporal
-    previous_states = [None] * temporal
-    current_states_c = [None] * temporal
-    previous_states_c = [None] * temporal
+    # for i, mat in enumerate(reduced_cube):
+    #     reduced_cube[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
+    # # Initialize state containers
+    # current_states = [None] * temporal
+    # previous_states = [None] * temporal
+    # current_states_c = [None] * temporal
+    # previous_states_c = [None] * temporal
     
-    # Set up data for each temporal level
-    for index in range(temporal, 0, -1):
-        current_states[index-1] = fbnnet_core.extract_gene_state_from_time_series_cube(reduced_cube, index)
-        previous_states[index-1] = current_states[index-1]
-        current_states_c[index-1] = current_states[index-1]
-        previous_states_c[index-1] = current_states[index-1]
+    # # Set up data for each temporal level
+    # for index in range(temporal, 0, -1):
+    #     current_states[index-1] = fbnnet_core.extract_gene_state_from_time_series_cube(reduced_cube, index)
+    #     previous_states[index-1] = current_states[index-1]
+    #     current_states_c[index-1] = current_states[index-1]
+    #     previous_states_c[index-1] = current_states[index-1]
     
-    # Calculate total timepoints and samples
-    total_timepoints = sum(mat.matrix_t().shape[1] for mat in reduced_cube)
-    total_samples = len(reduced_cube)
-    all_gene_names = genes_input
+    # # Calculate total timepoints and samples
+    # total_timepoints = sum(mat.matrix_t().shape[1] for mat in reduced_cube)
+    # total_samples = len(reduced_cube)
+    # all_gene_names = genes_input
     
-    # Create main parameters dictionary
-    main_parameters = {
-        "currentStates": current_states,
-        "previousStates": previous_states,
-        "currentStates_c": current_states_c,
-        "previousStates_c": previous_states_c,
-        "total_samples": total_samples,
-        "rownames": all_gene_names,
-        "total_timepoints": total_timepoints,
-        "testseries": reduced_cube
-    }
-
+    # # Create main parameters dictionary
+    # main_parameters = {
+    #     "currentStates": current_states,
+    #     "previousStates": previous_states,
+    #     "currentStates_c": current_states_c,
+    #     "previousStates_c": previous_states_c,
+    #     "total_samples": total_samples,
+    #     "rownames": all_gene_names,
+    #     "total_timepoints": total_timepoints,
+    #     "testseries": reduced_cube
+    # }
+    main_parameters = convert_df_main_parameters(timeseries_cube, temporal)
+    target_genes = fbnnet_tree.filterTargetGenesByConditionGenes(target_genes, main_parameters, conditional_genes, None, temporal)
     # Process each target gene
     if use_parallel:
         res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
@@ -118,14 +165,18 @@ def construct_fbn_cube(target_genes: List[str],
         res = do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
     
     # Filter out None or empty results
+    cube = {}
+    result = {}
     if res:
         res = [r for r in res if r is not None and len(r) > 0]
         # Add FBNCube class information (using dict to simulate R's class system)
         for item in res:
-            item['class'] = 'FBNCube'
-    
+            cube.update(item)
+    result["cube"] = cube
+    result["class"] = "FBNCube"
+    result["target_genes"] = target_genes
     logger.info("Leave construct_fbn_cube zone.")
-    return res
+    return result
 
 # Helper functions (implementations would need to be added)
 

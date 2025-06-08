@@ -13,6 +13,54 @@
 
 namespace py = pybind11;
 
+std::vector<std::string> filterTargetGenesByConditionGenes(
+      std::vector<std::string>& targetGenes,
+      py::dict& mainParameters,
+      std::vector<std::string>& genes,
+      py::object& prefix,
+      int temporal)
+{
+   size_t tlen = targetGenes.size();
+   size_t len = genes.size();
+   std::vector<std::string> filteredTargetGene;
+   
+   for(size_t t=0; t<tlen; t++){
+      std::vector<std::string> targetGene = {targetGenes[t]};
+
+      for(size_t i=0; i<len; i++){
+         std::vector<std::string> gene = {genes[i]};
+
+         py::dict probabilityOfFourCombines = getGeneProbabilities(
+             mainParameters, 
+             prefix, 
+             targetGene, 
+             gene, 
+             temporal, 
+             false);
+         
+         if(probabilityOfFourCombines.is_none())
+         {
+            continue;
+         }
+         
+         py::dict probabilityOfFourCombines_P;
+         py::dict probabilityOfFourCombines_N;
+
+         probabilityOfFourCombines_P = probabilityOfFourCombines["BestFitP"];
+         probabilityOfFourCombines_N = probabilityOfFourCombines["BestFitN"];    
+
+         if(!probabilityOfFourCombines_P["is_essential_gene"].cast<bool>() && 
+            !probabilityOfFourCombines_N["is_essential_gene"].cast<bool>()){
+            continue;
+         }
+
+         filteredTargetGene.push_back(targetGene[0]);
+         break;
+      }
+   }
+   return filteredTargetGene;
+}
+
 // Main function
 py::dict getGeneProbabilities_measurements(
     std::vector<std::string>& targetGene,
@@ -464,6 +512,13 @@ py::dict process_cube_algorithm(
 
 // PyBind11 module definition
 PYBIND11_MODULE(fbnnet_tree, m) {
+    m.def("filterTargetGenesByConditionGenes", &filterTargetGenesByConditionGenes,
+        "Filter target genes based on condition genes",
+        py::arg("targetGenes"),
+        py::arg("mainParameters"),
+        py::arg("genes"),
+        py::arg("prefix") = py::none(),
+        py::arg("temporal") = 1);
     m.def("getGeneProbabilities_measurements", &getGeneProbabilities_measurements,
         "Get the main measurements based on the input data",
         py::arg("targetGene"),
