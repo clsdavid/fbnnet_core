@@ -17,6 +17,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 import networkx as nx
+import fbnnet_utils
 
 # Use a non-interactive backend by default so this module works headlessly
 # (e.g. in CI/tests); callers can override MPLBACKEND before import if they
@@ -87,10 +88,89 @@ def to_networkx_graph(fbn_network: Dict[str, Any], show_decay: bool = False) -> 
     return graph
 
 
+def to_networkx_graph_with_rules(fbn_network: Dict[str, Any], show_decay: bool = False) -> "nx.MultiDiGraph":
+    """
+    Convert an FBN network into a gene -> rule -> gene `networkx.MultiDiGraph`.
+
+    Unlike `to_networkx_graph` (which collapses each rule into a single direct
+    gene->gene edge), this mirrors R's `ConvertToNetworkGraphicObject` more
+    closely: every individual activator/inhibitor rule gets its own "rule"
+    node (labelled with its type and timestep), with edges
+    `input gene -> rule -> target gene`. Input edges are colored red if that
+    specific input is negated (`!gene`) inside the rule's expression, green
+    otherwise -- matching R's per-input negation highlighting.
+
+    Args:
+        fbn_network: The Fundamental Boolean Network
+        show_decay: If True, add a self-loop "decay" edge for every gene
+
+    Returns:
+        A `networkx.MultiDiGraph` with `node_kind` in {"gene", "rule"} node
+        attributes, one rule node per interaction, and
+        input->rule / rule->target edges.
+    """
+    if fbn_network.get("class") not in _FBN_NETWORK_CLASSES:
+        raise ValueError("Network must be inherited from FundamentalBooleanNetwork")
+
+    genes = fbn_network["genes"]
+    graph = nx.MultiDiGraph()
+    for gene in genes:
+        graph.add_node(gene, node_kind="gene")
+
+    interactions = fbn_network.get("interactions", {})
+    for target_gene in genes:
+        interactions_for_gene = interactions.get(target_gene, {})
+
+        if show_decay:
+            graph.add_edge(target_gene, target_gene, kind="decay", color=DECAY_COLOR, style="dashed")
+
+        for name, interaction in _interaction_items(interactions_for_gene, target_gene):
+            interaction_type = interaction.get("type", 1)
+            timestep = interaction.get("timestep", 1)
+            expression = interaction.get("expression", "")
+            kind = "activator" if interaction_type == 1 else "inhibitor"
+            edge_color = ACTIVATOR_COLOR if kind == "activator" else INHIBITOR_COLOR
+
+            rule_node = f"{target_gene}::{name}"
+            graph.add_node(
+                rule_node,
+                node_kind="rule",
+                kind=kind,
+                timestep=timestep,
+                label=f"{'+' if kind == 'activator' else '-'}{timestep}",
+                expression=expression,
+            )
+
+            tokens = fbnnet_utils.splitExpression(expression, 1, False) if expression else []
+
+            for idx in interaction.get("input", []):
+                source_gene = genes[idx - 1]
+                negated = source_gene in tokens and tokens.index(source_gene) > 0 and tokens[tokens.index(source_gene) - 1] == "!"
+                graph.add_edge(
+                    source_gene, rule_node,
+                    kind="negated_input" if negated else "input",
+                    color=INHIBITOR_COLOR if negated else ACTIVATOR_COLOR,
+                    style="solid",
+                )
+
+            graph.add_edge(
+                rule_node, target_gene,
+                kind=kind,
+                color=edge_color,
+                style="solid" if kind == "activator" else "dashed",
+                timestep=timestep,
+                probability=interaction.get("probability"),
+                expression=expression,
+            )
+
+    return graph
+
+
 def draw_static_network(
     fbn_network: Dict[str, Any],
     ax=None,
     show_decay: bool = False,
+    show_rule_nodes: bool = False,
     layout=None,
     figsize=(8, 6),
 ):
@@ -106,6 +186,11 @@ def draw_static_network(
         ax: Optional matplotlib Axes to draw on; a new figure/axes is created
             if omitted
         show_decay: If True, draw decay self-loops
+        show_rule_nodes: If True, draw the network as
+            `gene -> rule(+/-, timestep) -> gene` (one square node per
+            activator/inhibitor rule, labelled with its type and timestep,
+            with per-input negation highlighting) instead of collapsing each
+            rule into a single direct gene->gene edge.
         layout: Optional callable `graph -> pos dict` (defaults to
             `networkx.spring_layout`)
         figsize: Figure size used when `ax` is not provided
@@ -115,19 +200,41 @@ def draw_static_network(
     """
     import matplotlib.pyplot as plt
 
-    graph = to_networkx_graph(fbn_network, show_decay=show_decay)
+    if show_rule_nodes:
+        graph = to_networkx_graph_with_rules(fbn_network, show_decay=show_decay)
+    else:
+        graph = to_networkx_graph(fbn_network, show_decay=show_decay)
+
     if ax is None:
         _, ax = plt.subplots(figsize=figsize)
 
     pos = layout(graph) if layout is not None else nx.spring_layout(graph, seed=42)
 
-    node_size = 800
-    nx.draw_networkx_nodes(graph, pos, ax=ax, node_color="lightblue", node_size=node_size)
-    nx.draw_networkx_labels(graph, pos, ax=ax, font_size=9)
+    gene_node_size = 800
+    rule_node_size = 400
+    node_size_by_id = {
+        n: (rule_node_size if data.get("node_kind") == "rule" else gene_node_size)
+        for n, data in graph.nodes(data=True)
+    }
+    node_size_array = [node_size_by_id[n] for n in graph.nodes()]
+
+    gene_nodes = [n for n, data in graph.nodes(data=True) if data.get("node_kind", "gene") == "gene"]
+    nx.draw_networkx_nodes(graph, pos, nodelist=gene_nodes, ax=ax, node_color="lightblue", node_size=gene_node_size)
+    nx.draw_networkx_labels(graph, pos, labels={n: n for n in gene_nodes}, ax=ax, font_size=9)
+
+    if show_rule_nodes:
+        for kind, color in (("activator", "lightgreen"), ("inhibitor", "orange")):
+            rule_nodes = [n for n, data in graph.nodes(data=True) if data.get("node_kind") == "rule" and data.get("kind") == kind]
+            if rule_nodes:
+                nx.draw_networkx_nodes(graph, pos, nodelist=rule_nodes, ax=ax, node_color=color, node_shape="s", node_size=rule_node_size)
+        rule_labels = {n: data["label"] for n, data in graph.nodes(data=True) if data.get("node_kind") == "rule"}
+        nx.draw_networkx_labels(graph, pos, labels=rule_labels, ax=ax, font_size=7)
 
     for kind, color, style in (
         ("activator", ACTIVATOR_COLOR, "solid"),
         ("inhibitor", INHIBITOR_COLOR, "solid"),
+        ("input", ACTIVATOR_COLOR, "solid"),
+        ("negated_input", INHIBITOR_COLOR, "solid"),
         ("decay", DECAY_COLOR, "dashed"),
     ):
         edges = [(u, v) for u, v, data in graph.edges(data=True) if data.get("kind") == kind]
@@ -135,7 +242,7 @@ def draw_static_network(
             nx.draw_networkx_edges(
                 graph, pos, edgelist=edges, ax=ax,
                 edge_color=color, style=style, arrows=True,
-                arrowstyle="-|>", arrowsize=15, node_size=node_size,
+                arrowstyle="-|>", arrowsize=15, node_size=node_size_array,
                 connectionstyle="arc3,rad=0.15",
             )
 
@@ -153,6 +260,7 @@ def plot_network(
     next_level_mix_type: bool = False,
     output_network: bool = False,
     show_decay: bool = False,
+    show_rule_nodes: bool = False,
     ax=None,
 ):
     """
@@ -177,6 +285,7 @@ def plot_network(
         next_level_mix_type: See `find_forward_related_network_by_genes`/`find_backward_related_network_by_genes`
         output_network: If True, also return the (possibly filtered) network
         show_decay: If True, draw decay self-loops
+        show_rule_nodes: If True, draw as `gene -> rule(+/-, timestep) -> gene` (see `draw_static_network`)
         ax: Optional matplotlib Axes to draw on
 
     Returns:
@@ -208,7 +317,7 @@ def plot_network(
     else:
         raise ValueError(f"Unsupported direction '{direction}', expected 'static', 'forward' or 'backward'")
 
-    ax = draw_static_network(network, ax=ax, show_decay=show_decay)
+    ax = draw_static_network(network, ax=ax, show_decay=show_decay, show_rule_nodes=show_rule_nodes)
 
     if output_network:
         return network, ax
@@ -254,6 +363,17 @@ def draw_attractor(fbm_attractors: Dict[str, Any], index: int = 0, ax=None, figs
     ax.set_yticklabels(genes)
     ax.set_xticks(range(len(cycle)))
     ax.set_xticklabels([str(i) for i in range(len(cycle))])
+    # Annotate each cell with its 0/1 value so all-0/all-1 rows/cycles (e.g.
+    # a fixed point) still show readable content instead of a blank image.
+    for row, gene in enumerate(genes):
+        for col in range(len(cycle)):
+            value = matrix[row][col]
+            ax.text(col, row, str(value), ha="center", va="center",
+                     color="white" if value else "black", fontsize=8)
+    ax.set_xticks([x - 0.5 for x in range(len(cycle) + 1)], minor=True)
+    ax.set_yticks([y - 0.5 for y in range(len(genes) + 1)], minor=True)
+    ax.grid(which="minor", color="lightgrey", linewidth=0.5)
+    ax.tick_params(which="minor", length=0)
     ax.set_xlabel("Step in cycle")
     ax.set_title(f"Attractor {index} (length {len(cycle)})")
     return ax

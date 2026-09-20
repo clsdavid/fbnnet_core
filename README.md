@@ -18,9 +18,10 @@ network-mining logic live in the `py_src/` package.
 
 ## Project status
 
-The full pipeline described in the original R package (`FBNNet2_public`) has been ported: time-series
-handling, Orchard Cube construction, network mining, the network application/query layer, attractor
-search, visualisation, and a single top-level pipeline entry point.
+The core pipeline described in the original R package (`FBNNet2_public`) has been ported and is
+exercised end to end in [`example/reproduce_vignette_experiment.py`](example/reproduce_vignette_experiment.py)
+against the same test network the R package's own vignette uses (see
+["Reproducing the R vignette experiment"](#reproducing-the-r-vignette-experiment) below).
 
 | Area | R source | Python status |
 |---|---|---|
@@ -30,15 +31,19 @@ search, visualisation, and a single top-level pipeline entry point.
 | Boolean expression tree parsing / rule construction | `network_utility_FBN.R` | ✅ Ported (`py_src/network_utils.py`) |
 | Network mining from a cube (`mineFBNNetwork`) | `network_FBN.R` | ✅ Ported (`py_src/network.py: mine_fbn_network`) |
 | Network application/query layer (`loadFBNNetwork`, `mergeNetwork`, `filterNetworkConnections(ByGenes/ByInputGenes)`, `findAllForward/BackwardRelatedGenes`, `find(Forward\|Backward)RelatedNetworkByGenes`, etc.) | `network_application_FBN.R` | ✅ Ported (`py_src/network_app.py`) |
-| Attractor search (`searchForAttractors`, `getFBMSuccessor`, `networkFixUpdate`) | `attractor_FBN.R`, parts of `modelling_FBN.R` | ✅ Ported (`py_src/attractor.py`) |
+| Attractor search (`searchForAttractors`, `getFBMSuccessor`, `networkFixUpdate`) | `attractor_FBN.R`, parts of `modelling_FBN.R` | ✅ Ported (`py_src/attractor.py`) — faithfully reproduces R's random tie-breaking between competing rules and its basin-tracking quirks (see [example/README.md](example/README.md)) |
 | Graph/visualisation (`FBNNetwork.Graph`, `plotNetwork`, attractor drawing) | `graph_FBN.R`, `plot_network_FBN.R` | ✅ Ported as a `networkx` + `matplotlib`-based equivalent (`py_src/network_graph.py`) — see note below |
 | Single top-level entry point (`generateFBMNetwork` = discretise + cube + mining in one call) | `application_FBN.R` | ✅ Ported (`py_src/application.py: generate_fbm_network`) |
+| `reconstructTimeseries` / `generateSimilaryReport` round-trip accuracy check (referenced in the R vignette) | Not present anywhere in current `FBNNet2_public/R/*.R` sources (only in the vignette/tests, which appear stale relative to the current R package) | ⚠️ Not ported — there is no current R implementation to port from. `py_src/general_utils.py` does have an (independently useful) `check_similarity`/`generate_similar_report` pair, but they don't reproduce this exact R function |
 
 > **Note on visualisation:** `graph_FBN.R` builds `visNetwork`/`igraph`-specific JSON structures for an
 > interactive JS widget, which has no direct Python equivalent. `py_src/network_graph.py` instead
-> converts an FBN network into a `networkx.MultiDiGraph` and renders it with `matplotlib`
-> (`draw_static_network`, `plot_network`, `draw_attractor`), preserving the same activator/inhibitor/decay
-> styling conventions but as static images rather than an interactive widget.
+> converts an FBN network into a `networkx.MultiDiGraph` and renders it with `matplotlib`. It supports
+> both a simplified `gene -> gene` view (`draw_static_network`, `plot_network`) and, via
+> `show_rule_nodes=True`, R's actual `gene -> activator/inhibitor rule (timestep) -> gene` 3-tier
+> structure with per-input negation highlighting (`to_networkx_graph_with_rules`) — as well as
+> attractor drawing (`draw_attractor`). These preserve the same activator/inhibitor/decay styling
+> conventions as R but render static images rather than an interactive widget.
 >
 > **Note on discretisation:** `generate_fbm_network`'s non-boolean-data path uses a small dependency-free
 > 1-D 2-means implementation (`py_src/application.py: binarize_time_series`) rather than wrapping
@@ -65,6 +70,8 @@ py_src/         Python package with the higher-level pipeline (named `py_src`, n
   application.py  generate_fbm_network(): single top-level pipeline entry point
 statistic/      Statsmodels/scipy-based statistical tests (e.g. Fisher's exact test)
 tests/          unittest test suite exercising the C++ extensions and Python layer
+example/        A runnable, end-to-end reproduction of the R package's vignette experiment
+                (see "Reproducing the R vignette experiment" below)
 example.bn, example_fbn.csv, test_network.txt, test_genes.txt
                 Sample network/data files used by the tests and examples
 ```
@@ -118,7 +125,7 @@ the third-party `py`/pylib module that some `pytest` internals (`_pytest/compat.
 pytest tests/ -v
 ```
 
-As of the current codebase, running the full suite gives **120 passed**.
+As of the current codebase, running the full suite gives **124 passed**.
 
 You can run a single test module directly, e.g.:
 
@@ -232,7 +239,35 @@ from py_src.network_graph import draw_static_network, plot_network, draw_attract
 draw_static_network(fbn_network)                       # activator=green, inhibitor=red edges
 plot_network(fbn_network, target_genes=["GeneA"], direction="forward", max_deep=2)
 draw_attractor(attractors, index=0)                    # genes x cycle-step heatmap
+
+# gene(node) -> activator/inhibitor rule (timestep, node) -> gene(node), matching R's structure
+draw_static_network(fbn_network, show_rule_nodes=True)
+plot_network(fbn_network, target_genes=["GeneA"], direction="forward", max_deep=1, show_rule_nodes=True)
 ```
+
+## Reproducing the R vignette experiment
+
+The R package's vignette (`FBNNet2_public/vignettes/FBNNet.Rmd`, *"Extract the Fundamental Boolean
+Network"*) works through one full, concrete experiment: load a 5-gene BoolNet network
+(`ExampleNetwork`), simulate 43 synchronous time steps from every possible initial state, mine a
+Fundamental Boolean Network from that data, graph it, and search for its attractors.
+
+[`example/reproduce_vignette_experiment.py`](example/reproduce_vignette_experiment.py) runs that
+same experiment with this Python port, against [`example/example.bn`](example/example.bn) — a
+byte-for-byte copy of the R package's own `ExampleNetwork` test fixture
+(`FBNNet2_public/tests/testthat/example.bn`):
+
+```bash
+source .venv/bin/activate
+python example/reproduce_vignette_experiment.py
+```
+
+This mines 29 activator/inhibitor rules across the 5 genes (all at 100% confidence) and finds 4
+FBM attractors (two fixed points, two period-3 cycles) — see
+[`example/README.md`](example/README.md) for the full walkthrough, the generated network/attractor
+images, and an explanation of which parts of the R vignette (namely, its
+`reconstructTimeseries`/`generateSimilaryReport` round-trip check) have no current R implementation
+to port from.
 
 ## License
 
