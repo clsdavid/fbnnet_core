@@ -1,9 +1,9 @@
 import unittest
-from py.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
-from py.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
-from py.general_utils import output_genes, output_timeseries_based_on_genes
-from py.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
-from py.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
+from py_src.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
+from py_src.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
+from py_src.general_utils import output_genes, output_timeseries_based_on_genes
+from py_src.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
+from py_src.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
 import pandas as pd
 import numpy as np
 import fbnnet_utils
