@@ -93,24 +93,18 @@ class TestFbnnet_utils(unittest.TestCase):
                 print(f"  Sample {entry[2]}: {entry[0]} (score: {entry[1]:.2f})")
 
         # Test dissolve function
-        # Test with a complex nested structure similar to R's lists
-        complex_list = {
-            'group1': {
-                'sub1': [10, 20, 30],
-                'sub2': {'a': 100, 'b': 200}
-            },
-            'group2': 50,
-            'group3': [{'x': 1}, {'y': 2}]
-        }
-        
+        # Test with a nested list structure (dissolve only recurses into lists/tuples,
+        # dicts and scalars are treated as leaf values - matches R's dissolve semantics)
+        complex_list = [[10, 20, 30], [{'a': 100, 'b': 200}], 50, [{'x': 1}, {'y': 2}]]
+
         result = dissolve(complex_list)
-        
+
         print("Original complex structure:")
         print(complex_list)
-        
+
         print("\nDissolved structure:")
-        for key, value in result.items():
-            print(f"{key}: {value}")
+        for value in result:
+            print(value)
 
         # Test check_right_type_timeseries_data
         try:

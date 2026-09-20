@@ -332,7 +332,7 @@ def merge_interaction(
                 expr = interaction['expression']
                 
                 # Create unique key for expression
-                sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, ",", True))
+                sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, 2, True))
                 temp_expr = "".join(sorted_inputs)
                 
                 if typ == 1:
@@ -381,7 +381,7 @@ def merge_interaction(
         # Get existing expressions
         for int_name, interaction in res[name1].items():
             expr = interaction['expression']
-            sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, ",", True))
+            sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, 2, True))
             temp_expr = "".join(sorted_inputs)
             
             if interaction['type'] == 1:
@@ -397,7 +397,7 @@ def merge_interaction(
             
             typ = interaction['type']
             expr = interaction['expression']
-            sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, ",", True))
+            sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, 2, True))
             temp_expr = "".join(sorted_inputs)
             
             if typ == 1:
@@ -446,7 +446,7 @@ def merge_interaction(
                 
                 typ = interaction['type']
                 expr = interaction['expression']
-                sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, ",", True))
+                sorted_inputs = sorted(fbnnet_utils.splitExpression(expr, 2, True))
                 temp_expr = "".join(sorted_inputs)
                 
                 if not all(g in merged_genes for g in input_genes2):
@@ -545,7 +545,10 @@ def find_all_input_genes(network_interactions: Dict, genes: List[str]) -> List[s
     """
     input_indices = set()
     for interactions in network_interactions.values():
-        for interaction in interactions.values():
+        # interactions may be a plain list (freshly mined) or a dict keyed by
+        # interaction name (already merged/filtered) - support both shapes.
+        items = interactions.values() if isinstance(interactions, dict) else interactions
+        for interaction in items:
             input_indices.update(interaction['input'])
     
     return [genes[i-1] for i in input_indices]  # Convert to 0-based

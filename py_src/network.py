@@ -427,8 +427,8 @@ def mine_fbn_network_stage2(
                 if (int(rule['numOfInput']) < int(rule2['numOfInput']) and
                     int(rule['type']) == int(rule2['type']) and
                     int(rule['timestep']) == int(rule2['timestep']) and
-                    all(gene in fbnnet_utils.splitExpression(rule2['input']) 
-                        for gene in fbnnet_utils.splitExpression(rule['input']))):
+                    all(gene in fbnnet_utils.splitExpression(rule2['input'], 2, False)
+                        for gene in fbnnet_utils.splitExpression(rule['input'], 2, False))):
                     final_filtered_list[target].append(rule2)
         
         # Keep only rules not in the filtered list

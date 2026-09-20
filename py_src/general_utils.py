@@ -205,38 +205,34 @@ def generate_similar_report(similarityreport):
 
 def dissolve(x):
     """
-    A function that moves sub-list items to its parent list
-    
-    This function is used to simplify a complex nested list/dictionary structure
-    
+    A function that moves sub-list items to its parent list, i.e. it flattens
+    arbitrarily nested lists/tuples into a single flat list.
+
+    This mirrors R's `dissolve` from utility_FBN.R, which only recurses into
+    R lists (`is.list(x)`); R's named atomic vectors (the equivalent of a
+    Python dict record, e.g. a single mined FBN rule) are treated as opaque
+    leaf values and are *not* taken apart. So here only `list`/`tuple` values
+    are recursed into - dicts (and any other scalar) are appended as-is.
+
     Parameters:
-    x (dict/list): A complex nested structure
-    
+    x (list/tuple/Any): A (possibly nested) list/tuple, or a single leaf value
+
     Returns:
-    dict: A simplified dictionary with all leaf elements and their full paths as keys
-    
+    list: A flat list of leaf values (dicts, strings, numbers, etc.)
+
     Examples:
-    >>> nested = {'a': {'b': 1, 'c': {'d': 2}}, 'e': 3}
-    >>> dissolve(nested)
-    {'a.b': 1, 'a.c.d': 2, 'e': 3}
+    >>> dissolve([[{'a': 1}, {'b': 2}], {'c': 3}])
+    [{'a': 1}, {'b': 2}, {'c': 3}]
     """
-    combi = {}
-    
-    def operator(current, path=None):
-        if path is None:
-            path = []
-        
-        if isinstance(current, dict):
-            for key, value in current.items():
-                operator(value, path + [str(key)])
-        elif isinstance(current, list):
-            for i, item in enumerate(current):
-                operator(item, path + [str(i)])
-        else:
-            # Join the path with dots like R's names
-            full_path = '.'.join(path) if path else ''
-            combi[full_path] = current
-    
+    combi = []
+
+    def operator(current):
+        if isinstance(current, (list, tuple)):
+            for item in current:
+                operator(item)
+        elif current is not None:
+            combi.append(current)
+
     operator(x)
     return combi
 
@@ -446,24 +442,17 @@ if __name__ == "__main__":
             print(f"  Sample {entry[2]}: {entry[0]} (score: {entry[1]:.2f})")
 
     # Test dissolve function
-    # Test with a complex nested structure similar to R's lists
-    complex_list = {
-        'group1': {
-            'sub1': [10, 20, 30],
-            'sub2': {'a': 100, 'b': 200}
-        },
-        'group2': 50,
-        'group3': [{'x': 1}, {'y': 2}]
-    }
-    
+    # Test with a nested list structure (dissolve only recurses into lists/tuples)
+    complex_list = [[10, 20, 30], [{'a': 100, 'b': 200}], 50, [{'x': 1}, {'y': 2}]]
+
     result = dissolve(complex_list)
-    
+
     print("Original complex structure:")
     print(complex_list)
-    
+
     print("\nDissolved structure:")
-    for key, value in result.items():
-        print(f"{key}: {value}")
+    for value in result:
+        print(value)
 
     # Test check_right_type_timeseries_data
     try:

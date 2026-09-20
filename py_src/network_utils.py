@@ -385,12 +385,12 @@ def convert_mined_result_to_fbn_network(miner_result: Dict[str, Any], genes: Lis
                 ini_index = 0
                 
                 for j, item in enumerate(interaction_items, 1):
-                    expression = item[1]
-                    error = item[4]
-                    probability = item[5]
-                    support = item[6]
-                    item_type = int(item[2])
-                    timestep = item[7]
+                    expression = item['factor']
+                    error = item['error']
+                    probability = item['P']
+                    support = item['support']
+                    item_type = int(item['type'])
+                    timestep = item['timestep']
                     
                     interactions = regenerate_interactions(
                         f"{name}_{j}", expression, genes, error, item_type,
