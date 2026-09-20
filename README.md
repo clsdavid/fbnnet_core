@@ -18,9 +18,9 @@ network-mining logic live in the `py_src/` package.
 
 ## Project status
 
-This is a work in progress. Compared with the original R package (`FBNNet2_public`), the **cube
-construction / statistical modelling stage is implemented and tested**, but the **network
-construction / application layer is not yet complete**:
+The full pipeline described in the original R package (`FBNNet2_public`) has been ported: time-series
+handling, Orchard Cube construction, network mining, the network application/query layer, attractor
+search, visualisation, and a single top-level pipeline entry point.
 
 | Area | R source | Python status |
 |---|---|---|
@@ -28,15 +28,22 @@ construction / application layer is not yet complete**:
 | General utilities (data reduction, similarity checks, type checks) | `utility_FBN.R` | ✅ Ported (`py_src/general_utils.py`) |
 | Orchard Cube construction (gene-probability measures, chi-square/causality tests, recursive tree search) | `cube_FBN.R`, `modelling_FBN.R` | ✅ Ported (`py_src/cube.py` + C++ `src/fbn_core.cpp`, `fbn_tree.cpp`, `fbn_chisq.cpp`) |
 | Boolean expression tree parsing / rule construction | `network_utility_FBN.R` | ✅ Ported (`py_src/network_utils.py`) |
-| Network mining from a cube (`mineFBNNetwork`) | `network_FBN.R` | ⚠️ Ported (`py_src/network.py: mine_fbn_network`) but **incomplete** — `tests/test_network.py` currently fails an assertion because the mined network does not yet cover all input genes |
-| Network application/query layer (`findForwardRelatedNetworkByGenes`, `findAllBackwardRelatedGenes`, `filterNetworkConnectionsByGenes`, etc.) | `network_application_FBN.R` | ❌ Not ported — only `load_fbn_network`, `convert_to_boolean_network_collection`, `merge_network`, `filter_network_connections` exist in `py_src/network_app.py` |
-| Attractor search (`searchForAttractors`) | `attractor_FBN.R` | ❌ Not ported |
-| Graph/visualisation (`FBNNetwork.Graph`, `plotNetwork`) | `graph_FBN.R`, `plot_network_FBN.R` | ❌ Not ported |
-| Single top-level entry point (`generateFBMNetwork` = cube + mining in one call) | `application_FBN.R` | ❌ No Python equivalent yet — call `construct_fbn_cube()` then `mine_fbn_network()` manually |
+| Network mining from a cube (`mineFBNNetwork`) | `network_FBN.R` | ✅ Ported (`py_src/network.py: mine_fbn_network`) |
+| Network application/query layer (`loadFBNNetwork`, `mergeNetwork`, `filterNetworkConnections(ByGenes/ByInputGenes)`, `findAllForward/BackwardRelatedGenes`, `find(Forward\|Backward)RelatedNetworkByGenes`, etc.) | `network_application_FBN.R` | ✅ Ported (`py_src/network_app.py`) |
+| Attractor search (`searchForAttractors`, `getFBMSuccessor`, `networkFixUpdate`) | `attractor_FBN.R`, parts of `modelling_FBN.R` | ✅ Ported (`py_src/attractor.py`) |
+| Graph/visualisation (`FBNNetwork.Graph`, `plotNetwork`, attractor drawing) | `graph_FBN.R`, `plot_network_FBN.R` | ✅ Ported as a `networkx` + `matplotlib`-based equivalent (`py_src/network_graph.py`) — see note below |
+| Single top-level entry point (`generateFBMNetwork` = discretise + cube + mining in one call) | `application_FBN.R` | ✅ Ported (`py_src/application.py: generate_fbm_network`) |
 
-In short: the **modelling** half of the pipeline (turning time-series data into a statistical "Orchard
-Cube" of candidate activator/inhibitor rules) is done. The **network** half (mining a clean final
-network from that cube, querying/filtering it, finding attractors, and visualising it) still needs work.
+> **Note on visualisation:** `graph_FBN.R` builds `visNetwork`/`igraph`-specific JSON structures for an
+> interactive JS widget, which has no direct Python equivalent. `py_src/network_graph.py` instead
+> converts an FBN network into a `networkx.MultiDiGraph` and renders it with `matplotlib`
+> (`draw_static_network`, `plot_network`, `draw_attractor`), preserving the same activator/inhibitor/decay
+> styling conventions but as static images rather than an interactive widget.
+>
+> **Note on discretisation:** `generate_fbm_network`'s non-boolean-data path uses a small dependency-free
+> 1-D 2-means implementation (`py_src/application.py: binarize_time_series`) rather than wrapping
+> `BoolNet::binarizeTimeSeries`'s `kmeans`/`edgeDetector`/`scanStatistic` methods — only `"kmeans"`-style
+> discretisation is currently supported.
 
 ## Repository layout
 
@@ -51,8 +58,11 @@ py_src/         Python package with the higher-level pipeline (named `py_src`, n
   general_utils.py  Data reduction, similarity, and validation helpers
   cube.py         construct_fbn_cube(): builds the Orchard Cube from time series
   network.py      mine_fbn_network(): mines a FBN network from a cube
-  network_app.py  Network loading/merging/filtering helpers
+  network_app.py  Network loading/merging/filtering/query helpers (forward/backward related genes, etc.)
   network_utils.py  Boolean expression parsing/tree utilities
+  attractor.py    searchForAttractors()/getFBMSuccessor() port: FBM attractor search
+  network_graph.py  networkx/matplotlib-based network & attractor visualisation
+  application.py  generate_fbm_network(): single top-level pipeline entry point
 statistic/      Statsmodels/scipy-based statistical tests (e.g. Fisher's exact test)
 tests/          unittest test suite exercising the C++ extensions and Python layer
 example.bn, example_fbn.csv, test_network.txt, test_genes.txt
@@ -63,7 +73,7 @@ example.bn, example_fbn.csv, test_network.txt, test_genes.txt
 
 * Python >= 3.12
 * A C++ compiler toolchain (the build compiles the pybind11 extensions from `src/`)
-* See [requirements.txt](requirements.txt): `pybind11`, `numpy`, `statsmodels`, `setuptools`
+* See [requirements.txt](requirements.txt): `pybind11`, `numpy`, `statsmodels`, `setuptools`, `networkx`, `matplotlib`
 * `scipy` (used by `statistic/chi_test.py`)
 
 ## Installation
@@ -108,12 +118,7 @@ the third-party `py`/pylib module that some `pytest` internals (`_pytest/compat.
 pytest tests/ -v
 ```
 
-As of the current codebase, running the full suite gives **65 passed, 1 failure, 1 error**:
-
-* `tests/test_chisq.py` errors with `ModuleNotFoundError: No module named 'fbn_chisq'` — the test
-  imports the wrong module name (the built extension is `fbnnet_chisq`, per `setup.py`).
-* `tests/test_network.py::test_network` fails because `mine_fbn_network()` does not yet return a
-  network that covers all input genes — this is the incomplete "network" stage described above.
+As of the current codebase, running the full suite gives **120 passed**.
 
 You can run a single test module directly, e.g.:
 
@@ -161,7 +166,7 @@ cube = construct_fbn_cube(
 )
 ```
 
-### 3. Mine a network from the cube (network stage — experimental/incomplete)
+### 3. Mine a network from the cube
 
 ```python
 from py_src.network import mine_fbn_network
@@ -169,8 +174,65 @@ from py_src.network import mine_fbn_network
 fbn_network = mine_fbn_network(cube, genes, use_parallel=False)
 ```
 
-Note: as described above, this step is not yet fully reliable — always validate the resulting
-`fbn_network['genes']` / rules against your expectations before relying on it.
+### 4. Or run the whole pipeline in one call
+
+```python
+from py_src.application import generate_fbm_network
+
+fbn_network = generate_fbm_network(
+    trainingseries,        # a DataFrame or list of DataFrames (genes x timepoints)
+    max_k=5,
+    max_deep_temporal=1,
+    network_only=True,     # set False to also get back {"cube": ..., "network": ...}
+)
+```
+
+If the input data isn't already boolean, it's discretised first (see the note on discretisation
+above).
+
+### 5. Query and filter the network
+
+```python
+from py_src.network_app import (
+    load_fbn_network,
+    find_forward_related_network_by_genes,
+    find_backward_related_network_by_genes,
+    filter_network_connections_by_genes,
+)
+
+fbn_network = load_fbn_network("example_fbn.csv")
+
+# Genes downstream of GeneA (activators only), one level deep
+downstream = find_forward_related_network_by_genes(
+    fbn_network, target_gene_list=["GeneA"], regulation_type=1, max_deep=1
+)
+
+# Genes upstream of GeneA
+upstream = find_backward_related_network_by_genes(fbn_network, target_gene_list=["GeneA"], max_deep=1)
+
+# Sub-network restricted to a gene list
+subnetwork = filter_network_connections_by_genes(fbn_network, genelist=["GeneA", "GeneB"], exclusive=False)
+```
+
+### 6. Search for attractors
+
+```python
+from py_src.attractor import search_for_attractors
+
+attractors = search_for_attractors(fbn_network, fbn_network["genes"], transition_type="synchronous")
+print(attractors["Attractors"])       # list of attractor cycles (each a list of gene-state dicts)
+print(attractors["BasinOfAttractor"]) # states that flow into each attractor
+```
+
+### 7. Visualise a network or an attractor
+
+```python
+from py_src.network_graph import draw_static_network, plot_network, draw_attractor
+
+draw_static_network(fbn_network)                       # activator=green, inhibitor=red edges
+plot_network(fbn_network, target_genes=["GeneA"], direction="forward", max_deep=2)
+draw_attractor(attractors, index=0)                    # genes x cycle-step heatmap
+```
 
 ## License
 
