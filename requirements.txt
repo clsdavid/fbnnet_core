@@ -4,3 +4,4 @@ numpy>=2.2.4
 statsmodels>=0.14.4
 networkx>=3.6
 matplotlib>=3.11
+pyreadr>=0.5.6

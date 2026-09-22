@@ -5,4 +5,5 @@ fbnnet_core.egg-info/
 tests/__pycache__/
 tests/__pycache__/
 py/__pycache__/
-
+.temp
+.temp/
