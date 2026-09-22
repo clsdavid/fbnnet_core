@@ -54,6 +54,7 @@ def main():
     network = load_network(os.path.join(HERE, "example.bn"))
     genes = network["genes"]
     print(f"Loaded network with genes: {genes}")
+    print(f"network: {network}")
 
     # 2 & 3. Simulate synchronous BoolNet time series from every initial state.
     initial_states = generateAllCombinationBinary(genes)
