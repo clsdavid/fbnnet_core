@@ -476,32 +476,43 @@ int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
 // add back the missing functions
 py::dict compute_fisher_test(py::array_t<double>& x, double conf_level) {
     try {
-        // This for 2x2 table
-        // Import statsmodels
-        py::module statsmodels = py::module::import("statsmodels.stats.contingency_tables");
+        // Matches R's `fisher.test()` (two-sided exact test on a 2x2 table),
+        // NOT a chi-square-based nominal-association test. Using
+        // statsmodels' Table2x2.test_nominal_association() here previously
+        // silently substituted a chi-square approximation for R's exact
+        // hypergeometric test, which can diverge substantially on the small
+        // contingency tables produced deep in the FBN mining tree - causing
+        // incorrect is_essential_gene decisions relative to R.
+        py::module scipy_stats = py::module::import("scipy.stats");
+        py::module scipy_contingency = py::module::import("scipy.stats.contingency");
         
-        // Reshape input to 2x2 table (SciPy/statsmodels expect this format)
+        // Reshape input to 2x2 table
         py::array_t<double> table = x.attr("reshape")(std::make_tuple(2, 2));
         
-        // Create a 2x2 contingency table object
-        py::object table_obj = statsmodels.attr("Table2x2")(table);
+        // Perform Fisher's exact test (two-sided, matching R's default) for the p-value
+        py::object result = scipy_stats.attr("fisher_exact")(table, py::arg("alternative") = "two-sided");
         
-        // Perform Fisher's exact test
-        py::object result = table_obj.attr("test_nominal_association")();
+        // R's fisher.test() reports the conditional MLE odds ratio (and its
+        // corresponding confidence interval), not the naive cross-product
+        // ratio. scipy.stats.contingency.odds_ratio(kind="conditional")
+        // matches this. It requires an integer table.
+        py::object int_table = table.attr("astype")("int64");
+        py::object odds_ratio_result = scipy_contingency.attr("odds_ratio")(int_table, py::arg("kind") = "conditional");
+        py::object ci = odds_ratio_result.attr("confidence_interval")(py::arg("confidence_level") = conf_level);
         
-        // Extract results (similar to R's fisher.test())
         py::dict test_out;
         test_out["p_value"] = result.attr("pvalue");
-        test_out["estimate"] = table_obj.attr("oddsratio");
-        test_out["conf_int"] = table_obj.attr("oddsratio_confint")(conf_level);
+        test_out["estimate"] = odds_ratio_result.attr("statistic");
+        test_out["conf_int"] = py::make_tuple(ci.attr("low"), ci.attr("high"));
         
         return test_out;
     } 
     catch (const std::exception &e) {
-        // Handle errors (e.g., statsmodels not installed)
+        // Handle errors (e.g., scipy not installed)
         throw std::runtime_error("Error in compute_fisher_test: " + std::string(e.what()));
     }
 }
+
 
 double compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF) {
     // convert lenTT, lenFT, lenTF, lenFF to int

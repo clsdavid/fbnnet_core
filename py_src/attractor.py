@@ -191,6 +191,69 @@ def get_fbm_successor(
     return {'nextState': next_state, 'decayIndex': new_decay_index}
 
 
+def transition_states(
+    initial_state: Dict[str, int],
+    fbn_network: Dict,
+    genes: List[str],
+    transition_type: str = "synchronous",
+    max_timepoints: int = 100,
+) -> np.ndarray:
+    """
+    Port of R's `transitionStates` (modelling_FBN.R).
+
+    Simulates a single trajectory of `max_timepoints` steps starting from
+    `initial_state`, using get_fbm_successor at each step.
+
+    Returns:
+        A genes x max_timepoints ndarray of 0/1 states.
+    """
+    mat = np.zeros((len(genes), max_timepoints), dtype=int)
+    mat[:, 0] = [initial_state[gene] for gene in genes]
+    decay_index = {gene: 1 for gene in genes}
+    for k in range(2, max_timepoints + 1):
+        result = get_fbm_successor(
+            fbn_network, mat[:, :k - 1], k, genes, transition_type, decay_index
+        )
+        mat[:, k - 1] = [result['nextState'][gene] for gene in genes]
+        decay_index = result['decayIndex']
+    return mat
+
+
+def reconstruct_timeseries(
+    fbn_network: Dict,
+    initial_states: List[Dict[str, int]],
+    transition_type: str = "synchronous",
+    max_timepoints: int = 100,
+    use_parallel: bool = False,
+) -> List[np.ndarray]:
+    """
+    Port of R's `reconstructTimeseries` (modelling_FBN.R).
+
+    Reconstructs a time series matrix (genes x max_timepoints) for each state
+    in `initial_states` by simulating transitions through `fbn_network`.
+
+    Args:
+        fbn_network: A FundamentalBooleanNetwork
+        initial_states: A list of gene-name -> 0/1 dicts, one per starting state
+        transition_type: "synchronous" or "asynchronous"
+        max_timepoints: Number of timepoints to simulate per trajectory
+        use_parallel: Unused; kept for signature parity with the R source.
+
+    Returns:
+        A list of genes x max_timepoints ndarrays, one per initial state.
+    """
+    if fbn_network.get('class') != 'FundamentalBooleanNetwork':
+        raise ValueError("Network must be inherited from FundamentalBooleanNetwork")
+    if not isinstance(max_timepoints, int) or max_timepoints <= 0:
+        raise ValueError("maxTimepoints must be a positive integer")
+
+    genes = fbn_network['genes']
+    return [
+        transition_states(state, fbn_network, genes, transition_type, max_timepoints)
+        for state in initial_states
+    ]
+
+
 def network_fix_update(network: Dict, fix_genes: List[str], values: List[int]) -> Dict:
     """
     Fix specific genes in a FundamentalBooleanNetwork.

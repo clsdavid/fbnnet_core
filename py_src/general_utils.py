@@ -203,6 +203,53 @@ def generate_similar_report(similarityreport):
     return res
 
 
+def generate_similary_report(timeseriesdata1, timeseriesdata2):
+    """
+    Port of R's `generateSimilaryReport` (data_utility_FBN.R).
+
+    Note: R has two similarly-named-but-distinct functions - this ports the
+    one from data_utility_FBN.R (spelled "Similary"), which buckets results
+    by category label and additionally computes ErrorRate/AccurateRate/
+    MissMatchedRate/PerfectMatchedRate benchmark statistics. This is distinct
+    from `generate_similar_report` above, which ports utility_FBN.R's
+    "Similar"-spelled function (buckets by numeric decile A-J) and takes an
+    already-computed similarity report rather than raw timeseries data.
+
+    Parameters:
+    timeseriesdata1 (list of numpy arrays): Original data set
+    timeseriesdata2 (list of numpy arrays): Reconstructed data set to compare
+
+    Returns:
+    dict: SimilarityReport, Similar, Likely, verysimilar, unlikely,
+          veryunlikely (all lists of [category, score, index] entries), plus
+          ErrorRate, PerfectMatchedRate, MissMatchedRate and AccurateRate.
+    """
+    similar = check_similarity(timeseriesdata1, timeseriesdata2)
+
+    res = {
+        "SimilarityReport": similar,
+        "Similar": [entry for entry in similar if entry[0] == "similar"],
+        "Likely": [entry for entry in similar if entry[0] == "likely"],
+        "verysimilar": [entry for entry in similar if entry[0] == "verysimilar"],
+        "unlikely": [entry for entry in similar if entry[0] == "unlikely"],
+        "veryunlikely": [entry for entry in similar if entry[0] == "veryunlikely"],
+    }
+
+    pm = [entry for entry in similar if float(entry[1]) == 1]
+    mm = [entry for entry in similar if float(entry[1]) < 1]
+
+    mm_values = [float(entry[1]) for entry in mm]
+    avg_mm_values = sum(mm_values) / len(mm) if len(mm) > 0 else 0
+
+    total = len(pm) + len(mm)
+    res["ErrorRate"] = ((1 - avg_mm_values) * len(mm)) / total if total else 0
+    res["PerfectMatchedRate"] = len(pm) / total if total else 0
+    res["MissMatchedRate"] = len(mm) / total if total else 0
+    res["AccurateRate"] = (len(pm) + avg_mm_values * len(mm)) / total if total else 0
+
+    return res
+
+
 def dissolve(x):
     """
     A function that moves sub-list items to its parent list, i.e. it flattens

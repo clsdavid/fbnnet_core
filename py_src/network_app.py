@@ -96,8 +96,8 @@ def load_fbn_network(file: str, body_separator: str = ",", lowercase_genes: bool
     # Extract gene names from factors
     factors_tmp = [match_names(factor) for factor in factors]
     
-    # Get all unique genes
-    genes = list(set(targets + [gene for sublist in factors_tmp for gene in sublist]))
+    # Get all unique genes (order-preserving, matching R's `unique(c(...))`)
+    genes = list(dict.fromkeys(targets + [gene for sublist in factors_tmp for gene in sublist]))
     
     # Initialize network structure
     fixed = {gene: -1 for gene in genes}
@@ -189,7 +189,11 @@ def convert_to_boolean_network_collection(network: Dict) -> Dict:
     
     genes1 = network['genes']
     genes2 = network['genes']
-    total_genes = network['genes']
+    # Order-preserving, matching R's `unique(c(network$genes, network$genes))`;
+    # this must stay identical to what's passed into merge_interaction below,
+    # since the returned 'genes' list is what interaction['input'] indices
+    # are decoded against.
+    total_genes = list(dict.fromkeys(network['genes'] + network['genes']))
     
     # Convert interactions
     converted_interactions = {gene: convert_interaction(interaction) 
@@ -201,7 +205,7 @@ def convert_to_boolean_network_collection(network: Dict) -> Dict:
     
     return {
         'interactions': merges,
-        'genes': list(set(network['genes'] + network['genes'])),
+        'genes': total_genes,
         'fixed': network['fixed'],
         'timedecay': {gene: 1 for gene in network['genes']},
         'class': 'BooleanNetworkCollection'
@@ -251,7 +255,8 @@ def merge_network(network1: Dict, network2: Dict) -> Dict:
     
     genes1 = network1['genes']
     genes2 = network2['genes']
-    total_genes = list(set(network1['genes'] + network2['genes']))
+    # Order-preserving, matching R's `unique(c(network1$genes, network2$genes))`.
+    total_genes = list(dict.fromkeys(network1['genes'] + network2['genes']))
     
     # Merge interactions
     merges = merge_interaction(network1['interactions'], network2['interactions'], 
@@ -490,7 +495,10 @@ def filter_network_connections(networks: Dict) -> Dict:
     regulate_genes = list(filtered_networks.keys())
     filtered_input_genes = find_all_input_genes(filtered_networks, genes)
     
-    mixed_genes = list(set(regulate_genes + filtered_input_genes))
+    # R's `unique(c(regulategenes, filteredinputgenes))` preserves first-occurrence
+    # order; a plain set() here would make gene order (and hence merge_interaction's
+    # de-duplication) non-deterministic across process runs.
+    mixed_genes = list(dict.fromkeys(regulate_genes + filtered_input_genes))
     
     extra_networks = {k: v for k, v in networks['interactions'].items() if k in mixed_genes}
     
