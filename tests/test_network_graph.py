@@ -4,17 +4,27 @@ import unittest
 import matplotlib
 matplotlib.use("Agg")
 
+import pandas as pd
+
+from py_src.attractor import reconstruct_timeseries, search_for_attractors
+from py_src.boolnet import load_network
+from py_src.cube import construct_fbn_cube
+from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from py_src.general_utils import generate_similary_report
+from py_src.network import mine_fbn_network
 from py_src.network_app import load_fbn_network, convert_to_boolean_network_collection
-from py_src.attractor import search_for_attractors
 from py_src.network_graph import (
     to_networkx_graph,
     to_networkx_graph_with_rules,
     draw_static_network,
+    draw_static_network_slice,
+    draw_dynamic_network,
     plot_network,
     draw_attractor,
 )
 
 EXAMPLE_FBN_CSV = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example_fbn.csv")
+EXAMPLE_BN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example.bn")
 
 
 class TestToNetworkxGraph(unittest.TestCase):
@@ -123,6 +133,68 @@ class TestDrawAttractor(unittest.TestCase):
         attractors = search_for_attractors(network, network["genes"], max_search=20)
         with self.assertRaises(ValueError):
             draw_attractor(attractors, index=len(attractors["Attractors"]) + 5)
+
+
+class TestFbnGraphicRParity(unittest.TestCase):
+    """
+    Python equivalent of R's tests/testthat/test-fbngraphic.R "run
+    synchronous should succeed" describe block, using the same
+    ExampleNetwork fixture (example.bn, mined with maxK=5, temporal=1).
+    R's test only asserts "no error" (`expect_error(..., NA)`) for the
+    static/staticSlice/dynamic graphing calls plus the attractor drawing,
+    aside from the exact reconstruction-accuracy assertions, so this mirrors
+    that same coverage.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        network = load_network(EXAMPLE_BN)
+        genes = network["genes"]
+        cls.initial_states = generateAllCombinationBinary(genes)
+        raw_trainingseries = generateBoolNetTimeseries(
+            network, cls.initial_states, 43, transition_type="synchronous"
+        )
+        cls.trainingseries = [
+            pd.DataFrame(mat, index=genes, columns=[str(j + 1) for j in range(mat.shape[1])])
+            for mat in raw_trainingseries
+        ]
+        cube = construct_fbn_cube(genes, genes, cls.trainingseries, max_k=5, temporal=1, use_parallel=False)
+        cls.network = mine_fbn_network(cube, genes)
+
+    def test_reconstruct_timeseries_matches_training_series_exactly(self):
+        resultfile = reconstruct_timeseries(
+            self.network, self.initial_states, transition_type="synchronous",
+            max_timepoints=43, use_parallel=False,
+        )
+        report = generate_similary_report(self.trainingseries, resultfile)
+        self.assertEqual(report["ErrorRate"], 0)
+        self.assertEqual(report["AccurateRate"], 1)
+        self.assertEqual(report["MissMatchedRate"], 0)
+        self.assertEqual(report["PerfectMatchedRate"], 1)
+
+    def test_static_graph_no_error(self):
+        self.assertIsNotNone(draw_static_network(self.network))
+        self.assertIsNotNone(plot_network(self.network, direction="static"))
+
+    def test_static_slice_no_error(self):
+        ax = plot_network(
+            self.network, direction="staticSlice",
+            timeseries_matrix=self.trainingseries[2], target_time_point=3,
+        )
+        self.assertIsNotNone(ax)
+        self.assertIsNotNone(draw_static_network_slice(self.network, self.trainingseries[2], time_point=3))
+
+    def test_dynamic_no_error(self):
+        axes = plot_network(
+            self.network, direction="dynamic",
+            timeseries_matrix=self.trainingseries[4], start_time_point=1, end_time_point=5,
+        )
+        self.assertEqual(len(axes), 5)
+        self.assertIsNotNone(draw_dynamic_network(self.network, self.trainingseries[4], from_time_point=1, to_time_point=5))
+
+    def test_draw_attractor_no_error(self):
+        attractor = search_for_attractors(self.network, self.network["genes"], self.initial_states)
+        self.assertIsNotNone(draw_attractor(attractor, index=1))
 
 
 if __name__ == "__main__":

@@ -7,16 +7,20 @@ target an interactive JS widget with no direct Python equivalent), this module
 converts an FBN network into a `networkx` graph and renders it with
 `matplotlib`, covering the same conceptual operations:
 
-* `to_networkx_graph`      -- port of `ConvertToNetworkGraphicObject`
-* `draw_static_network`    -- port of `FBNNetwork.Graph(type = "static")` / `StaticNetwork`
-* `plot_network`           -- port of `plotNetwork` (filters, then draws)
-* `draw_attractor`         -- port of `FBNNetwork.Graph.DrawAttractor`
+* `to_networkx_graph`          -- port of `ConvertToNetworkGraphicObject`
+* `draw_static_network`        -- port of `FBNNetwork.Graph(type = "static")` / `StaticNetwork`
+* `draw_static_network_slice`  -- port of `FBNNetwork.Graph(type = "staticSlice")` / `StaticNetworkInSlice`
+* `draw_dynamic_network`       -- port of `FBNNetwork.Graph(type = "dynamic")` / `GenerateDynamicNetworkGraphicObject`
+* `plot_network`               -- port of `plotNetwork` (filters, then draws)
+* `draw_attractor`             -- port of `FBNNetwork.Graph.DrawAttractor`
 """
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
 import networkx as nx
+import numpy as np
+import pandas as pd
 import fbnnet_utils
 
 # Use a non-interactive backend by default so this module works headlessly
@@ -250,6 +254,170 @@ def draw_static_network(
     return ax
 
 
+def _gene_state_at_timepoint(timeseries_matrix, genes: List[str], time_point: int) -> Dict[str, int]:
+    """
+    Extract a `gene -> 0/1` state dict for `time_point` (1-based) from a
+    genes x timepoints timeseries matrix.
+
+    Accepts either a `pandas.DataFrame` indexed by gene name (columns are
+    time point labels, matched by `str(time_point)` if present, otherwise by
+    1-based positional column index) or a plain 2-D array/list of lists in
+    the same row order as `genes`.
+    """
+    if isinstance(timeseries_matrix, pd.DataFrame):
+        col_label = str(time_point)
+        column = timeseries_matrix[col_label] if col_label in timeseries_matrix.columns else timeseries_matrix.iloc[:, time_point - 1]
+        return {gene: int(column.loc[gene]) if gene in column.index else int(column.iloc[idx]) for idx, gene in enumerate(genes)}
+
+    matrix = np.asarray(timeseries_matrix)
+    return {gene: int(matrix[idx, time_point - 1]) for idx, gene in enumerate(genes)}
+
+
+def draw_static_network_slice(
+    fbn_network: Dict[str, Any],
+    timeseries_matrix,
+    time_point: int = 1,
+    ax=None,
+    show_rule_nodes: bool = False,
+    layout=None,
+    figsize=(8, 6),
+):
+    """
+    Draw the static network with gene nodes colored by their observed
+    boolean state at a single timepoint in `timeseries_matrix`.
+
+    Port of R's `FBNNetwork.Graph(type = "staticSlice")` / `StaticNetworkInSlice`.
+    R's version additionally restricts edges to only those whose
+    probabilistically-simulated activation window (built via its internal
+    `convert_to_NGO`) covers `time_point`; that stochastic edge-firing
+    simulation has no exact-value ground truth to verify against (R's own
+    test only asserts "no error" for this feature), so this pragmatically
+    draws the full static graph with gene nodes colored by their actual
+    observed state (pink = 0, lightblue = 1) at `time_point` instead.
+
+    Args:
+        fbn_network: The Fundamental Boolean Network
+        timeseries_matrix: A genes x timepoints `pandas.DataFrame` (indexed
+            by gene name) or 2-D array in `fbn_network["genes"]` row order
+        time_point: The (1-based) timepoint to color gene nodes by
+        ax: Optional matplotlib Axes to draw on
+        show_rule_nodes: See `draw_static_network`
+        layout: Optional callable `graph -> pos dict`
+        figsize: Figure size used when `ax` is not provided
+
+    Returns:
+        The matplotlib Axes the network was drawn on.
+    """
+    import matplotlib.pyplot as plt
+
+    if fbn_network.get("class") not in _FBN_NETWORK_CLASSES:
+        raise ValueError("Network must be inherited from FundamentalBooleanNetwork")
+
+    genes = fbn_network["genes"]
+    states = _gene_state_at_timepoint(timeseries_matrix, genes, time_point)
+
+    graph = to_networkx_graph_with_rules(fbn_network) if show_rule_nodes else to_networkx_graph(fbn_network)
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=figsize)
+
+    pos = layout(graph) if layout is not None else nx.spring_layout(graph, seed=42)
+
+    gene_nodes = [n for n, data in graph.nodes(data=True) if data.get("node_kind", "gene") == "gene"]
+    node_colors = ["lightblue" if states.get(n, 1) else "pink" for n in gene_nodes]
+    nx.draw_networkx_nodes(graph, pos, nodelist=gene_nodes, ax=ax, node_color=node_colors, node_size=800)
+    nx.draw_networkx_labels(graph, pos, labels={n: n for n in gene_nodes}, ax=ax, font_size=9)
+
+    node_size_by_id = {n: (400 if graph.nodes[n].get("node_kind") == "rule" else 800) for n in graph.nodes()}
+    node_size_array = [node_size_by_id[n] for n in graph.nodes()]
+
+    if show_rule_nodes:
+        for kind, color in (("activator", "lightgreen"), ("inhibitor", "orange")):
+            rule_nodes = [n for n, data in graph.nodes(data=True) if data.get("node_kind") == "rule" and data.get("kind") == kind]
+            if rule_nodes:
+                nx.draw_networkx_nodes(graph, pos, nodelist=rule_nodes, ax=ax, node_color=color, node_shape="s", node_size=400)
+        rule_labels = {n: data["label"] for n, data in graph.nodes(data=True) if data.get("node_kind") == "rule"}
+        nx.draw_networkx_labels(graph, pos, labels=rule_labels, ax=ax, font_size=7)
+
+    for kind, color, style in (
+        ("activator", ACTIVATOR_COLOR, "solid"),
+        ("inhibitor", INHIBITOR_COLOR, "solid"),
+        ("input", ACTIVATOR_COLOR, "solid"),
+        ("negated_input", INHIBITOR_COLOR, "solid"),
+    ):
+        edges = [(u, v) for u, v, data in graph.edges(data=True) if data.get("kind") == kind]
+        if edges:
+            nx.draw_networkx_edges(
+                graph, pos, edgelist=edges, ax=ax,
+                edge_color=color, style=style, arrows=True,
+                arrowstyle="-|>", arrowsize=15, node_size=node_size_array,
+                connectionstyle="arc3,rad=0.15",
+            )
+
+    ax.set_axis_off()
+    ax.set_title(f"Fundamental Boolean Network at time point {time_point}")
+    return ax
+
+
+def draw_dynamic_network(
+    fbn_network: Dict[str, Any],
+    timeseries_matrix,
+    from_time_point: int = 1,
+    to_time_point: int = 5,
+    show_rule_nodes: bool = False,
+    figsize=None,
+):
+    """
+    Draw a sequence of static-network snapshots across a time range, with
+    gene nodes colored by their observed boolean state at each timepoint.
+
+    Pragmatic port of R's `FBNNetwork.Graph(type = "dynamic")` /
+    `GenerateDynamicNetworkGraphicObject` (an interactive visNetwork widget
+    chaining per-timestep node/edge subsets driven by a probabilistic
+    simulation, with no direct static-image equivalent). Here this renders
+    one subplot per timepoint in `[from_time_point, to_time_point]`, each
+    produced by `draw_static_network_slice` sharing one fixed layout so
+    genes stay in the same position across snapshots.
+
+    Args:
+        fbn_network: The Fundamental Boolean Network
+        timeseries_matrix: A genes x timepoints `pandas.DataFrame` or 2-D
+            array, see `draw_static_network_slice`
+        from_time_point: First (1-based) timepoint to render
+        to_time_point: Last (1-based) timepoint to render (inclusive)
+        show_rule_nodes: See `draw_static_network`
+        figsize: Figure size for the whole subplot row; defaults to scaling
+            with the number of timepoints
+
+    Returns:
+        The list of matplotlib Axes (one per timepoint).
+    """
+    import matplotlib.pyplot as plt
+
+    if fbn_network.get("class") not in _FBN_NETWORK_CLASSES:
+        raise ValueError("Network must be inherited from FundamentalBooleanNetwork")
+    if to_time_point < from_time_point:
+        raise ValueError("to_time_point must be >= from_time_point")
+
+    time_points = list(range(from_time_point, to_time_point + 1))
+    if figsize is None:
+        figsize = (6 * len(time_points), 6)
+
+    _, axes = plt.subplots(1, len(time_points), figsize=figsize)
+    axes = [axes] if len(time_points) == 1 else list(axes)
+
+    layout_graph = to_networkx_graph_with_rules(fbn_network) if show_rule_nodes else to_networkx_graph(fbn_network)
+    shared_layout = nx.spring_layout(layout_graph, seed=42)
+
+    for sub_ax, time_point in zip(axes, time_points):
+        draw_static_network_slice(
+            fbn_network, timeseries_matrix, time_point=time_point, ax=sub_ax,
+            show_rule_nodes=show_rule_nodes, layout=lambda g: shared_layout,
+        )
+
+    return axes
+
+
 def plot_network(
     fbn_network: Dict[str, Any],
     target_genes: Optional[List[str]] = None,
@@ -261,12 +429,16 @@ def plot_network(
     output_network: bool = False,
     show_decay: bool = False,
     show_rule_nodes: bool = False,
+    timeseries_matrix=None,
+    start_time_point: int = 1,
+    end_time_point: int = 1,
+    target_time_point: int = 1,
     ax=None,
 ):
     """
     Filter (optionally) and draw an FBN network in one call.
 
-    Port of R's `plotNetwork`, scoped down to the three conceptual modes it
+    Port of R's `plotNetwork`, scoped down to the conceptual modes it
     supports (the R version's many `forward_1a`..`backward_2b` variants are
     all just `find_forward_related_network_by_genes`/
     `find_backward_related_network_by_genes` calls with different
@@ -276,26 +448,31 @@ def plot_network(
     Args:
         fbn_network: The Fundamental Boolean Network
         target_genes: Genes to filter/expand around; required for "forward"
-            and "backward", optional for "static"
-        direction: One of "static", "forward", "backward"
+            and "backward", optional for "static"/"staticSlice"/"dynamic"
+        direction: One of "static", "staticSlice", "dynamic", "forward", "backward"
         regulation_type: 1 (activation) or 0 (inhibition) to filter by, or None for both
         target_type: For "forward" only; 1/0/None, see
             `find_forward_related_network_by_genes`
         max_deep: How many layers of indirection to drill down for "forward"/"backward"
         next_level_mix_type: See `find_forward_related_network_by_genes`/`find_backward_related_network_by_genes`
         output_network: If True, also return the (possibly filtered) network
-        show_decay: If True, draw decay self-loops
+        show_decay: If True, draw decay self-loops ("static"/"dynamic" only)
         show_rule_nodes: If True, draw as `gene -> rule(+/-, timestep) -> gene` (see `draw_static_network`)
-        ax: Optional matplotlib Axes to draw on
+        timeseries_matrix: Required for "staticSlice"/"dynamic"; see `draw_static_network_slice`
+        start_time_point: "dynamic" only -- first (1-based) timepoint to render
+        end_time_point: "dynamic" only -- last (1-based) timepoint to render (inclusive)
+        target_time_point: "staticSlice" only -- the (1-based) timepoint to color gene nodes by
+        ax: Optional matplotlib Axes to draw on (ignored for "dynamic", which returns a list of Axes)
 
     Returns:
-        The matplotlib Axes, or `(network, ax)` if `output_network` is True.
+        The matplotlib Axes (or list of Axes for "dynamic"), or
+        `(network, ax)` if `output_network` is True.
     """
     if fbn_network.get("class") not in _FBN_NETWORK_CLASSES:
         raise ValueError("Network must be inherited from FundamentalBooleanNetwork")
 
     network = fbn_network
-    if direction == "static":
+    if direction in ("static", "staticSlice", "dynamic"):
         if target_genes:
             network = filter_network_connections_by_genes(network, genelist=target_genes, exclusive=False, expand=False)
     elif direction == "forward":
@@ -315,13 +492,29 @@ def plot_network(
             max_deep=max_deep, next_level_mix_type=next_level_mix_type,
         )
     else:
-        raise ValueError(f"Unsupported direction '{direction}', expected 'static', 'forward' or 'backward'")
+        raise ValueError(
+            f"Unsupported direction '{direction}', expected 'static', 'staticSlice', 'dynamic', 'forward' or 'backward'"
+        )
 
-    ax = draw_static_network(network, ax=ax, show_decay=show_decay, show_rule_nodes=show_rule_nodes)
+    if direction == "staticSlice":
+        if timeseries_matrix is None:
+            raise ValueError("timeseries_matrix is required for direction='staticSlice'")
+        result_ax = draw_static_network_slice(
+            network, timeseries_matrix, time_point=target_time_point, ax=ax, show_rule_nodes=show_rule_nodes,
+        )
+    elif direction == "dynamic":
+        if timeseries_matrix is None:
+            raise ValueError("timeseries_matrix is required for direction='dynamic'")
+        result_ax = draw_dynamic_network(
+            network, timeseries_matrix, from_time_point=start_time_point, to_time_point=end_time_point,
+            show_rule_nodes=show_rule_nodes,
+        )
+    else:
+        result_ax = draw_static_network(network, ax=ax, show_decay=show_decay, show_rule_nodes=show_rule_nodes)
 
     if output_network:
-        return network, ax
-    return ax
+        return network, result_ax
+    return result_ax
 
 
 def draw_attractor(fbm_attractors: Dict[str, Any], index: int = 0, ax=None, figsize=(8, 4)):

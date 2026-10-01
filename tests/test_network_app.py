@@ -1,6 +1,12 @@
 import os
 import unittest
 
+import pandas as pd
+
+from py_src.boolnet import load_network
+from py_src.cube import construct_fbn_cube
+from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from py_src.network import mine_fbn_network
 from py_src.network_app import (
     load_fbn_network,
     match_names,
@@ -18,6 +24,7 @@ from py_src.network_app import (
 )
 
 EXAMPLE_FBN_CSV = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example_fbn.csv")
+EXAMPLE_BN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example.bn")
 
 
 class TestMatchNames(unittest.TestCase):
@@ -113,6 +120,49 @@ class TestNetworkApp(unittest.TestCase):
         filtered = self._build_filtered_network()
         with self.assertRaises(ValueError):
             find_forward_related_network_by_genes(filtered, [])
+
+
+class TestNetworkApplicationRParity(unittest.TestCase):
+    """
+    Python equivalent of R's tests/testthat/test-networkapplication.R, using
+    the same ExampleNetwork fixture (example.bn, mined with maxK=5,
+    temporal=1) that R's test relies on.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        network = load_network(EXAMPLE_BN)
+        genes = network["genes"]
+        initial_states = generateAllCombinationBinary(genes)
+        trainingseries = generateBoolNetTimeseries(network, initial_states, 43, transition_type="synchronous")
+        cube = construct_fbn_cube(
+            genes, genes,
+            [pd.DataFrame(mat, index=genes, columns=[str(j + 1) for j in range(mat.shape[1])])
+             for mat in trainingseries],
+            max_k=5, temporal=1, use_parallel=False,
+        )
+        cls.network = mine_fbn_network(cube, genes)
+
+    def test_filter_by_genes_target_gene1_exclusive_true_expand_false(self):
+        tt = filter_network_connections_by_genes(self.network, ["Gene1"], exclusive=True, expand=False)
+        self.assertNotIn("Gene1", tt["interactions"])
+
+    def test_filter_by_genes_target_gene1_exclusive_false_expand_false(self):
+        tt = filter_network_connections_by_genes(self.network, ["Gene1"], exclusive=False, expand=False)
+        self.assertEqual(len(tt["interactions"]), 1)
+
+    def test_forward_related_target_gene1_regulation_0_target_0_deep_1(self):
+        tt = find_forward_related_network_by_genes(self.network, ["Gene1"], 0, 0, 1)
+        self.assertEqual(len(tt["interactions"]), 2)
+        self.assertEqual(len(tt["interactions"]["Gene1"]), 1)
+        self.assertEqual(len(tt["interactions"]["Gene2"]), 1)
+        self.assertEqual(tt["interactions"]["Gene1"]["Gene1_1_Inhibitor"]["expression"], "!Gene1")
+        self.assertEqual(tt["interactions"]["Gene2"]["Gene2_1_Inhibitor"]["expression"], "!Gene1")
+
+    def test_forward_related_target_gene1_regulation_0_target_1_deep_1(self):
+        tt = find_forward_related_network_by_genes(self.network, ["Gene1"], 0, 1, 1)
+        self.assertEqual(len(tt["interactions"]), 3)
+        self.assertEqual(tt["interactions"]["Gene4"]["Gene4_1_Inhibitor"]["expression"], "Gene1&Gene5")
 
 
 if __name__ == "__main__":

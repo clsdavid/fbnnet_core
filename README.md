@@ -34,7 +34,7 @@ against the same test network the R package's own vignette uses (see
 | Attractor search (`searchForAttractors`, `getFBMSuccessor`, `networkFixUpdate`) | `attractor_FBN.R`, parts of `modelling_FBN.R` | ✅ Ported (`py_src/attractor.py`) — faithfully reproduces R's random tie-breaking between competing rules and its basin-tracking quirks (see [example/README.md](example/README.md)) |
 | Graph/visualisation (`FBNNetwork.Graph`, `plotNetwork`, attractor drawing) | `graph_FBN.R`, `plot_network_FBN.R` | ✅ Ported as a `networkx` + `matplotlib`-based equivalent (`py_src/network_graph.py`) — see note below |
 | Single top-level entry point (`generateFBMNetwork` = discretise + cube + mining in one call) | `application_FBN.R` | ✅ Ported (`py_src/application.py: generate_fbm_network`) |
-| `reconstructTimeseries` / `generateSimilaryReport` round-trip accuracy check (referenced in the R vignette) | Not present anywhere in current `FBNNet2_public/R/*.R` sources (only in the vignette/tests, which appear stale relative to the current R package) | ⚠️ Not ported — there is no current R implementation to port from. `py_src/general_utils.py` does have an (independently useful) `check_similarity`/`generate_similar_report` pair, but they don't reproduce this exact R function |
+| `reconstructTimeseries` / `generateSimilaryReport` round-trip accuracy check | `modelling_FBN.R`, `data_utility_FBN.R` | ✅ Ported (`py_src/attractor.py: reconstruct_timeseries`, `py_src/general_utils.py: generate_similary_report`) — verified against R's exact `test-constructFBNCube.R`/`test-fbngraphic.R` assertions (`ErrorRate==0`, `AccurateRate==1`, etc.) |
 
 > **Note on visualisation:** `graph_FBN.R` builds `visNetwork`/`igraph`-specific JSON structures for an
 > interactive JS widget, which has no direct Python equivalent. `py_src/network_graph.py` instead
@@ -42,8 +42,12 @@ against the same test network the R package's own vignette uses (see
 > both a simplified `gene -> gene` view (`draw_static_network`, `plot_network`) and, via
 > `show_rule_nodes=True`, R's actual `gene -> activator/inhibitor rule (timestep) -> gene` 3-tier
 > structure with per-input negation highlighting (`to_networkx_graph_with_rules`) — as well as
-> attractor drawing (`draw_attractor`). These preserve the same activator/inhibitor/decay styling
-> conventions as R but render static images rather than an interactive widget.
+> attractor drawing (`draw_attractor`). `plot_network(direction="staticSlice"/"dynamic", ...)` also
+> ports R's timeseries-colored-at-timepoint views (`draw_static_network_slice`, `draw_dynamic_network`):
+> gene nodes are colored by their actual observed 0/1 state at the given timepoint(s), rather than
+> reproducing R's unverifiable probabilistic per-timestep edge-firing simulation. These preserve the
+> same activator/inhibitor/decay styling conventions as R but render static images rather than an
+> interactive widget.
 >
 > **Note on discretisation:** `generate_fbm_network`'s non-boolean-data path uses a small dependency-free
 > 1-D 2-means implementation (`py_src/application.py: binarize_time_series`) rather than wrapping
@@ -125,7 +129,7 @@ the third-party `py`/pylib module that some `pytest` internals (`_pytest/compat.
 pytest tests/ -v
 ```
 
-As of the current codebase, running the full suite gives **124 passed**.
+As of the current codebase, running the full suite gives **140 passed**.
 
 You can run a single test module directly, e.g.:
 

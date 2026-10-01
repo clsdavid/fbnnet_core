@@ -58,6 +58,7 @@ def main():
 
     # 2 & 3. Simulate synchronous BoolNet time series from every initial state.
     initial_states = generateAllCombinationBinary(genes)
+    # the method `generateBoolNetTimeseries` should closely mirror the R vignette's `genereateBoolNetTimeseries` function.
     raw_series = generateBoolNetTimeseries(
         network, initial_states, numMeasurements=43, transition_type="synchronous"
     )

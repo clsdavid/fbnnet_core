@@ -415,13 +415,16 @@ def mine_fbn_network_stage2(
     
     for target, ruleset in res.items():
         final_filtered_list[target] = []
-        processed = []
         
-        # Filter out rules that are subsets of other rules
+        # Filter out rules that are subsets of other rules.
+        # NOTE: R's mineFBNNetworkStage2 resets `processed <- c(j)` on every
+        # outer iteration (excluding only the current rule itself), so rule
+        # `j` is compared against *every* other rule in the list, not just
+        # the ones that come after it. Do the same here (don't accumulate
+        # `processed` across outer iterations).
         for j, rule in enumerate(ruleset):
-            processed.append(j)
             for k, rule2 in enumerate(ruleset):
-                if k in processed:
+                if k == j:
                     continue
                 
                 if (int(rule['numOfInput']) < int(rule2['numOfInput']) and

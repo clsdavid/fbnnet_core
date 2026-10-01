@@ -135,6 +135,75 @@ def generateAllCombinationBinary(genelist=None, begin=1, last=0):
     return result
 
 
+def dividedVectorIntoSmallgroups(vector, maxElements=20):
+    """
+    Python equivalent of R's dividedVectorIntoSmallgroups function.
+    Splits a vector into consecutive chunks of at most maxElements items.
+
+    Args:
+        vector (list): The vector to split
+        maxElements (int): The max number of elements per group
+
+    Returns:
+        dict: {"clusters": [list, ...], "original": vector}
+    """
+    if not isinstance(vector, (list, tuple, np.ndarray)):
+        raise ValueError("The parameter 'vector' must be a vector")
+
+    vector = list(vector)
+    clusters = [vector[i:i + maxElements] for i in range(0, len(vector), maxElements)]
+
+    return {"clusters": clusters, "original": vector}
+
+
+def getRelatedGeneTimeseries(timeseries, genelist=None):
+    """
+    Python equivalent of R's getRelatedGeneTimeseries function.
+    Reduces each sample in a timeseries cube down to the rows (genes) in genelist.
+
+    Args:
+        timeseries (list): A list of samples (pandas DataFrame or 2D numpy array)
+            with genes on rows and time steps on columns
+        genelist (list): The genes to keep
+
+    Returns:
+        list: The same samples, each filtered down to genelist's rows
+    """
+    genelist = genelist or []
+    result = []
+    for sheet in timeseries:
+        if isinstance(sheet, pd.DataFrame):
+            result.append(sheet.loc[sheet.index.isin(genelist)])
+        else:
+            raise ValueError("Each sample must be a pandas DataFrame with gene names as its index")
+    return result
+
+
+def randomGenerateBinary(genelist=None, maxState=0):
+    """
+    Python equivalent of R's randomGenerateBinary function.
+    Randomly generates binary (0/1) states for the genes in genelist.
+
+    Args:
+        genelist (list): List of gene names
+        maxState (int): The number of random states to generate (0 means 2^len(genelist))
+
+    Returns:
+        list: A list of dictionaries, each mapping gene name -> 0/1
+    """
+    if not genelist:
+        raise ValueError("The genelist is empty")
+
+    if maxState == 0:
+        maxState = 2 ** len(genelist)
+
+    result = []
+    for _ in range(maxState):
+        result.append({gene: int(np.random.random() < 0.5) for gene in genelist})
+
+    return result
+
+
 # Example usage that matches R's output format:
 if __name__ == "__main__":
     # Test case 1: Full range
