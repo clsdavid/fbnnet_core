@@ -1,0 +1,4 @@
+targets,factors,type
+Gene1,Gene2 & Gene3,1
+Gene2,!Gene1 | Gene3,0
+Gene3,Gene1,1

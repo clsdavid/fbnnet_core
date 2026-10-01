@@ -2,6 +2,7 @@ import re
 from typing import List, Dict, Any, Optional, Union, Set
 import numpy as np
 import fbnnet_utils
+from .fbn_types import FundamentalBooleanNetwork
 # Set up logging
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -282,13 +283,13 @@ def merge_network(network1: Dict, network2: Dict) -> Dict:
     for gene, val in timedecay2.items():
         new_timedecay[gene] = val
     
-    return {
+    return FundamentalBooleanNetwork({
         'interactions': merges,
         'genes': total_genes,
         'fixed': new_fixed,
         'timedecay': new_timedecay,
         'class': 'FundamentalBooleanNetwork'
-    }
+    })
 
 def merge_interaction(
     interactions1: Dict, 
@@ -512,13 +513,13 @@ def filter_network_connections(networks: Dict) -> Dict:
     timedecay = _as_gene_value_dict(networks.get('timedecay', {}), genes)
     new_timedecay = {gene: timedecay.get(gene, -1) for gene in mixed_genes}
     
-    return {
+    return FundamentalBooleanNetwork({
         'interactions': merges,
         'genes': mixed_genes,
         'fixed': new_fixed,
         'timedecay': new_timedecay,
         'class': 'FundamentalBooleanNetwork'
-    }
+    })
 
 def find_all_input_genes(network_interactions: Dict, genes: List[str]) -> List[str]:
     """

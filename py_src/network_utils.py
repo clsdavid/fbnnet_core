@@ -1,6 +1,7 @@
 import re
 from typing import List, Dict, Union, Any
 from .general_utils import dissolve
+from .fbn_types import FundamentalBooleanNetwork
 import fbnnet_utils
 
 def remove_duplicates(factors: Union[List[Dict], str]) -> List[Dict]:
@@ -377,12 +378,11 @@ def convert_mined_result_to_fbn_network(miner_result: Dict[str, Any], genes: Lis
         entry = {}
         
         for name in genes:
-            entry[name] = []
+            entry[name] = {}
             verify_items = miner_result.get(name, [])
             
             if verify_items:
                 interaction_items = dissolve(miner_result[name])
-                ini_index = 0
                 
                 for j, item in enumerate(interaction_items, 1):
                     expression = item['factor']
@@ -399,8 +399,7 @@ def convert_mined_result_to_fbn_network(miner_result: Dict[str, Any], genes: Lis
                     
                     for interaction in interactions:
                         for int_name, int_data in interaction.items():
-                            entry[name].append(int_data)
-                            ini_index += 1
+                            entry[name][int_name] = int_data
         
         res["interactions"] = entry
         return res
@@ -418,8 +417,9 @@ def convert_to_fbn_network(network: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: FBN network structure
     """
-    # Validate network type would need additional checks in Python
-    
+    if network.get("class") != "BooleanNetworkCollection":
+        raise ValueError("Network must be inherited from BooleanNetwork")
+
     try:
         res = {
             "genes": network["genes"],
@@ -431,8 +431,7 @@ def convert_to_fbn_network(network: Dict[str, Any]) -> Dict[str, Any]:
         entry = {}
         
         for name, interaction_items in network["interactions"].items():
-            entry[name] = []
-            ini_index = 0
+            entry[name] = {}
             
             for j, item in enumerate(interaction_items, 1):
                 expression = item["expression"]
@@ -449,11 +448,11 @@ def convert_to_fbn_network(network: Dict[str, Any]) -> Dict[str, Any]:
                 
                 for interaction in interactions:
                     for int_name, int_data in interaction.items():
-                        entry[name].append(int_data)
-                        ini_index += 1
+                        entry[name][int_name] = int_data
         
         res["interactions"] = entry
-        return res
+        res["class"] = "FundamentalBooleanNetwork"
+        return FundamentalBooleanNetwork(res)
     
     except Exception as e:
         raise ValueError(f"Error converting to FBN Network: {str(e)}")
