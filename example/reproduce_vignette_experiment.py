@@ -77,6 +77,7 @@ def main():
         network_only=True,
         verbose=False,
     )
+    print(f"Generated FBN network: {fbn_network}")
     summary_lines = ["Mined FBN network interactions:"]
     for gene, rules in fbn_network["interactions"].items():
         for name, rule in (rules.items() if isinstance(rules, dict) else enumerate(rules)):
