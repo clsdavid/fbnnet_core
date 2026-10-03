@@ -26,11 +26,14 @@ src/fbn_core.cpp for the ground truth being replicated):
   cell - a GEMV instead of N separate matchCount calls.
 - target_T_count/target_F_count reduce algebraically (summing the two
   candidate-states of a 2-row matchCount always marginalizes out the
-  candidate's own value) to simply "count of columns where the target row
-  equals 1/0" over the full unmasked column range for that temporal step -
-  independent of the candidate or any existing fixed genes. This holds in
-  both the size==1 and size>1 branches of the original C++, so one formula
-  covers both.
+  candidate's own value) to "count of columns where the target row equals
+  1/0 AND the column is not a sentinel (value 9) sample-boundary column"
+  over the full column range for that temporal step - independent of the
+  candidate or any existing fixed genes. This holds in both the size==1 and
+  size>1 branches of the original C++ (the size>1 branch's "last
+  conditional gene" recount is equivalent, since the sentinel value is
+  uniform across *every* gene row in a boundary column - any single row,
+  including the target row itself, detects it), so one formula covers both.
 
 The advanced-measures stage (Fisher exact test, chi-square, entropy/mutual
 information, essential-gene/bestFit scoring - src/fbn_core.cpp's
@@ -136,8 +139,12 @@ def batched_basic_measures(
         cond_T_count_c = count_cond_T_target_T_c + count_cond_T_target_F_c
         cond_F_count_c = count_cond_F_target_T_c + count_cond_F_target_F_c
 
-        target_T_count = int(np.count_nonzero(target_cur == 1))
-        target_F_count = int(np.count_nonzero(target_cur == 0))
+        # Boundary columns between concatenated samples are sentinel-filled (value 9)
+        # uniformly across *all* gene rows, so any single row can detect them; the C++
+        # side's "last conditional gene" recount is equivalent to this for that reason.
+        prev_valid = target_prev != 9
+        target_T_count = int(np.count_nonzero((target_cur == 1) & prev_valid))
+        target_F_count = int(np.count_nonzero((target_cur == 0) & prev_valid))
 
         time_step = i + 1
         total_calculated_timepoints = n_timepoints - (total_samples * time_step)
@@ -258,3 +265,241 @@ def gene_probabilities_measurements(
         }
 
     return result
+
+
+def _cpp_double_str(x: float) -> str:
+    """Matches C++ std::to_string(double): fixed notation, 6 fractional digits."""
+    return f"{float(x):.6f}"
+
+
+def _cpp_bool_str(b: bool) -> str:
+    """Matches C++ std::to_string(bool): bool implicitly converts to int (0/1)."""
+    return "1" if b else "0"
+
+
+def build_probability_tree_on_target_gene(
+    target_gene: str,
+    main_parameters: Dict[str, Any],
+    genes: List[str],
+    matched_genes: Optional[Dict[str, int]],
+    matched_expression: Optional[List[str]],
+    max_k: int,
+    temporal: int,
+    show_basic_measures: bool,
+    find_positive_regulate: bool,
+    find_negative_regulate: bool,
+) -> Dict[str, Any]:
+    """
+    Python port of buildProbabilityTreeOnTargetGene (src/fbn_tree.cpp), with
+    the innermost per-node "try every candidate gene" loop replaced by the
+    batched `gene_probabilities_measurements` above. Recursion/branching
+    control flow, string-built rule identities, and Activator_of/Inhibitor_of
+    record construction are kept IDENTICAL to the C++ original.
+    """
+    fixed_state = matched_genes if matched_genes is not None else {}
+    measurements = gene_probabilities_measurements(
+        main_parameters, target_gene, genes, fixed_state, temporal, show_basic_measures
+    )
+
+    new_genes = list(measurements.keys())
+    unprocessed_genes = list(new_genes)
+
+    if max_k > len(unprocessed_genes):
+        max_k = len(unprocessed_genes)
+
+    result: Dict[str, Any] = {}
+
+    for gene in new_genes:
+        pmax_k = max_k
+
+        unprocessed_genes = [g for g in unprocessed_genes if g != gene]
+
+        new_matched_genes_t: Dict[str, int] = {}
+        new_matched_genes_f: Dict[str, int] = {}
+        preprocessed: List[str] = []
+
+        if matched_genes is not None:
+            for k, v in matched_genes.items():
+                new_matched_genes_t[k] = v
+                new_matched_genes_f[k] = v
+                preprocessed.append(k)
+
+        if matched_expression is not None:
+            expression_t = list(matched_expression) + ["&", gene]
+            expression_f = list(matched_expression) + ["&", "!", gene]
+            new_matched_genes_t.setdefault(gene, 1)
+            new_matched_genes_f.setdefault(gene, 0)
+        else:
+            new_matched_genes_t[gene] = 1
+            new_matched_genes_f[gene] = 0
+            expression_t = [gene]
+            expression_f = ["!", gene]
+
+        exp_t = "".join(expression_t)
+        exp_f = "".join(expression_f)
+
+        input_genes = sorted(new_matched_genes_t.keys(), reverse=True)
+
+        if preprocessed and gene in preprocessed:
+            result[gene] = {}
+            continue
+
+        measurement = measurements[gene]
+        p = measurement["probabilityOfFourCombines_P"]
+        n = measurement["probabilityOfFourCombines_N"]
+
+        best_fit_p = p["bestFitP"]
+        is_essential_gene_p = p["is_essential_gene"]
+        best_fit_n = n["bestFitN"]
+        is_essential_gene_n = n["is_essential_gene"]
+        sign_p = p["signal_sign_T"]
+        sign_n = n["signal_sign_F"]
+
+        subresult_t: Dict[str, Any] = {}
+        subresult_f: Dict[str, Any] = {}
+
+        if pmax_k > 1 and not (find_positive_regulate and find_negative_regulate):
+            find_positive_regulate = find_positive_regulate or best_fit_p == 0
+            find_negative_regulate = find_negative_regulate or best_fit_n == 0
+            pmax_k -= 1
+
+            excluded_subgenes = set(input_genes)
+
+            next_genes_t = [g for g in unprocessed_genes if g not in excluded_subgenes]
+            if next_genes_t and is_essential_gene_p and (best_fit_p > 0 or best_fit_n > 0):
+                subresult_t = build_probability_tree_on_target_gene(
+                    target_gene, main_parameters, next_genes_t, new_matched_genes_t, [exp_t],
+                    pmax_k, temporal, show_basic_measures, find_positive_regulate, find_negative_regulate,
+                )
+
+            next_genes_f = [g for g in unprocessed_genes if g not in excluded_subgenes]
+            if next_genes_f and is_essential_gene_n and (best_fit_p > 0 or best_fit_n > 0):
+                subresult_f = build_probability_tree_on_target_gene(
+                    target_gene, main_parameters, next_genes_f, new_matched_genes_f, [exp_f],
+                    pmax_k, temporal, show_basic_measures, find_positive_regulate, find_negative_regulate,
+                )
+
+        pick_t_support = p["pickT_support"]
+        pick_t_causality_test = p["pickT_causality_test"]
+        pick_t_value = p["Signal_P"]
+        pick_t_noise = p["Noise_P"]
+        pick_t_confidence_counter = p["pickT_confidenceCounter"]
+        pick_t_all_confidence = p["pickT_all_confidence"]
+        pick_t_max_confidence = p["pickT_max_confidence"]
+        is_negative_correlated_t = p["isNegativeCorrelated"]
+        is_positive_correlated_t = p["isPositiveCorrelated"]
+        timestep_t = p["timestep"]
+        best_fit_p_val = p["bestFitP"]
+        p_value_p = p["p_value"]
+        pick_t_mutual_info = p["pickT_mutualInfo"]
+
+        pick_f_support = n["pickF_support"]
+        pick_f_causality_test = n["pickF_causality_test"]
+        pick_f_value = n["Signal_N"]
+        pick_f_noise = n["Noise_N"]
+        pick_f_confidence_counter = n["pickF_confidenceCounter"]
+        pick_f_all_confidence = n["pickF_all_confidence"]
+        pick_f_max_confidence = n["pickF_max_confidence"]
+        is_negative_correlated_f = n["isNegativeCorrelated"]
+        is_positive_correlated_f = n["isPositiveCorrelated"]
+        timestep_f = n["timestep"]
+        best_fit_n_val = n["bestFitN"]
+        p_value_n = n["p_value"]
+        pick_f_mutual_info = n["pickF_mutualInfo"]
+
+        pick_exp_t = ""
+        pick_exp_f = ""
+        identity_t = ""
+        identity_f = ""
+
+        if sign_p == "TT":
+            pattern = [f"{ig}${new_matched_genes_t[ig]}" for ig in input_genes]
+            identity_t = "_".join(pattern)
+            pick_exp_t = exp_t
+        elif sign_p == "TF":
+            pattern = [f"{ig}${new_matched_genes_f[ig]}" for ig in input_genes]
+            identity_t = "_".join(pattern)
+            pick_exp_t = exp_f
+
+        identity_t = "_".join([identity_t, "Activator_of", target_gene])
+
+        activator = {
+            "factor": pick_exp_t,
+            "Confidence": _cpp_double_str(pick_t_value),
+            "ConfidenceCounter": _cpp_double_str(pick_t_confidence_counter),
+            "all_confidence": _cpp_double_str(pick_t_all_confidence),
+            "max_confidence": _cpp_double_str(pick_t_max_confidence),
+            "support": _cpp_double_str(pick_t_support),
+            "causality_test": _cpp_double_str(pick_t_causality_test),
+            "Noise": _cpp_double_str(pick_t_noise),
+            "Identity": identity_t,
+            "type": sign_p,
+            "timestep": str(int(timestep_t)),
+            "isNegativeCorrelated": _cpp_bool_str(is_negative_correlated_t),
+            "isPositiveCorrelated": _cpp_bool_str(is_positive_correlated_t),
+            "bestFitP": _cpp_double_str(best_fit_p_val),
+            "p_value": _cpp_double_str(p_value_p),
+            "mutualInfo": _cpp_double_str(pick_t_mutual_info),
+        }
+
+        if sign_n == "FT":
+            pattern = [f"{ig}${new_matched_genes_t[ig]}" for ig in input_genes]
+            identity_f = "_".join(pattern)
+            pick_exp_f = exp_t
+        elif sign_n == "FF":
+            pattern = [f"{ig}${new_matched_genes_f[ig]}" for ig in input_genes]
+            identity_f = "_".join(pattern)
+            pick_exp_f = exp_f
+
+        identity_f = "_".join([identity_f, "Inhibitor_of", target_gene])
+
+        inhibitor = {
+            "factor": pick_exp_f,
+            "Confidence": _cpp_double_str(pick_f_value),
+            "ConfidenceCounter": _cpp_double_str(pick_f_confidence_counter),
+            "all_confidence": _cpp_double_str(pick_f_all_confidence),
+            "max_confidence": _cpp_double_str(pick_f_max_confidence),
+            "support": _cpp_double_str(pick_f_support),
+            "causality_test": _cpp_double_str(pick_f_causality_test),
+            "Noise": _cpp_double_str(pick_f_noise),
+            "Identity": identity_f,
+            "type": sign_n,
+            "timestep": str(int(timestep_f)),
+            "isNegativeCorrelated": _cpp_bool_str(is_negative_correlated_f),
+            "isPositiveCorrelated": _cpp_bool_str(is_positive_correlated_f),
+            "bestFitN": _cpp_double_str(best_fit_n_val),
+            "p_value": _cpp_double_str(p_value_n),
+            "mutualInfo": _cpp_double_str(pick_f_mutual_info),
+        }
+
+        in_res: Dict[str, Any] = {
+            "ActivatorAndInhibitor": {"Activator": activator, "Inhibitor": inhibitor},
+            "Input": input_genes,
+        }
+
+        if subresult_t:
+            in_res["SubGenesT"] = subresult_t
+        if subresult_f:
+            in_res["SubGenesF"] = subresult_f
+
+        result[gene] = in_res
+
+    return result
+
+
+def process_cube_algorithm(
+    target_gene: str,
+    conditional_genes: List[str],
+    max_k: int,
+    temporal: int,
+    main_parameters: Dict[str, Any],
+    matched_genes: Optional[Dict[str, int]] = None,
+    matched_expression: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Python port of process_cube_algorithm (src/fbn_tree.cpp) using the
+    node-level batched tensor-mining backend."""
+    sub_genes = build_probability_tree_on_target_gene(
+        target_gene, main_parameters, conditional_genes, matched_genes, matched_expression,
+        max_k, temporal, False, False, False,
+    )
+    return {target_gene: {"SubGenes": sub_genes}}
