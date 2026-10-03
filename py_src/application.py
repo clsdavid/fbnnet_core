@@ -6,7 +6,7 @@ convenience function that chains together (optional) discretisation of raw
 time-series data, `construct_fbn_cube`, and `mine_fbn_network`.
 """
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -96,6 +96,7 @@ def generate_fbm_network(
     max_fbn_rules: int = 5,
     network_only: bool = True,
     verbose: bool = False,
+    max_workers: Optional[int] = None,
 ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
     """
     Main entry point of the pipeline: mine a Fundamental Boolean Network
@@ -119,6 +120,8 @@ def generate_fbm_network(
         network_only: If True (default), only return the mined network.
             Otherwise, also return the Orchard cube.
         verbose: If True, emit INFO-level log messages describing progress.
+        max_workers: Maximum number of worker processes used when
+            use_parallel is True (default: cpu_count - 1).
 
     Returns:
         The mined FBN network dict, or ``{"cube": ..., "network": ...}`` if
@@ -159,6 +162,7 @@ def generate_fbm_network(
         max_k=max_k,
         temporal=max_deep_temporal,
         use_parallel=use_parallel,
+        max_workers=max_workers,
     )
     network = mine_fbn_network(
         cube,

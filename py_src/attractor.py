@@ -3,14 +3,26 @@ Port of R/attractor_FBN.R and the attractor-related parts of R/modelling_FBN.R:
 searchForAttractors, getFBMSuccessor, isSatisfied, randomSelection,
 getProbabilityFromFunctionInput and networkFixUpdate.
 """
+import multiprocessing
+import os
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import fbnnet_utils
 
 from .data_utils import generateAllCombinationBinary
+from .fbn_types import FBMAttractors
 from .network_app import _as_gene_value_dict
+
+# "cores - 1" convention: leave one core free for the OS/orchestrator process.
+DEFAULT_MAX_WORKERS = max(1, (os.cpu_count() or 2) - 1)
+
+_FORK_AVAILABLE = "fork" in multiprocessing.get_all_start_methods()
+
+# Populated in the parent process right before a fork-context Pool is created;
+# forked workers inherit it via copy-on-write memory, so it is never pickled.
+_reconstruct_worker_state: Dict[str, Any] = {}
 
 
 def is_satisfied(gene_state: Dict[str, int], expression_tokens: List[str]) -> bool:
@@ -219,12 +231,22 @@ def transition_states(
     return mat
 
 
+def _reconstruct_worker(initial_state: Dict[str, int]) -> np.ndarray:
+    """Runs in a forked worker process; reads shared state via COW memory."""
+    state = _reconstruct_worker_state
+    return transition_states(
+        initial_state, state["fbn_network"], state["genes"],
+        state["transition_type"], state["max_timepoints"],
+    )
+
+
 def reconstruct_timeseries(
     fbn_network: Dict,
     initial_states: List[Dict[str, int]],
     transition_type: str = "synchronous",
     max_timepoints: int = 100,
     use_parallel: bool = False,
+    max_workers: Optional[int] = None,
 ) -> List[np.ndarray]:
     """
     Port of R's `reconstructTimeseries` (modelling_FBN.R).
@@ -237,7 +259,17 @@ def reconstruct_timeseries(
         initial_states: A list of gene-name -> 0/1 dicts, one per starting state
         transition_type: "synchronous" or "asynchronous"
         max_timepoints: Number of timepoints to simulate per trajectory
-        use_parallel: Unused; kept for signature parity with the R source.
+        use_parallel: If True, simulate each initial state's trajectory in a
+            separate OS process (fork-based), matching R's `doParallelWork`.
+            Note: `transition_states` draws from Python's global `random`
+            module for probabilistic (0 < probability < 1) interactions, so
+            results are only guaranteed identical to the sequential path when
+            every interaction's probability is exactly 0 or 1 (the common case
+            for mined, deterministic networks) -- the same caveat applies to
+            R's socket-cluster-based `doParallelWork`, which doesn't
+            synchronize RNG streams across workers either.
+        max_workers: Maximum number of worker processes when use_parallel is
+            True (default: cpu_count - 1).
 
     Returns:
         A list of genes x max_timepoints ndarrays, one per initial state.
@@ -248,10 +280,35 @@ def reconstruct_timeseries(
         raise ValueError("maxTimepoints must be a positive integer")
 
     genes = fbn_network['genes']
-    return [
-        transition_states(state, fbn_network, genes, transition_type, max_timepoints)
-        for state in initial_states
-    ]
+    n_workers = max(1, min(max_workers or DEFAULT_MAX_WORKERS, len(initial_states)))
+
+    if not use_parallel or not _FORK_AVAILABLE or n_workers <= 1:
+        if use_parallel and not _FORK_AVAILABLE:
+            import logging
+            logging.getLogger(__name__).warning(
+                "multiprocessing 'fork' start method unavailable on this platform; "
+                "falling back to sequential execution."
+            )
+        return [
+            transition_states(state, fbn_network, genes, transition_type, max_timepoints)
+            for state in initial_states
+        ]
+
+    global _reconstruct_worker_state
+    _reconstruct_worker_state = {
+        "fbn_network": fbn_network,
+        "genes": genes,
+        "transition_type": transition_type,
+        "max_timepoints": max_timepoints,
+    }
+    try:
+        ctx = multiprocessing.get_context("fork")
+        with ctx.Pool(processes=n_workers) as pool:
+            results = pool.map(_reconstruct_worker, initial_states)
+    finally:
+        _reconstruct_worker_state = {}
+
+    return results
 
 
 def network_fix_update(network: Dict, fix_genes: List[str], values: List[int]) -> Dict:
@@ -387,9 +444,9 @@ def search_for_attractors(
             mat[:, k - 1] = [next_state[gene] for gene in genes]
             max_s += 1
 
-    return {
+    return FBMAttractors({
         'Attractors': result_list,
         'Genes': genes,
         'BasinOfAttractor': basin_states,
         'class': 'FBMAttractors',
-    }
+    })

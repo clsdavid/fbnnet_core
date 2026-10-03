@@ -3,7 +3,7 @@
 Kept in their own module (rather than network_app.py/network_utils.py) to
 avoid circular imports between the modules that construct these networks.
 """
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 def _fmt_num(value: Any) -> str:
@@ -11,6 +11,11 @@ def _fmt_num(value: Any) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value)
+
+
+def _r_cat(*args: Any, sep: str = " ") -> str:
+    """Mimic R's cat(..., sep=sep): join all (flattened) args with sep."""
+    return sep.join(str(a) for a in args)
 
 
 class FundamentalBooleanNetwork(dict):
@@ -56,6 +61,60 @@ class FundamentalBooleanNetwork(dict):
                 value = fixed.get(gene, -1)
                 if value != -1:
                     out.append(f"{gene} = {value}\n")
+
+        return "".join(out)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class FBMAttractors(dict):
+    """
+    A dict subclass holding FBM attractor-search results (Attractors/Genes/
+    BasinOfAttractor), with __str__/__repr__ matching R's
+    print.FBMAttractors (attractor_FBN.R) ascii-art cycle diagram output.
+    """
+
+    def __str__(self) -> str:
+        attractors: List[List[Dict[str, int]]] = self.get("Attractors", [])
+        genes: List[str] = self.get("Genes", [])
+
+        out = [
+            "Discovered Attractors via Fundamental Boolean Model ",
+            ":\n",
+            "Genes are encoded in the following order:",
+            ":\n",
+            _r_cat(*genes),
+            ":\n\n",
+        ]
+
+        for i, states in enumerate(attractors, start=1):
+            statelen = len(genes)
+            n_states = len(states) - 1
+            kind = "simple" if len(states) == 2 else "complex"
+
+            out.append(_r_cat(
+                "Attractor ", i, " is a ", kind, " attractor consisting of ",
+                n_states, " state(s)", sep="",
+            ))
+            out.append(":\n\n")
+            out.append(_r_cat("|", "--<", *(["-"] * statelen), "|"))
+            out.append("\n")
+            out.append(_r_cat("v", *([" "] * (2 + statelen)), "^"))
+            out.append("\n")
+
+            for j in range(n_states):
+                state_values = [states[j].get(gene, 0) for gene in genes]
+                out.append(_r_cat(*state_values, " ", " ", " ", "|"))
+                out.append("\n")
+                out.append(_r_cat("|", *([" "] * (2 + statelen)), "|"))
+                out.append("\n")
+
+            out.append(_r_cat("v", *([" "] * (2 + statelen)), "^"))
+            out.append("\n")
+            out.append(_r_cat("|", *(["-"] * statelen), ">--", "|"))
+            out.append("\n")
+            out.append("\n\n")
 
         return "".join(out)
 

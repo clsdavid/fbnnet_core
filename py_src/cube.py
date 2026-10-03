@@ -1,5 +1,6 @@
 import multiprocessing
-from typing import List, Dict, Any, Union
+import os
+from typing import List, Dict, Any, Optional, Union
 import numpy as np
 import pandas as pd
 import logging
@@ -7,12 +8,31 @@ import fbnnet_tree
 import fbnnet_core
 import fbnnet_matrix
 from .general_utils import fbn_data_reduction
-from concurrent.futures import ThreadPoolExecutor
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# "cores - 1" convention: leave one core free for the OS/orchestrator process.
+DEFAULT_MAX_WORKERS = max(1, (os.cpu_count() or 2) - 1)
+
+_FORK_AVAILABLE = "fork" in multiprocessing.get_all_start_methods()
+
+# Populated in the parent process right before a fork-context Pool is created.
+# Forked workers inherit this via copy-on-write memory, so the (potentially
+# unpicklable) pybind11 main_parameters object is never pickled across the
+# process boundary -- only the per-task gene name is.
+_cube_worker_state: Dict[str, Any] = {}
+
+
+def _cube_worker(gene: str) -> Any:
+    """Runs in a forked worker process; reads shared state via COW memory."""
+    state = _cube_worker_state
+    return fbnnet_tree.process_cube_algorithm(
+        gene, state["conditional_genes"], state["max_k"], state["temporal"],
+        state["main_parameters"], None, None,
+    )
 
 def convert_df_main_parameters(timeseries_cube: List[pd.DataFrame], temporal: int = 1) -> Dict[str, Any]:
     """ Convert a list of pandas DataFrames into a main parameters dictionary for FBN cube construction.
@@ -65,7 +85,8 @@ def construct_fbn_cube(target_genes: List[str],
                       timeseries_cube: List[pd.DataFrame], 
                       max_k: int = 5, 
                       temporal: int = 1, 
-                      use_parallel: bool = False) -> Dict[str, Any]:
+                      use_parallel: bool = False,
+                      max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Create an FBN cube (Python implementation)
     
@@ -85,7 +106,10 @@ def construct_fbn_cube(target_genes: List[str],
     temporal : int, optional
         Number of previous steps the current one can depend on (default: 1)
     use_parallel : bool, optional
-        If True, run in parallel, otherwise single-threaded (default: False)
+        If True, run target genes across separate OS processes (default: False)
+    max_workers : int, optional
+        Maximum number of worker processes when use_parallel is True
+        (default: cpu_count - 1)
     
     Returns:
     --------
@@ -160,7 +184,7 @@ def construct_fbn_cube(target_genes: List[str],
     target_genes = fbnnet_tree.filterTargetGenesByConditionGenes(target_genes, main_parameters, conditional_genes, None, temporal)
     # Process each target gene
     if use_parallel:
-        res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
+        res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers)
     else:
         res = do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
     
@@ -186,18 +210,41 @@ def do_parallel_work(target_genes: List[str],
                      conditional_genes: List[str], 
                      max_k: int, 
                      temporal: int, 
-                     main_parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Process genes in parallel using threads (safe for C++/pybind11 functions)"""
+                     main_parameters: Dict[str, Any],
+                     max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Process genes in parallel using separate OS processes (fork), not threads.
 
-    # Define a wrapper for the target function
-    def worker(gene):
-        return fbnnet_tree.process_cube_algorithm(
-            gene, conditional_genes, max_k, temporal, main_parameters, None, None
-        )
+    The pybind11-based main_parameters object is never pickled: it's stashed in a
+    module-level global before the fork-context Pool is created, so forked workers
+    inherit it via copy-on-write memory. Only the per-task gene name (a plain
+    string) is pickled through the task queue. This replaces an earlier
+    ThreadPoolExecutor-based implementation that provided no real speedup because
+    none of the pybind11 bindings release the GIL.
+    """
+    global _cube_worker_state
 
-    with ThreadPoolExecutor() as executor:
-        results = list(executor.map(worker, target_genes))
-    
+    n_workers = max(1, min(max_workers or DEFAULT_MAX_WORKERS, len(target_genes)))
+    if not _FORK_AVAILABLE or n_workers <= 1:
+        if not _FORK_AVAILABLE:
+            logger.warning(
+                "multiprocessing 'fork' start method unavailable on this platform; "
+                "falling back to sequential execution."
+            )
+        return do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
+
+    _cube_worker_state = {
+        "conditional_genes": conditional_genes,
+        "max_k": max_k,
+        "temporal": temporal,
+        "main_parameters": main_parameters,
+    }
+    try:
+        ctx = multiprocessing.get_context("fork")
+        with ctx.Pool(processes=n_workers) as pool:
+            results = pool.map(_cube_worker, target_genes)
+    finally:
+        _cube_worker_state = {}
+
     return results
 
 def do_non_parallel_work(target_genes: List[str], 

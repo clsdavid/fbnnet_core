@@ -166,6 +166,19 @@ class TestReconstructTimeseriesAndAttractorsVignette(unittest.TestCase):
         self.assertEqual(report["MissMatchedRate"], 0)
         self.assertEqual(report["PerfectMatchedRate"], 1)
 
+    def test_reconstruct_timeseries_parallel_matches_sequential(self):
+        sequential = reconstruct_timeseries(
+            self.network, self.initial_states, transition_type="synchronous",
+            max_timepoints=43, use_parallel=False,
+        )
+        parallel = reconstruct_timeseries(
+            self.network, self.initial_states, transition_type="synchronous",
+            max_timepoints=43, use_parallel=True,
+        )
+        self.assertEqual(len(sequential), len(parallel))
+        for seq_mat, par_mat in zip(sequential, parallel):
+            np.testing.assert_array_equal(seq_mat, par_mat)
+
     def test_search_for_attractors_and_draw(self):
         attractor = search_for_attractors(
             self.network, genes=self.network["genes"],
