@@ -68,6 +68,9 @@ int matchCount(py::array_t<double>& m, py::array_t<double>& v);
 
 py::dict compute_fisher_test(py::array_t<double>& x, double conf_level = 0.95);
 
+// Native two-sided Fisher exact p-value for [[a, b], [c, d]] (R's fisher.test rule); no Python callback.
+double fisher_exact_pvalue(double a, double b, double c, double d);
+
 double compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF);
 
 std::vector<std::string> subCPP(const std::vector<std::string>& pattern, const std::vector<std::string>& replacement, const std::vector<std::string>& x);

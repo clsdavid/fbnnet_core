@@ -226,6 +226,18 @@ class TestMathBindings(unittest.TestCase):
         self.assertAlmostEqual(result["conf_int"][0], 0.3651919982937759, places=6)
         self.assertAlmostEqual(result["conf_int"][1], 6.778936982762307, places=6)
 
+    def test_fisher_exact_pvalue_matches_scipy(self):
+        from scipy.stats import fisher_exact
+        rng = np.random.default_rng(7)
+        tables = [tuple(int(v) for v in rng.integers(0, hi, size=4))
+                  for hi in (5, 30, 300, 3000) for _ in range(200)]
+        tables += [(v, v, v, v) for v in range(20)] + [(2, 2, 0, 12), (0, 0, 0, 0), (5, 0, 0, 5)]
+        for a, b, c, d in tables:
+            ref = fisher_exact(np.array([[a, b], [c, d]], dtype=float)).pvalue
+            got = fbnnet_utils.fisher_exact_pvalue(a, b, c, d)
+            self.assertAlmostEqual(got, ref, places=9, msg=str((a, b, c, d)))
+            self.assertEqual(got > 0.05, ref > 0.05, msg=str((a, b, c, d)))
+
     def test_compute_chisq(self):
 
         result = fbnnet_utils.compute_chisq(1, 5, 3, 0)

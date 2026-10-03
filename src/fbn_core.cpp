@@ -672,13 +672,6 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
         counter_confidence_FF = dround(lenFF_c / cond_F_count_c, 5);
     }
 
-    // Create contingency table for Fisher test, named pTable, type is py::array_t<double> and the shape is (2, 2), elements are lenTT, lenTF, lenFT and lenFF.
-    py::array_t<double> pTable = py::array_t<double>({2, 2});
-    auto pTable_buf = pTable.mutable_unchecked<2>();
-    pTable_buf(0, 0) = lenTT;
-    pTable_buf(0, 1) = lenTF;
-    pTable_buf(1, 0) = lenFT;
-    pTable_buf(1, 1) = lenFF;
     // Create contingency table for counter Fisher test, named pTable_c, type is py::array_t<double> and the shape is (2, 2), elements are lenTT_c, lenTF_c, lenFT_c and lenFF_c.
     py::array_t<double> pTable_c = py::array_t<double>({2, 2});
     auto pTable_c_buf = pTable_c.mutable_unchecked<2>();
@@ -689,9 +682,7 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
  
     // Fisher test
     // py::print("process fisher test");
-    py::dict pTest = compute_fisher_test(pTable, 0.95);
-    // py::print(pTest);
-    double p_value = pTest["p_value"].cast<double>();
+    double p_value = fisher_exact_pvalue(lenTT, lenTF, lenFT, lenFF);
 
     //df = (r-1)(c-1) where r is the number of rows and c is the number of columns.
     // py::print("process chisq test");
