@@ -681,7 +681,7 @@ py::dict deep_copy_dict(const py::dict& x) {
 }
 
 // ----- PyBind11 Module Definition -----
-PYBIND11_MODULE(fbnnet_utils, m) {
+PYBIND11_MODULE(_utils, m) {
     m.def("debug_function", &debug_function, "Print debug message from C++");
     m.def("debug_str", &debug_str, "Print debug message from C++");
     m.def("to_string", &to_string);

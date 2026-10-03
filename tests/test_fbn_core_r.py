@@ -1,9 +1,9 @@
 import numpy as np
 
 import unittest
-import fbnnet_core  # This is your C++-wrapped Python module
-import fbnnet_utils
-import fbnnet_matrix
+from fbnnet_core import _core
+from fbnnet_core import _utils
+from fbnnet_core import _matrix
 from types import SimpleNamespace
 
 
@@ -61,7 +61,7 @@ def setupdata():
 
     # Convert numpy arrays to FBNMatrix objects
     for i, mat in enumerate(testseries):
-        testseries[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
+        testseries[i] = _matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
 
     # Initialize containers
     getCurrentStates = []
@@ -76,7 +76,7 @@ def setupdata():
         # In a real implementation, you would call your Python equivalent here
         # initializing all states and combined all sample's states with 9s.
         temporal = index + 1
-        getCurrentStates.append(fbnnet_core.extract_gene_state_from_time_series_cube(testseries, temporal))
+        getCurrentStates.append(_core.extract_gene_state_from_time_series_cube(testseries, temporal))
         getPreviousStates.append(getCurrentStates[index])
         getCurrentStates_c.append(getCurrentStates[index])
         getPreviousStates_c.append(getCurrentStates[index])
@@ -114,7 +114,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -153,7 +153,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -207,7 +207,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -252,7 +252,7 @@ class TesteProbabilities(unittest.TestCase):
         }
   
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -301,9 +301,9 @@ class TesteProbabilitiesAdvanced(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        basic_measures = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
-        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = _core.getGeneProbabilities_advanced(basic_measures)
         probability = probability["getBestFitP"]
 
         self.assertTrue(probability["TT"] == 0.5)
@@ -329,9 +329,9 @@ class TesteProbabilitiesAdvanced(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        basic_measures = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
-        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = _core.getGeneProbabilities_advanced(basic_measures)
         probability = probability["getBestFitP"]
 
         self.assertTrue(probability["TT"] == 0.83333)
@@ -358,9 +358,9 @@ class TesteProbabilitiesAdvanced(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        basic_measures = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
-        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = _core.getGeneProbabilities_advanced(basic_measures)
         probability = probability["getBestFitP"]
 
         self.assertTrue(probability["TT"] == 0.5)
@@ -391,9 +391,9 @@ class TesteProbabilitiesAdvanced(unittest.TestCase):
         }
   
         # Call the function
-        basic_measures = fbnnet_core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        basic_measures = _core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
         # # Access results
-        probability = fbnnet_core.getGeneProbabilities_advanced(basic_measures)
+        probability = _core.getGeneProbabilities_advanced(basic_measures)
         probability = probability["getBestFitP"]
 
         self.assertTrue(probability["TT"] == 0.33333)
@@ -419,7 +419,7 @@ class TestGetProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
         
         getBestFitP = probability["BestFitP"]
@@ -448,7 +448,7 @@ class TestGetProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
         
         getBestFitP = probability["BestFitP"]
         getBestFitN = probability["BestFitN"]
@@ -477,7 +477,7 @@ class TestGetProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
         
         getBestFitP = probability["BestFitP"]
@@ -511,7 +511,7 @@ class TestGetProbabilities(unittest.TestCase):
         }
   
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
         # # Access results
         
         getBestFitP = probability["BestFitP"]
@@ -540,7 +540,7 @@ class TestGetProbabilitiesTemporal(unittest.TestCase):
         temporal = 2
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
         
         getBestFitP = probability["BestFitP"]
@@ -570,7 +570,7 @@ class TestGetProbabilitiesTemporal(unittest.TestCase):
         temporal = 2
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
         
         getBestFitP = probability["BestFitP"]
         getBestFitN = probability["BestFitN"]
@@ -597,7 +597,7 @@ class TestGetProbabilitiesTemporal(unittest.TestCase):
         temporal = 2
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, None, target_gene, conditional_genes, temporal)
         # # Access results
         
         getBestFitP = probability["BestFitP"]
@@ -631,7 +631,7 @@ class TestGetProbabilitiesTemporal(unittest.TestCase):
         }
   
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
         # # Access results
         
         getBestFitP = probability["BestFitP"]
@@ -677,7 +677,7 @@ class TestGetProbabilitiesBasicMeasuresRParity(unittest.TestCase):
     def test_basic_measures_counts_match_r(self):
         for name, (target, cond, fixed, temporal, best_fit, expected) in self.CASES.items():
             with self.subTest(case=name):
-                result = fbnnet_core.getGeneProbabilities(
+                result = _core.getGeneProbabilities(
                     setupdata(), fixed, [target], [cond], temporal, True
                 )
                 basic = result[best_fit]["basic_measures"]
@@ -688,4 +688,4 @@ if __name__ == "__main__":
 
     unittest.main()
 
-        # self.assertEqual(fbnnet_core.add(-1, 1), 0)
+        # self.assertEqual(_core.add(-1, 1), 0)

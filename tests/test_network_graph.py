@@ -6,14 +6,14 @@ matplotlib.use("Agg")
 
 import pandas as pd
 
-from py_src.attractor import reconstruct_timeseries, search_for_attractors
-from py_src.boolnet import load_network
-from py_src.cube import construct_fbn_cube
-from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
-from py_src.general_utils import generate_similary_report
-from py_src.network import mine_fbn_network
-from py_src.network_app import load_fbn_network, convert_to_boolean_network_collection
-from py_src.network_graph import (
+from fbnnet_core.attractor import reconstruct_timeseries, search_for_attractors
+from fbnnet_core.boolnet import load_network
+from fbnnet_core.cube import construct_fbn_cube
+from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from fbnnet_core.general_utils import generate_similary_report
+from fbnnet_core.network import mine_fbn_network
+from fbnnet_core.network_app import load_fbn_network, convert_to_boolean_network_collection
+from fbnnet_core.network_graph import (
     to_networkx_graph,
     to_networkx_graph_with_rules,
     draw_static_network,

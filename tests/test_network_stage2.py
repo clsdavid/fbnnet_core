@@ -1,9 +1,9 @@
 import random
 import unittest
 
-import fbnnet_utils
+from fbnnet_core import _utils
 
-from py_src.network import _drop_subsumed_rules
+from fbnnet_core.network import _drop_subsumed_rules
 
 
 def _original_drop_subsumed(ruleset):
@@ -16,8 +16,8 @@ def _original_drop_subsumed(ruleset):
             if (int(rule['numOfInput']) < int(rule2['numOfInput']) and
                     int(rule['type']) == int(rule2['type']) and
                     int(rule['timestep']) == int(rule2['timestep']) and
-                    all(gene in fbnnet_utils.splitExpression(rule2['input'], 2, False)
-                        for gene in fbnnet_utils.splitExpression(rule['input'], 2, False))):
+                    all(gene in _utils.splitExpression(rule2['input'], 2, False)
+                        for gene in _utils.splitExpression(rule['input'], 2, False))):
                 dropped.append(rule2)
     return [rule for rule in ruleset if rule not in dropped]
 

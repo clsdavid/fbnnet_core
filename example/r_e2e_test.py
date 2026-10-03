@@ -56,18 +56,16 @@ import traceback
 
 import pandas as pd
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from py_src.boolnet import load_network
-from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
-from py_src.cube import construct_fbn_cube
-from py_src.network import mine_fbn_network
-from py_src.application import generate_fbm_network
-from py_src.attractor import reconstruct_timeseries, search_for_attractors
-from py_src.general_utils import generate_similary_report, fbn_data_reduction
-from py_src.network_app import load_fbn_network
-from py_src.network_utils import convert_to_fbn_network
-from py_src.network_graph import plot_network, draw_attractor
+from fbnnet_core.boolnet import load_network
+from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from fbnnet_core.cube import construct_fbn_cube
+from fbnnet_core.network import mine_fbn_network
+from fbnnet_core.application import generate_fbm_network
+from fbnnet_core.attractor import reconstruct_timeseries, search_for_attractors
+from fbnnet_core.general_utils import generate_similary_report, fbn_data_reduction
+from fbnnet_core.network_app import load_fbn_network
+from fbnnet_core.network_utils import convert_to_fbn_network
+from fbnnet_core.network_graph import plot_network, draw_attractor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXAMPLE_BN = os.path.join(HERE, "example.bn")

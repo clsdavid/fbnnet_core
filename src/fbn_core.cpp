@@ -1054,7 +1054,7 @@ py::dict getGeneProbabilities(py::dict& data,
     return result;
 }
 
-PYBIND11_MODULE(fbnnet_core, m) {
+PYBIND11_MODULE(_core, m) {
     m.def("extract_gene_state_from_time_series_cube", 
           &extract_gene_state_from_time_series_cube,
           "Extract gene states from time series cube",

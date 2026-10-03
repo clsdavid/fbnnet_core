@@ -521,7 +521,7 @@ py::dict process_cube_algorithm(
 }
 
 // PyBind11 module definition
-PYBIND11_MODULE(fbnnet_tree, m) {
+PYBIND11_MODULE(_tree, m) {
     m.def("filterTargetGenesByConditionGenes", &filterTargetGenesByConditionGenes,
         "Filter target genes based on condition genes",
         py::arg("targetGenes"),

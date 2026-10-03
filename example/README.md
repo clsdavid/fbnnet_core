@@ -45,16 +45,16 @@ attractor <- searchForAttractors(FBNcellcyclenetwork, initialStates, genes)
 FBNNetwork.Graph.DrawAttractor(FBNcellcyclenetwork, attractor, 2)
 ```
 
-using only functions already ported into `py_src/`:
+using only functions already ported into `fbnnet_core/`:
 
-1. `py_src.boolnet.load_network` — load `example.bn`.
-2. `py_src.data_utils.generateAllCombinationBinary` / `generateBoolNetTimeseries` — simulate
+1. `fbnnet_core.boolnet.load_network` — load `example.bn`.
+2. `fbnnet_core.data_utils.generateAllCombinationBinary` / `generateBoolNetTimeseries` — simulate
    43 synchronous time steps from every one of the $2^5=32$ possible initial states.
-3. `py_src.application.generate_fbm_network` — mine a Fundamental Boolean Network from that
+3. `fbnnet_core.application.generate_fbm_network` — mine a Fundamental Boolean Network from that
    data in one call (this is the Python port of `generateFBMNetwork`).
-4. `py_src.network_graph.draw_static_network` / `plot_network` — render the mined network.
-5. `py_src.attractor.search_for_attractors` — find its FBM attractors.
-6. `py_src.network_graph.draw_attractor` — render one attractor's state cycle.
+4. `fbnnet_core.network_graph.draw_static_network` / `plot_network` — render the mined network.
+5. `fbnnet_core.attractor.search_for_attractors` — find its FBM attractors.
+6. `fbnnet_core.network_graph.draw_attractor` — render one attractor's state cycle.
 
 > **Note:** the vignette also calls `reconstructTimeseries`/`generateSimilaryReport` to round-trip
 > simulate the mined network and report an accuracy score. That function does not actually exist

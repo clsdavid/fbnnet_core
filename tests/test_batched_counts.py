@@ -1,7 +1,7 @@
 """
-Validates py_src.batched_counts.batched_match_counts (Phase 3 foundation
+Validates fbnnet_core.batched_counts.batched_match_counts (Phase 3 foundation
 kernel, see .temp/parallel_improvement_plan.md section 6.2) produces results
-exactly identical to looping fbnnet_utils.matchCount per pattern - the
+exactly identical to looping _utils.matchCount per pattern - the
 existing, already-correct C++ primitive. This is a prerequisite correctness
 check before any future breadth-first/batched mining engine work can build
 on top of this kernel.
@@ -9,15 +9,15 @@ on top of this kernel.
 import unittest
 
 import numpy as np
-import fbnnet_utils
+from fbnnet_core import _utils
 
-from py_src.batched_counts import batched_match_counts
+from fbnnet_core.batched_counts import batched_match_counts
 
 
 def _reference_counts(m, patterns):
-    """Loop over fbnnet_utils.matchCount, one call per pattern (ground truth)."""
+    """Loop over _utils.matchCount, one call per pattern (ground truth)."""
     patterns = np.atleast_2d(patterns)
-    return np.array([fbnnet_utils.matchCount(m, pattern) for pattern in patterns])
+    return np.array([_utils.matchCount(m, pattern) for pattern in patterns])
 
 
 class TestBatchedMatchCounts(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestBatchedMatchCounts(unittest.TestCase):
         # Same fixture as tests/test_fbn_utility.py::test_matchCount.
         m = np.array([[1, 0, 1], [0, 1, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float64)
         pattern = np.array([0, 1, 1, 1], dtype=np.float64)
-        expected = fbnnet_utils.matchCount(m, pattern)
+        expected = _utils.matchCount(m, pattern)
         result = batched_match_counts(m, pattern)
         self.assertEqual(result.shape, (1,))
         self.assertEqual(int(result[0]), expected)

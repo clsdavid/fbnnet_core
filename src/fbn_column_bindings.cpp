@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(fbnnet_column, m) {
+PYBIND11_MODULE(_column, m) {
     py::class_<FBNColumn>(m, "FBNColumn")
         .def(py::init<>())
         .def(py::init<const std::vector<std::string>&, const std::vector<double>&>())

@@ -1,8 +1,0 @@
-pybind11>=2.13.6
-setuptools>=78.1.0
-numpy>=2.2.4
-statsmodels>=0.14.4
-networkx>=3.6
-matplotlib>=3.11
-pyreadr>=0.5.6
-rdata>=0.11

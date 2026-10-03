@@ -35,20 +35,18 @@ import logging
 import os
 import platform
 import subprocess
-import sys
 import time
 import warnings
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
 
 import numpy as np
 import pandas as pd
 
-from py_src.cube import construct_fbn_cube
-from py_src.fbn_types import FundamentalBooleanNetwork
-from py_src.network import mine_fbn_network, search_fbn_core
-from py_src.network_app import _interaction_items
+from fbnnet_core.cube import construct_fbn_cube
+from fbnnet_core.fbn_types import FundamentalBooleanNetwork
+from fbnnet_core.network import mine_fbn_network, search_fbn_core
+from fbnnet_core.network_app import _interaction_items
 
 DATA_RDA = os.path.join(ROOT, "data", "Leukeamia_Timeseries.rda")
 

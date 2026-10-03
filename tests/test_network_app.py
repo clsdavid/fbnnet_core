@@ -3,11 +3,11 @@ import unittest
 
 import pandas as pd
 
-from py_src.boolnet import load_network
-from py_src.cube import construct_fbn_cube
-from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
-from py_src.network import mine_fbn_network
-from py_src.network_app import (
+from fbnnet_core.boolnet import load_network
+from fbnnet_core.cube import construct_fbn_cube
+from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from fbnnet_core.network import mine_fbn_network
+from fbnnet_core.network_app import (
     load_fbn_network,
     match_names,
     convert_to_boolean_network_collection,

@@ -1,4 +1,0 @@
-targets,factors
-GeneA, GeneB | GeneC
-GeneB, GeneA & !GeneC
-GeneC, GeneA

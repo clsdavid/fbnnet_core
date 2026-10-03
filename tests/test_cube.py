@@ -1,21 +1,21 @@
 import numpy as np
 
 import unittest
-import fbnnet_core  # This is your C++-wrapped Python module
-import fbnnet_utils
-import fbnnet_matrix
+from fbnnet_core import _core
+from fbnnet_core import _utils
+from fbnnet_core import _matrix
 from types import SimpleNamespace
 import pandas as pd
-from py_src.cube import construct_fbn_cube
+from fbnnet_core.cube import construct_fbn_cube
 from concurrent.futures import ThreadPoolExecutor
-from py_src.cube import construct_fbn_cube
+from fbnnet_core.cube import construct_fbn_cube
 
 
 class TestCube(unittest.TestCase):
     def test_cube(self):
        # Example usage
-        from py_src.boolnet import load_network
-        from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+        from fbnnet_core.boolnet import load_network
+        from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
         # Write the network definition to a file
         with open("example.bn", "w") as f:
             f.write("targets, factors\n")
@@ -56,4 +56,4 @@ if __name__ == "__main__":
 
     unittest.main()
 
-        # self.assertEqual(fbnnet_core.add(-1, 1), 0)
+        # self.assertEqual(_core.add(-1, 1), 0)

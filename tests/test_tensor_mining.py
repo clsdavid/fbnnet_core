@@ -1,19 +1,19 @@
 import unittest
 
 import pandas as pd
-import fbnnet_core
-import fbnnet_tree
+from fbnnet_core import _core
+from fbnnet_core import _tree
 
-from py_src.boolnet import load_network
-from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
-from py_src.cube import convert_df_main_parameters
-from py_src.tensor_mining import batched_basic_measures, gene_probabilities_measurements
+from fbnnet_core.boolnet import load_network
+from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from fbnnet_core.cube import convert_df_main_parameters
+from fbnnet_core.tensor_mining import batched_basic_measures, gene_probabilities_measurements
 
 
 class TestTensorMining(unittest.TestCase):
     """Validates the Phase 3 node-level candidate-gene batching backend
-    (py_src/tensor_mining.py) against the ground-truth C++ engine
-    (fbnnet_core.getGeneProbabilities_basic, fbnnet_tree.getGeneProbabilities_measurements).
+    (fbnnet_core/tensor_mining.py) against the ground-truth C++ engine
+    (_core.getGeneProbabilities_basic, _tree.getGeneProbabilities_measurements).
     """
 
     @classmethod
@@ -45,7 +45,7 @@ class TestTensorMining(unittest.TestCase):
                     fixed_state = {}
                     batched = batched_basic_measures(main_parameters, target_gene, candidates, fixed_state, temporal)
                     for cand in candidates:
-                        ref = fbnnet_core.getGeneProbabilities_basic(
+                        ref = _core.getGeneProbabilities_basic(
                             main_parameters, None, [target_gene], [cand], temporal
                         )
                         for ts_key, ref_dict in ref.items():
@@ -65,7 +65,7 @@ class TestTensorMining(unittest.TestCase):
                             main_parameters, target_gene, remaining, fixed_state2, temporal
                         )
                         for cand in remaining:
-                            ref = fbnnet_core.getGeneProbabilities_basic(
+                            ref = _core.getGeneProbabilities_basic(
                                 main_parameters, dict(fixed_state2), [target_gene], [cand], temporal
                             )
                             for ts_key, ref_dict in ref.items():
@@ -82,7 +82,7 @@ class TestTensorMining(unittest.TestCase):
             for target_gene in self.genes:
                 candidates = [g for g in self.genes if g != target_gene]
                 with self.subTest(temporal=temporal, target=target_gene):
-                    ref = fbnnet_tree.getGeneProbabilities_measurements(
+                    ref = _tree.getGeneProbabilities_measurements(
                         [target_gene], main_parameters, candidates, None, temporal, False
                     )
                     got = gene_probabilities_measurements(

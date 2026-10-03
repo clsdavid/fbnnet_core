@@ -1,16 +1,16 @@
 import os
 import unittest
-from py_src.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
-from py_src.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
-from py_src.general_utils import output_genes, output_timeseries_based_on_genes
-from py_src.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
-from py_src.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
-from py_src.data_utils import dividedVectorIntoSmallgroups, getRelatedGeneTimeseries, generateAllCombinationBinary, randomGenerateBinary
-from py_src.application import binarize_time_series
+from fbnnet_core.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
+from fbnnet_core.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
+from fbnnet_core.general_utils import output_genes, output_timeseries_based_on_genes
+from fbnnet_core.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
+from fbnnet_core.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
+from fbnnet_core.data_utils import dividedVectorIntoSmallgroups, getRelatedGeneTimeseries, generateAllCombinationBinary, randomGenerateBinary
+from fbnnet_core.application import binarize_time_series
 import pandas as pd
 import numpy as np
 import pyreadr
-import fbnnet_utils
+from fbnnet_core import _utils
 
 YEAST_TIME_SERIES_RDA = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "yeastTimeSeries.rda"
@@ -227,7 +227,7 @@ class TestFbnnet_utils(unittest.TestCase):
         print("\n3. Testing full pipeline:")
         expr = "!(A&B)"
         genes = ["A", "B", "C"]
-        split_expr = fbnnet_utils.splitExpression(expr, 1, False)
+        split_expr = _utils.splitExpression(expr, 1, False)
         tree = convert_into_expression_tree(split_expr)
         fbn_funcs = construct_fbn_functions(tree)
         interactions = regenerate_interactions("Gene1", expr, genes, 0.1, 1)

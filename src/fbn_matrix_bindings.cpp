@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(fbnnet_matrix, m) {
+PYBIND11_MODULE(_matrix, m) {
     py::class_<FBNMatrix>(m, "FBNMatrix")
         .def(py::init<>())
         .def(py::init<const std::vector<std::vector<double>>&, 
