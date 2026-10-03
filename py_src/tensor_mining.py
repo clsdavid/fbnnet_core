@@ -150,26 +150,32 @@ def batched_basic_measures(
         total_calculated_timepoints = n_timepoints - (total_samples * time_step)
         time_step_key = str(time_step)
 
+        def _ints(a):
+            return np.rint(a).astype(np.int64).tolist()
+
+        cols = {
+            "cond_T_count": _ints(cond_T_count),
+            "cond_F_count": _ints(cond_F_count),
+            "cond_T_count_c": _ints(cond_T_count_c),
+            "cond_F_count_c": _ints(cond_F_count_c),
+            "count_cond_T_target_T": _ints(count_cond_T_target_T),
+            "count_cond_F_target_T": _ints(count_cond_F_target_T),
+            "count_cond_T_target_F": _ints(count_cond_T_target_F),
+            "count_cond_F_target_F": _ints(count_cond_F_target_F),
+            "count_cond_T_target_T_c": _ints(count_cond_T_target_T_c),
+            "count_cond_F_target_T_c": _ints(count_cond_F_target_T_c),
+            "count_cond_T_target_F_c": _ints(count_cond_T_target_F_c),
+            "count_cond_F_target_F_c": _ints(count_cond_F_target_F_c),
+        }
+
         for j, gene in enumerate(candidate_genes):
-            per_gene_results[gene][time_step_key] = {
-                "target_T_count": target_T_count,
-                "target_F_count": target_F_count,
-                "cond_T_count": int(round(cond_T_count[j])),
-                "cond_F_count": int(round(cond_F_count[j])),
-                "cond_T_count_c": int(round(cond_T_count_c[j])),
-                "cond_F_count_c": int(round(cond_F_count_c[j])),
-                "count_cond_T_target_T": int(round(count_cond_T_target_T[j])),
-                "count_cond_F_target_T": int(round(count_cond_F_target_T[j])),
-                "count_cond_T_target_F": int(round(count_cond_T_target_F[j])),
-                "count_cond_F_target_F": int(round(count_cond_F_target_F[j])),
-                "count_cond_T_target_T_c": int(round(count_cond_T_target_T_c[j])),
-                "count_cond_F_target_T_c": int(round(count_cond_F_target_T_c[j])),
-                "count_cond_T_target_F_c": int(round(count_cond_T_target_F_c[j])),
-                "count_cond_F_target_F_c": int(round(count_cond_F_target_F_c[j])),
-                "total_calculated_timepoints": total_calculated_timepoints,
-                "num_of_conditional_genes": num_of_conditional_genes,
-                "timestep": time_step,
-            }
+            record = {"target_T_count": target_T_count, "target_F_count": target_F_count}
+            for name, values in cols.items():
+                record[name] = values[j]
+            record["total_calculated_timepoints"] = total_calculated_timepoints
+            record["num_of_conditional_genes"] = num_of_conditional_genes
+            record["timestep"] = time_step
+            per_gene_results[gene][time_step_key] = record
 
     return per_gene_results
 
