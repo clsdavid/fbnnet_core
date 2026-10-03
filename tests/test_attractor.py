@@ -1,9 +1,13 @@
+import copy
 import os
 import unittest
 
+import matplotlib
+matplotlib.use("Agg")
+
 import pandas as pd
 
-from py_src.attractor import (
+from fbnnet_core.attractor import (
     is_satisfied,
     get_probability_from_function_input,
     get_fbm_successor,
@@ -11,12 +15,12 @@ from py_src.attractor import (
     search_for_attractors,
     reconstruct_timeseries,
 )
-from py_src.boolnet import load_network
-from py_src.cube import construct_fbn_cube
-from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
-from py_src.general_utils import generate_similary_report
-from py_src.network import mine_fbn_network
-from py_src.network_graph import draw_attractor
+from fbnnet_core.boolnet import load_network
+from fbnnet_core.cube import construct_fbn_cube
+from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+from fbnnet_core.general_utils import generate_similary_report
+from fbnnet_core.network import mine_fbn_network
+from fbnnet_core.network_graph import draw_attractor, plot_network
 import numpy as np
 
 EXAMPLE_BN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example.bn")
@@ -195,6 +199,94 @@ class TestReconstructTimeseriesAndAttractorsVignette(unittest.TestCase):
         index = 1 if len(attractor["Attractors"]) > 1 else 0
         ax = draw_attractor(attractor, index=index)
         self.assertIsNotNone(ax)
+
+
+class TestReconstructTimeseriesRParity(unittest.TestCase):
+    """
+    Python equivalent of R's tests/testthat/test-reconstructTimeseries.R on the
+    ExampleNetwork (example.bn, maxK=5): re-mining from a reconstructed series
+    (with decay 1 or 2, temporal 1 or 2) must reconstruct that series perfectly.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        network = load_network(EXAMPLE_BN)
+        cls.genes = network["genes"]
+        cls.initial_states = generateAllCombinationBinary(cls.genes)
+        cls.trainingseries = generateBoolNetTimeseries(
+            network, cls.initial_states, 43, transition_type="synchronous"
+        )
+        cls.network = cls._mine(cls.trainingseries, temporal=1)
+
+    @classmethod
+    def _mine(cls, series, temporal):
+        frames = [
+            pd.DataFrame(mat, index=cls.genes, columns=[str(j + 1) for j in range(mat.shape[1])])
+            for mat in series
+        ]
+        cube = construct_fbn_cube(cls.genes, cls.genes, frames, max_k=5, temporal=temporal, use_parallel=False)
+        return mine_fbn_network(cube, cls.genes)
+
+    def _reconstruct(self, network):
+        return reconstruct_timeseries(
+            network, self.initial_states, transition_type="synchronous",
+            max_timepoints=43, use_parallel=False,
+        )
+
+    def _assert_perfect(self, expected, actual):
+        report = generate_similary_report(expected, actual)
+        self.assertEqual(report["ErrorRate"], 0)
+        self.assertEqual(report["AccurateRate"], 1)
+        self.assertEqual(report["MissMatchedRate"], 0)
+        self.assertEqual(report["PerfectMatchedRate"], 1)
+
+    def _decay_two_network(self):
+        network = copy.deepcopy(self.network)
+        for gene in self.genes[:5]:
+            network["timedecay"][gene] = 2
+        return network
+
+    def test_first_reconstruction_matches_training_series(self):
+        self._assert_perfect(self.trainingseries, self._reconstruct(self.network))
+
+    def test_remined_network_is_identical_and_reconstructs_perfectly(self):
+        reconstructed = self._reconstruct(self.network)
+        remined = self._mine(reconstructed, temporal=1)
+        plot_network(remined)
+
+        self.assertEqual(list(remined["genes"]), list(self.network["genes"]))
+        self.assertEqual(remined["interactions"], self.network["interactions"])
+        self._assert_perfect(reconstructed, self._reconstruct(remined))
+
+    def test_decay_two_reconstruction_roundtrip(self):
+        reconstructed = self._reconstruct(self._decay_two_network())
+        remined = self._mine(reconstructed, temporal=1)
+        plot_network(remined)
+        self._assert_perfect(reconstructed, self._reconstruct(remined))
+
+    def test_temporal_two_reconstruction_roundtrip(self):
+        reconstructed = self._reconstruct(self.network)
+        remined = self._mine(reconstructed, temporal=2)
+        plot_network(remined)
+        self._assert_perfect(reconstructed, self._reconstruct(remined))
+
+    def test_temporal_two_decay_two_reconstruction_roundtrip(self):
+        reconstructed = self._reconstruct(self._decay_two_network())
+        remined = self._mine(reconstructed, temporal=2)
+        plot_network(remined)
+        self._assert_perfect(reconstructed, self._reconstruct(remined))
+
+    def test_get_probability_from_function_input_on_mined_network(self):
+        interactions = self.network["interactions"][self.genes[0]]
+        activator = next(f for f in interactions.values() if f["type"] == 1)
+        pre_gene_inputs = {
+            self.genes[index - 1]: self.initial_states[0][self.genes[index - 1]]
+            for index in activator["input"]
+        }
+        probability = get_probability_from_function_input(
+            1, activator["expression"], activator["probability"], pre_gene_inputs
+        )
+        self.assertIn(probability, (0.0, float(activator["probability"])))
 
 
 if __name__ == "__main__":

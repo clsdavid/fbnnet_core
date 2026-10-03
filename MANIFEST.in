@@ -1,0 +1,6 @@
+include LICENSE README.md
+recursive-include src *.cpp *.h
+recursive-include tests *.py
+include example.bn example_fbn.csv
+recursive-include data *.rda
+global-exclude __pycache__ *.py[cod] *.so

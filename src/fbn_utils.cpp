@@ -473,6 +473,49 @@ int matchCount(py::array_t<double>& m, py::array_t<double>& v) {
     return std::count(col_sums.begin(), col_sums.end(), 0.0);
 }
 
+double fisher_exact_pvalue(double a, double b, double c, double d) {
+    const long long n1 = std::llround(a + b);
+    const long long n2 = std::llround(c + d);
+    const long long k = std::llround(a + c);
+    const long long x_obs = std::llround(a);
+    const long long lo = std::max(0LL, k - n2);
+    const long long hi = std::min(n1, k);
+    if (hi <= lo) {
+        return 1.0;
+    }
+
+    // log pmf over the support, normalised by its maximum as in R's fisher.test.
+    // long double: exact ties (e.g. p == 0.05) must land on the mathematically correct side of "> 0.05".
+    typedef long double ld;
+    const ld log_const = lgammal(n1 + 1.0L) + lgammal(n2 + 1.0L) +
+                         lgammal(k + 1.0L) + lgammal(n1 + n2 - k + 1.0L) -
+                         lgammal(n1 + n2 + 1.0L);
+    std::vector<ld> logp(static_cast<size_t>(hi - lo + 1));
+    ld max_logp = -INFINITY;
+    for (long long x = lo; x <= hi; ++x) {
+        ld v = log_const - lgammal(x + 1.0L) - lgammal(n1 - x + 1.0L) -
+               lgammal(k - x + 1.0L) - lgammal(n2 - k + x + 1.0L);
+        logp[static_cast<size_t>(x - lo)] = v;
+        max_logp = std::max(max_logp, v);
+    }
+
+    ld total = 0.0L;
+    for (auto& v : logp) {
+        v = expl(v - max_logp);
+        total += v;
+    }
+
+    const ld relErr = 1.0L + 1e-7L;
+    const ld threshold = logp[static_cast<size_t>(x_obs - lo)] * relErr;
+    ld pvalue = 0.0L;
+    for (ld v : logp) {
+        if (v <= threshold) {
+            pvalue += v;
+        }
+    }
+    return static_cast<double>(std::min<ld>(pvalue / total, 1.0L));
+}
+
 // add back the missing functions
 py::dict compute_fisher_test(py::array_t<double>& x, double conf_level) {
     try {
@@ -524,6 +567,10 @@ double compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF) {
     // build std::vector<int> for the four counts
     std::vector<int> counts = {lenTT_int, lenFT_int, lenTF_int, lenFF_int};
 
+    // Empty table (no valid transitions, e.g. temporal > series length): expected values are all 0 and poisson_chisq would throw.
+    if (lenTT_int + lenFT_int + lenTF_int + lenFF_int == 0) {
+        return 0.0;
+    }
     double lambda_est = 2.0;  // Estimated lambda parameter
     // get result from poisson_chisq (fbn_chisq.cpp)
     // Call the Poisson chi-square function
@@ -634,7 +681,7 @@ py::dict deep_copy_dict(const py::dict& x) {
 }
 
 // ----- PyBind11 Module Definition -----
-PYBIND11_MODULE(fbnnet_utils, m) {
+PYBIND11_MODULE(_utils, m) {
     m.def("debug_function", &debug_function, "Print debug message from C++");
     m.def("debug_str", &debug_str, "Print debug message from C++");
     m.def("to_string", &to_string);
@@ -662,6 +709,9 @@ PYBIND11_MODULE(fbnnet_utils, m) {
     m.def("compute_fisher_test", &compute_fisher_test,
         "Perform Fisher's exact test (like R's fisher.test)",
         py::arg("x"), py::arg("conf_level") = 0.95);
+    m.def("fisher_exact_pvalue", &fisher_exact_pvalue,
+        "Native two-sided Fisher exact p-value for [[a, b], [c, d]]",
+        py::arg("a"), py::arg("b"), py::arg("c"), py::arg("d"));
     m.def("compute_chisq", &compute_chisq,
         "Compute chi-squared test statistic",
         py::arg("lenTT"), py::arg("lenFT"), py::arg("lenTF"), py::arg("lenFF"));

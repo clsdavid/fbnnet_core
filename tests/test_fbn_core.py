@@ -1,9 +1,9 @@
 import numpy as np
 
 import unittest
-import fbnnet_core  # This is your C++-wrapped Python module
-import fbnnet_utils
-import fbnnet_matrix
+from fbnnet_core import _core
+from fbnnet_core import _utils
+from fbnnet_core import _matrix
 from types import SimpleNamespace
 
 
@@ -53,7 +53,7 @@ def setupdata():
     
     # Convert numpy arrays to FBNMatrix objects
     for i, mat in enumerate(testseries):
-        testseries[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
+        testseries[i] = _matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
 
     # Initialize containers
     getCurrentStates = []
@@ -67,7 +67,7 @@ def setupdata():
         # In Python we'll just store the original matrices since we can't call the R function
         # In a real implementation, you would call your Python equivalent here
         temporal = index + 1
-        getCurrentStates.append(fbnnet_core.extract_gene_state_from_time_series_cube(testseries, temporal))
+        getCurrentStates.append(_core.extract_gene_state_from_time_series_cube(testseries, temporal))
         getPreviousStates.append(getCurrentStates[index])
         getCurrentStates_c.append(getCurrentStates[index])
         getPreviousStates_c.append(getCurrentStates[index])
@@ -144,7 +144,7 @@ def setupdata2():
     
     # Convert numpy arrays to FBNMatrix objects
     for i, mat in enumerate(testseries):
-        testseries[i] = fbnnet_matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
+        testseries[i] = _matrix.FBNMatrix(mat, genes_input, [str(j+1) for j in range(mat.shape[1])])
 
     # Initialize containers
     getCurrentStates = []
@@ -159,7 +159,7 @@ def setupdata2():
         # In a real implementation, you would call your Python equivalent here
         # initializing all states and combined all sample's states with 9s.
         temporal = index + 1
-        getCurrentStates.append(fbnnet_core.extract_gene_state_from_time_series_cube(testseries, temporal))
+        getCurrentStates.append(_core.extract_gene_state_from_time_series_cube(testseries, temporal))
         getPreviousStates.append(getCurrentStates[index])
         getCurrentStates_c.append(getCurrentStates[index])
         getPreviousStates_c.append(getCurrentStates[index])
@@ -193,7 +193,7 @@ class TestCore(unittest.TestCase):
         row_names = ["GeneA", "GeneB", "GeneC"]
         col_names = ["Time1", "Time2", "Time3"]
         
-        m1 = fbnnet_matrix.FBNMatrix(data, row_names, col_names)
+        m1 = _matrix.FBNMatrix(data, row_names, col_names)
 
         data = [
             [3.0, 2.0, 3.0],
@@ -203,13 +203,13 @@ class TestCore(unittest.TestCase):
         row_names = ["GeneA", "GeneB", "GeneC"]
         col_names = ["Time1", "Time2", "Time3"]
         
-        m2 = fbnnet_matrix.FBNMatrix(data, row_names, col_names)
+        m2 = _matrix.FBNMatrix(data, row_names, col_names)
         cube = [m1, m2]
-        result = fbnnet_core.extract_gene_state_from_time_series_cube(cube, 2)
+        result = _core.extract_gene_state_from_time_series_cube(cube, 2)
         print(result)
         self.assertEqual(result.shape, (3, 8))
 
-        result = fbnnet_core.extract_gene_state_from_time_series_cube(cube, 1)
+        result = _core.extract_gene_state_from_time_series_cube(cube, 1)
         print(result)
         self.assertEqual(result.shape, (3, 7))
         
@@ -225,7 +225,7 @@ class TestCore(unittest.TestCase):
         target_genes = ["p27", "CycE"]
 
         # Call the function
-        result = fbnnet_core.extract_gene_states(state_matrix, target_genes, row_names)
+        result = _core.extract_gene_states(state_matrix, target_genes, row_names)
         result.print()
         # Access results
         filtered_matrix = result.matrix_t()
@@ -305,7 +305,7 @@ class TestCore(unittest.TestCase):
         row_names = ["GeneA", "GeneB", "GeneC"]
         col_names = ["Time1", "Time2", "Time3"]
         
-        m1 = fbnnet_matrix.FBNMatrix(data, row_names, col_names)
+        m1 = _matrix.FBNMatrix(data, row_names, col_names)
         print("Matrix 1:")
         m1.print()
         print("String representation:")
@@ -323,14 +323,14 @@ class TestCore(unittest.TestCase):
             [5.5, 6.6]
         ], dtype=np.float64)
         
-        m2 = fbnnet_matrix.FBNMatrix(arr, ["R1", "R2", "R3"])
+        m2 = _matrix.FBNMatrix(arr, ["R1", "R2", "R3"])
         print("Matrix 2:")
         m2.print(2)  # With 2 decimal places
         print(f"Dimensions: {m2.num_rows()}x{m2.num_cols()}")
         
         # Test 3: Empty matrix
         print("\nTest 3: Empty matrix")
-        m3 = fbnnet_matrix.FBNMatrix()
+        m3 = _matrix.FBNMatrix()
         print("Empty matrix:")
         print(m3)
 
@@ -356,7 +356,7 @@ class TestCore(unittest.TestCase):
         temporal = 3
 
         # Call the function
-        result = fbnnet_core.generate_temporal_gene_states(main_params, target_gene, conditional_genes, temporal)
+        result = _core.generate_temporal_gene_states(main_params, target_gene, conditional_genes, temporal)
 
         # Access results
         for time_step_result in result:
@@ -401,7 +401,7 @@ class TestCore(unittest.TestCase):
         temporal = 3
 
         # Call the function
-        result = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        result = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
 
         # Access results
         for time_step_result in result:
@@ -451,7 +451,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -493,7 +493,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -531,7 +531,7 @@ class TesteProbabilities(unittest.TestCase):
         temporal = 1
 
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, None, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -577,7 +577,7 @@ class TesteProbabilities(unittest.TestCase):
         }
   
         # Call the function
-        probability = fbnnet_core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
+        probability = _core.getGeneProbabilities_basic(main_params, fixedgenestate, target_gene, conditional_genes, temporal)
         probability = probability["1"]
         # # Access results
 
@@ -686,4 +686,4 @@ if __name__ == "__main__":
     print("------------------------------------------")
     unittest.main()
 
-        # self.assertEqual(fbnnet_core.add(-1, 1), 0)
+        # self.assertEqual(_core.add(-1, 1), 0)
