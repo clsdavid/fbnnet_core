@@ -1,4 +1,4 @@
-include LICENSE README.md
+include LICENSE README.md CHANGELOG.md
 recursive-include src *.cpp *.h
 recursive-include tests *.py
 include example.bn example_fbn.csv
