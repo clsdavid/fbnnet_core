@@ -212,16 +212,19 @@ class TestMathBindings(unittest.TestCase):
         # Example 2x2 table (flattened as in R)
         table = np.array([10, 5, 20, 15], dtype=float)
 
-        # Call the C++ function (internally uses statsmodels)
+        # Call the C++ function (uses scipy.stats.fisher_exact for the
+        # p-value, matching R's fisher.test(), and
+        # scipy.stats.contingency.odds_ratio(kind="conditional") for the
+        # odds-ratio estimate/CI, matching R's conditional MLE estimate)
         result = fbnnet_utils.compute_fisher_test(table, conf_level=0.95)
 
         print("P-value:", result["p_value"])
         print("Odds ratio:", result["estimate"])
         print("95% CI:", result["conf_int"])
         self.assertTrue(result["p_value"] > 0.5287)
-        self.assertTrue(result["estimate"] == 1.5)
-        self.assertTrue(result["conf_int"][0] > 1.44)
-        self.assertTrue(result["conf_int"][1] > 1.5)
+        self.assertAlmostEqual(result["estimate"], 1.4880539572076525, places=6)
+        self.assertAlmostEqual(result["conf_int"][0], 0.3651919982937759, places=6)
+        self.assertAlmostEqual(result["conf_int"][1], 6.778936982762307, places=6)
 
     def test_compute_chisq(self):
 

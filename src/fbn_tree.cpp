@@ -190,9 +190,19 @@ py::dict buildProbabilityTreeOnTargetGene(
         std::vector<std::string> preprocessed;
         
         if (!matchedgenes.is_none()) {
-            newMatchedGenesT = matchedgenes.cast<py::dict>();
-            newMatchedGenesF = matchedgenes.cast<py::dict>();
-            for (auto item : newMatchedGenesT) {
+            // IMPORTANT: `.cast<py::dict>()` on an object that already IS a
+            // dict does not clone it - it returns another handle to the SAME
+            // underlying Python dict. Assigning that same aliased dict to both
+            // newMatchedGenesT and newMatchedGenesF (and to the shared
+            // `matchedgenes` parameter) means later in-place mutations like
+            // `newMatchedGenesT[gene] = 1` would corrupt newMatchedGenesF (and
+            // vice versa), and would also leak into subsequent sibling
+            // iterations of the enclosing loop since `matchedgenes` itself
+            // would get mutated. Build independent copies instead.
+            py::dict src = matchedgenes.cast<py::dict>();
+            for (auto item : src) {
+                newMatchedGenesT[item.first] = item.second;
+                newMatchedGenesF[item.first] = item.second;
                 preprocessed.push_back(item.first.cast<std::string>());
             }
         }

@@ -1,12 +1,25 @@
+import os
 import unittest
-from py.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
-from py.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
-from py.general_utils import output_genes, output_timeseries_based_on_genes
-from py.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
-from py.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
+from py_src.general_utils import fbn_data_reduction, similarity_between_matrix, check_similarity, generate_similar_report, dissolve
+from py_src.general_utils import check_right_type_timeseries_data, check_numeric, check_probability_type_data, is_boolean_type_timeseries_data
+from py_src.general_utils import output_genes, output_timeseries_based_on_genes
+from py_src.network_utils import is_atom_node, is_applied_de_morgan_law, flat_de_morgan_law
+from py_src.network_utils import convert_into_expression_tree, construct_fbn_functions, regenerate_interactions
+from py_src.data_utils import dividedVectorIntoSmallgroups, getRelatedGeneTimeseries, generateAllCombinationBinary, randomGenerateBinary
+from py_src.application import binarize_time_series
 import pandas as pd
 import numpy as np
+import pyreadr
 import fbnnet_utils
+
+YEAST_TIME_SERIES_RDA = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "yeastTimeSeries.rda"
+)
+
+
+def _load_yeast_time_series() -> pd.DataFrame:
+    result = pyreadr.read_r(YEAST_TIME_SERIES_RDA)
+    return result["yeastTimeSeries"]
 
 class TestFbnnet_utils(unittest.TestCase):
     def test_run_fbnnet_utils(self):
@@ -93,24 +106,18 @@ class TestFbnnet_utils(unittest.TestCase):
                 print(f"  Sample {entry[2]}: {entry[0]} (score: {entry[1]:.2f})")
 
         # Test dissolve function
-        # Test with a complex nested structure similar to R's lists
-        complex_list = {
-            'group1': {
-                'sub1': [10, 20, 30],
-                'sub2': {'a': 100, 'b': 200}
-            },
-            'group2': 50,
-            'group3': [{'x': 1}, {'y': 2}]
-        }
-        
+        # Test with a nested list structure (dissolve only recurses into lists/tuples,
+        # dicts and scalars are treated as leaf values - matches R's dissolve semantics)
+        complex_list = [[10, 20, 30], [{'a': 100, 'b': 200}], 50, [{'x': 1}, {'y': 2}]]
+
         result = dissolve(complex_list)
-        
+
         print("Original complex structure:")
         print(complex_list)
-        
+
         print("\nDissolved structure:")
-        for key, value in result.items():
-            print(f"{key}: {value}")
+        for value in result:
+            print(value)
 
         # Test check_right_type_timeseries_data
         try:
@@ -230,3 +237,53 @@ class TestFbnnet_utils(unittest.TestCase):
         print("Tree:", tree)
         print("Functions:", fbn_funcs)
         print("Interactions:", interactions)
+
+
+class TestUtilityRParity(unittest.TestCase):
+    """
+    One-to-one port of R's tests/testthat/test-utility.R, using the real
+    yeastTimeSeries dataset (data/yeastTimeSeries.rda, read via pyreadr)
+    that R's test relies on.
+    """
+
+    def test_run_utility_should_succeed(self):
+        yeast_time_series = _load_yeast_time_series()
+
+        self.assertFalse(is_boolean_type_timeseries_data([yeast_time_series]))
+
+        binarized = binarize_time_series([yeast_time_series], method="kmeans")
+        self.assertTrue(is_boolean_type_timeseries_data(binarized))
+
+        self.assertIsNone(check_probability_type_data(0.6))
+        for bad_value in (2, -0.2, -2, "X"):
+            with self.assertRaises(ValueError) as ctx:
+                check_probability_type_data(bad_value)
+            self.assertIn("not a type of probability", str(ctx.exception))
+
+        self.assertIsNone(check_numeric(1))
+        with self.assertRaises(ValueError) as ctx:
+            check_numeric("X")
+        self.assertIn("type of numeric", str(ctx.exception))
+
+        self.assertIsNone(check_right_type_timeseries_data([yeast_time_series.to_numpy()]))
+        with self.assertRaises(ValueError) as ctx:
+            check_right_type_timeseries_data(yeast_time_series.to_numpy())
+        self.assertIn("timeseries_data must be LIST", str(ctx.exception))
+        with self.assertRaises(ValueError) as ctx:
+            check_right_type_timeseries_data([1, 2])
+        self.assertIn("must be a matrix", str(ctx.exception))
+
+        t1 = dividedVectorIntoSmallgroups([1, 2, 3, 4, 5, 6, 7, 8], 2)
+        self.assertEqual(len(t1["clusters"]), 4)
+
+        t1_list = [yeast_time_series, yeast_time_series, yeast_time_series]
+        t2 = list(yeast_time_series.index)
+        t3 = dividedVectorIntoSmallgroups(t2, 2)
+        t4 = getRelatedGeneTimeseries(t1_list, t3["clusters"][0])
+        self.assertEqual(list(t4[0].index), t3["clusters"][0])
+
+        t5 = generateAllCombinationBinary(t3["clusters"][0], 1, 0)
+        self.assertEqual(len(t5), 4)
+
+        t6 = randomGenerateBinary(t3["clusters"][0], 4)
+        self.assertEqual(len(t6), 4)

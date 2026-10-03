@@ -103,8 +103,8 @@ def setupdata():
 
 
 def generate_test_example():
-    from py.boolnet import load_network
-    from py.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+    from py_src.boolnet import load_network
+    from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
     # Write the network definition to a file
     with open("example.bn", "w") as f:
         f.write("targets, factors\n")
@@ -196,9 +196,9 @@ class TestFBNTreeBuild(unittest.TestCase):
 
     def test_filterTargetGenesByConditionGenes(self):
         # Prepare input data
-        from py.boolnet import load_network
-        from py.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
-        from py.cube import convert_df_main_parameters
+        from py_src.boolnet import load_network
+        from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+        from py_src.cube import convert_df_main_parameters
         # Write the network definition to a file
         with open("example.bn", "w") as f:
             f.write("targets, factors\n")

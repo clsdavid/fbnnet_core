@@ -1,0 +1,15 @@
+targets,factors,type
+Gene1,Gene1,1
+Gene1,!Gene1,0
+Gene2,Gene1 & !Gene4 & Gene5,1
+Gene2,!Gene1,0
+Gene2,Gene4,0
+Gene2,!Gene5,0
+Gene3,Gene3,1
+Gene3,!Gene3,0
+Gene4,!Gene1 & Gene3,1
+Gene4,Gene3 & !Gene5,1
+Gene4,!Gene3,0
+Gene4,Gene1 & Gene5,0
+Gene5,!Gene2,1
+Gene5,Gene2,0

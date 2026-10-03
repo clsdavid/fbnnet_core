@@ -30,5 +30,13 @@ dependencies = {file = ["requirements.txt"]}
 "Homepage" = "https://github.com/clsdavid/fbnnet_core"
 "Bug Tracker" = "https://github.com/clsdavid/fbnnet_core/issues"
 
+[tool.pytest.ini_options]
+# Restrict discovery to tests/ - otherwise pytest's default "*_test.py" glob
+# also matches statistic/chi_test.py, which isn't a test module. Collecting
+# it fails with "No module named 'fbnnet_core.statistic'; 'fbnnet_core' is
+# not a package" because the repo root's own __init__.py makes pytest treat
+# the whole project as a package named after this directory ("fbnnet_core"),
+# colliding with the installed compiled fbnnet_core pybind11 extension.
+testpaths = ["tests"]
 
 

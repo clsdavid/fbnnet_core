@@ -6,17 +6,17 @@ import fbnnet_utils
 import fbnnet_matrix
 from types import SimpleNamespace
 import pandas as pd
-from py.cube import construct_fbn_cube
+from py_src.cube import construct_fbn_cube
 from concurrent.futures import ThreadPoolExecutor
-from py.cube import construct_fbn_cube
-from py.network import mine_fbn_network
+from py_src.cube import construct_fbn_cube
+from py_src.network import mine_fbn_network
 
 
 class TestNetwork(unittest.TestCase):
     def test_network(self):
        # Example usage
-        from py.boolnet import load_network
-        from py.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
+        from py_src.boolnet import load_network
+        from py_src.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
         # Write the network definition to a file
         with open("example.bn", "w") as f:
             f.write("targets, factors\n")
