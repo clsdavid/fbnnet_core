@@ -1,42 +1,56 @@
 [build-system]
-requires = [
-  "setuptools>=78.1.0",
-  "wheel",
-  "pybind11>=2.13.6"
-]
+requires = ["setuptools>=77", "wheel", "pybind11>=2.13"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fbnnet_core"
+name = "fbnnet-core"
 version = "0.1.0"
-description = "FBNNet"
-authors = [
-    {name = "Leshi Chen", email = "chenleshi@hotmail.com"}
-]
+description = "Fundamental Boolean Network (FBN) inference of gene regulatory networks from time series, with a C++ core"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Leshi Chen", email = "chenleshi@hotmail.com"}]
+keywords = ["boolean network", "gene regulatory network", "systems biology", "bioinformatics", "pybind11"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: C++",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent"
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+# scipy is imported by the C++ extension for compute_fisher_test.
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "networkx>=3.0",
+    "matplotlib>=3.8",
 ]
 
-dynamic = ["dependencies"]
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+[project.optional-dependencies]
+# pyreadr/rdata read the R datasets in data/ (tests and examples only).
+test = ["pytest>=7", "pyreadr>=0.5", "rdata>=0.11"]
 
 [project.urls]
-"Homepage" = "https://github.com/clsdavid/fbnnet_core"
+Homepage = "https://github.com/clsdavid/fbnnet_core"
 "Bug Tracker" = "https://github.com/clsdavid/fbnnet_core/issues"
+"Original R package" = "https://github.com/clsdavid/FBNNet2_public"
+
+[tool.setuptools]
+packages = ["fbnnet_core"]
 
 [tool.pytest.ini_options]
-# Restrict discovery to tests/ - otherwise pytest's default "*_test.py" glob
-# also matches statistic/chi_test.py, which isn't a test module. Collecting
-# it fails with "No module named 'fbnnet_core.statistic'; 'fbnnet_core' is
-# not a package" because the repo root's own __init__.py makes pytest treat
-# the whole project as a package named after this directory ("fbnnet_core"),
-# colliding with the installed compiled fbnnet_core pybind11 extension.
 testpaths = ["tests"]
 
-
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux_* *_i686"
+test-extras = ["test"]
+test-command = "pytest {project}/tests -q"

@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import chisquare
 import unittest
-import fbnnet_chisq  # This is your C++-wrapped Python module
+from fbnnet_core import _chisq
 import timeit
 
 class TestChiSQ(unittest.TestCase):
@@ -12,7 +12,7 @@ class TestChiSQ(unittest.TestCase):
             [75, 75]     # Group 2
         ], dtype=np.int32)
 
-        chi_value, expected = fbnnet_chisq.contingency_chisq(table)
+        chi_value, expected = _chisq.contingency_chisq(table)
         print("Chi-square test results:")
         print(f"Chi-square value: {chi_value:.4f}")
         print("Expected table:")
@@ -33,7 +33,7 @@ class TestChiSQ(unittest.TestCase):
             [75, 75]     # Group 2
         ], dtype=np.int32)
 
-        chi_value, expected = fbnnet_chisq.contingency_chisq(table)
+        chi_value, expected = _chisq.contingency_chisq(table)
 
         print(f"Contingency chi-square: {chi_value:.4f}")
         print("Expected table:")
@@ -42,7 +42,7 @@ class TestChiSQ(unittest.TestCase):
     def test_goodness_of_fit_chisq(self):
         # Test with a goodness-of-fit example
         observed_die = np.array([15, 12, 18, 17, 14, 14], dtype=np.float64)
-        chi_value, expected = fbnnet_chisq.uniform_chisq(observed_die)
+        chi_value, expected = _chisq.uniform_chisq(observed_die)
 
         print(f"goodness of fit Chi-square value: {chi_value:.4f}")
         print("Expected values:", expected)
@@ -52,7 +52,7 @@ class TestChiSQ(unittest.TestCase):
         # Test if data follows Poisson distribution
         counts = np.array([12, 36, 42, 30, 18, 7, 3], dtype=np.int32)  # Counts of events
         lambda_est = 2.0  # Estimated lambda parameter
-        chi_value, expected = fbnnet_chisq.poisson_chisq(counts, lambda_est)
+        chi_value, expected = _chisq.poisson_chisq(counts, lambda_est)
 
         print(f"Poisson test chi-square: {chi_value:.4f}")
         print("Expected counts:", expected)
@@ -60,22 +60,22 @@ class TestChiSQ(unittest.TestCase):
     def test_edge_cases(self):
         # Zero expected value (should raise)
         try:
-            fbnnet_chisq.chisq_statistic(np.array([1.0]), np.array([0.0]))
+            _chisq.chisq_statistic(np.array([1.0]), np.array([0.0]))
         except ValueError as e:
             print("Correctly caught zero expected value:", e)
         
         # Unequal lengths (should raise)
         try:
-            fbnnet_chisq.chisq_statistic(np.array([1.0, 2.0]), np.array([1.0]))
+            _chisq.chisq_statistic(np.array([1.0, 2.0]), np.array([1.0]))
         except ValueError as e:
             print("Correctly caught unequal lengths:", e)
         
         # Empty arrays
-        print("Empty arrays:", fbnnet_chisq.chisq_statistic(np.array([]), np.array([])))
+        print("Empty arrays:", _chisq.chisq_statistic(np.array([]), np.array([])))
         
         # Very small values
         small = np.array([1e-10, 2e-10], dtype=np.float64)
-        print("Small values:", fbnnet_chisq.chisq_statistic(small, small*2))
+        print("Small values:", _chisq.chisq_statistic(small, small*2))
 
     def test_chisq(self):
         # Example 1: Testing a fair die (small difference)
@@ -91,9 +91,9 @@ class TestChiSQ(unittest.TestCase):
         exp3 = np.full(100, 100.0, dtype=np.float64)
         
         # Calculate chi-square statistics
-        print("Fair die test:", fbnnet_chisq.chisq_statistic(obs1, exp1))
-        print("Biased die test:", fbnnet_chisq.chisq_statistic(obs2, exp2))
-        print("Large Poisson test:", fbnnet_chisq.chisq_statistic(obs3, exp3))
+        print("Fair die test:", _chisq.chisq_statistic(obs1, exp1))
+        print("Biased die test:", _chisq.chisq_statistic(obs2, exp2))
+        print("Large Poisson test:", _chisq.chisq_statistic(obs3, exp3))
         
         # Compare with numpy/scipy implementation
         from scipy.stats import chisquare
@@ -116,13 +116,13 @@ def benchmark():
     for size in sizes:
         setup = f"""
 import numpy as np
-import fbnnet_chisq
+from fbnnet_core import _chisq
 obs = np.random.randint(1, 100, size={size})
 exp = np.random.randint(1, 100, size={size})
 """
         
         # Time C++ version
-        cpp_timer = timeit.Timer('fbnnet_chisq.chisq_statistic(obs, exp)', setup=setup)
+        cpp_timer = timeit.Timer('_chisq.chisq_statistic(obs, exp)', setup=setup)
         cpp_time = min(cpp_timer.repeat(5, 1000)) / 1000 * 1e6  # μs per loop
         
         # Time Python version
@@ -136,13 +136,13 @@ if __name__ == "__main__":
     # Setup code that runs once
     setup = """
 import numpy as np
-import fbnnet_chisq  # Your C++ module
+from fbnnet_core import _chisq
 obs = np.random.randint(10, 100, size=1000)
 exp = np.random.randint(10, 100, size=1000)
     """
 
     # Time C++ implementation
-    cpp_time = timeit.timeit('fbnnet_chisq.chisq_statistic(obs, exp)', 
+    cpp_time = timeit.timeit('_chisq.chisq_statistic(obs, exp)', 
                             setup=setup, 
                             number=10000)
 
