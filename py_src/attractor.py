@@ -247,6 +247,7 @@ def reconstruct_timeseries(
     max_timepoints: int = 100,
     use_parallel: bool = False,
     max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
 ) -> List[np.ndarray]:
     """
     Port of R's `reconstructTimeseries` (modelling_FBN.R).
@@ -270,6 +271,10 @@ def reconstruct_timeseries(
             synchronize RNG streams across workers either.
         max_workers: Maximum number of worker processes when use_parallel is
             True (default: cpu_count - 1).
+        chunksize: Tasks-per-worker batch size passed to the underlying
+            pool.map (default: pool.map's own heuristic). Tune this upward
+            for very large numbers of initial states to reduce IPC/dispatch
+            overhead.
 
     Returns:
         A list of genes x max_timepoints ndarrays, one per initial state.
@@ -304,7 +309,7 @@ def reconstruct_timeseries(
     try:
         ctx = multiprocessing.get_context("fork")
         with ctx.Pool(processes=n_workers) as pool:
-            results = pool.map(_reconstruct_worker, initial_states)
+            results = pool.map(_reconstruct_worker, initial_states, chunksize=chunksize)
     finally:
         _reconstruct_worker_state = {}
 

@@ -97,6 +97,7 @@ def generate_fbm_network(
     network_only: bool = True,
     verbose: bool = False,
     max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
 ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
     """
     Main entry point of the pipeline: mine a Fundamental Boolean Network
@@ -122,6 +123,10 @@ def generate_fbm_network(
         verbose: If True, emit INFO-level log messages describing progress.
         max_workers: Maximum number of worker processes used when
             use_parallel is True (default: cpu_count - 1).
+        chunksize: Tasks-per-worker batch size passed to the underlying
+            pool.map when use_parallel is True (default: pool.map's own
+            heuristic). Tune this upward for very large gene counts to
+            reduce IPC/dispatch overhead.
 
     Returns:
         The mined FBN network dict, or ``{"cube": ..., "network": ...}`` if
@@ -163,6 +168,7 @@ def generate_fbm_network(
         temporal=max_deep_temporal,
         use_parallel=use_parallel,
         max_workers=max_workers,
+        chunksize=chunksize,
     )
     network = mine_fbn_network(
         cube,

@@ -303,6 +303,61 @@ def unittest_fbn_process_for_multiple_files_with_short_timeseries():
     return report
 
 
+def unittest_fbn_process_for_multiple_files_chunksize():
+    """
+    Not a port of an R test (R has no equivalent `chunksize` knob) - this
+    exercises the Phase 1 tuning parameter added on top of Phase 0's
+    fork-based `use_parallel`: `chunksize` is forwarded to the underlying
+    `pool.map` call in construct_fbn_cube/reconstruct_timeseries/
+    generate_fbm_network, and must produce byte-identical results to the
+    default (chunksize=None) regardless of its value.
+    """
+    print("********* Executing test unittest_fbn_process_for_multiple_files_chunksize *********")
+    network = _load_example_boolnet()
+    genes = network["genes"]
+    initial_states = generateAllCombinationBinary(genes)
+    raw_series = generateBoolNetTimeseries(network, initial_states, 43, transition_type="synchronous")
+    training_series = _to_dataframes(raw_series, genes)
+
+    baseline_cube = construct_fbn_cube(genes, genes, training_series, max_k=4, temporal=1, use_parallel=True)
+    all_ok = True
+    for chunksize in (1, 2, 3):
+        cube = construct_fbn_cube(
+            genes, genes, training_series, max_k=4, temporal=1, use_parallel=True, chunksize=chunksize,
+        )
+        matches = cube == baseline_cube
+        all_ok = all_ok and matches
+        print(f"[chunksize] construct_fbn_cube(chunksize={chunksize}) matches default: {matches}")
+
+    mined_network = mine_fbn_network(baseline_cube, genes)
+    baseline_series = reconstruct_timeseries(
+        mined_network, initial_states, transition_type="synchronous", max_timepoints=43, use_parallel=True,
+    )
+    for chunksize in (1, 2, 3):
+        result_series = reconstruct_timeseries(
+            mined_network, initial_states, transition_type="synchronous", max_timepoints=43,
+            use_parallel=True, chunksize=chunksize,
+        )
+        matches = all(
+            (a == b).all() for a, b in zip(baseline_series, result_series)
+        )
+        all_ok = all_ok and matches
+        print(f"[chunksize] reconstruct_timeseries(chunksize={chunksize}) matches default: {matches}")
+
+    # generate_fbm_network threads chunksize through to construct_fbn_cube internally.
+    chunked_network = generate_fbm_network(
+        training_series, max_k=4, max_deep_temporal=1, use_parallel=True, chunksize=2, verbose=True,
+    )
+    matches = chunked_network == mined_network
+    all_ok = all_ok and matches
+    print(f"[chunksize] generate_fbm_network(chunksize=2) matches default: {matches}")
+
+    print(f"[chunksize] ALL CHECKS PASSED: {all_ok}")
+    print("********* test unittest_fbn_process_for_multiple_files_chunksize End *********\n")
+    assert all_ok, "Phase 1 chunksize results diverged from the chunksize=None baseline"
+    return all_ok
+
+
 # ---------------------------------------------------------------------------
 # unittest_FBNProcessForMultipleFilesCellCycle*: the classic 10-gene
 # mammalian cell cycle network (Faur\u00e9 et al. 2006), re-encoded in
@@ -397,6 +452,7 @@ def run_cube_test():
         unittest_fbn_process_for_example_fbn,
         unittest_fbn_process_for_multiple_files_using_original_fbn,
         unittest_fbn_process_for_multiple_files_with_short_timeseries,
+        unittest_fbn_process_for_multiple_files_chunksize,
         unittest_fbn_process_for_multiple_files_cellcycle,
     ]
     for step in steps:

@@ -86,7 +86,8 @@ def construct_fbn_cube(target_genes: List[str],
                       max_k: int = 5, 
                       temporal: int = 1, 
                       use_parallel: bool = False,
-                      max_workers: Optional[int] = None) -> Dict[str, Any]:
+                      max_workers: Optional[int] = None,
+                      chunksize: Optional[int] = None) -> Dict[str, Any]:
     """
     Create an FBN cube (Python implementation)
     
@@ -110,6 +111,10 @@ def construct_fbn_cube(target_genes: List[str],
     max_workers : int, optional
         Maximum number of worker processes when use_parallel is True
         (default: cpu_count - 1)
+    chunksize : int, optional
+        Tasks-per-worker batch size passed to the underlying pool.map when
+        use_parallel is True (default: pool.map's own heuristic). Tune this
+        upward for very large gene counts to reduce IPC/dispatch overhead.
     
     Returns:
     --------
@@ -184,7 +189,7 @@ def construct_fbn_cube(target_genes: List[str],
     target_genes = fbnnet_tree.filterTargetGenesByConditionGenes(target_genes, main_parameters, conditional_genes, None, temporal)
     # Process each target gene
     if use_parallel:
-        res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers)
+        res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers, chunksize)
     else:
         res = do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters)
     
@@ -211,7 +216,8 @@ def do_parallel_work(target_genes: List[str],
                      max_k: int, 
                      temporal: int, 
                      main_parameters: Dict[str, Any],
-                     max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
+                     max_workers: Optional[int] = None,
+                     chunksize: Optional[int] = None) -> List[Dict[str, Any]]:
     """Process genes in parallel using separate OS processes (fork), not threads.
 
     The pybind11-based main_parameters object is never pickled: it's stashed in a
@@ -220,6 +226,11 @@ def do_parallel_work(target_genes: List[str],
     string) is pickled through the task queue. This replaces an earlier
     ThreadPoolExecutor-based implementation that provided no real speedup because
     none of the pybind11 bindings release the GIL.
+
+    chunksize is forwarded to pool.map verbatim; leave it None to use the
+    pool's own heuristic (fine for the common case), and set it explicitly
+    when mining very large gene counts if profiling shows per-task dispatch
+    overhead is non-trivial relative to per-gene work.
     """
     global _cube_worker_state
 
@@ -241,7 +252,7 @@ def do_parallel_work(target_genes: List[str],
     try:
         ctx = multiprocessing.get_context("fork")
         with ctx.Pool(processes=n_workers) as pool:
-            results = pool.map(_cube_worker, target_genes)
+            results = pool.map(_cube_worker, target_genes, chunksize=chunksize)
     finally:
         _cube_worker_state = {}
 
