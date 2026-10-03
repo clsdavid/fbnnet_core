@@ -1,3 +1,4 @@
+import itertools
 import logging
 from typing import List, Dict, Any, Optional, Union
 import numpy as np
@@ -389,6 +390,41 @@ def search_fbn_core(
     logger.info("Leave search_fbn_core zone")
     return final_result
 
+def _drop_subsumed_rules(ruleset: List[Dict]) -> List[Dict]:
+    """Drop a rule when another rule of the same type/timestep has fewer inputs, all contained in it.
+
+    R's mineFBNNetworkStage2 compares every rule against every other one; this gives the same
+    result by tokenising once and looking up each input-gene subset of a rule in a dict.
+    """
+    tokens = [frozenset(fbnnet_utils.splitExpression(r['input'], 2, False)) for r in ruleset]
+    n_inputs = [int(r['numOfInput']) for r in ruleset]
+    groups = [(int(r['type']), int(r['timestep'])) for r in ruleset]
+
+    fewest_inputs: Dict[Any, int] = {}
+    for group, tok, n in zip(groups, tokens, n_inputs):
+        key = (group, tok)
+        if n < fewest_inputs.get(key, n + 1):
+            fewest_inputs[key] = n
+
+    kept = []
+    for i, rule in enumerate(ruleset):
+        tok, n, group = tokens[i], n_inputs[i], groups[i]
+        if len(tok) <= 12:
+            subsumed = any(
+                fewest_inputs.get((group, frozenset(sub)), n) < n
+                for size in range(len(tok) + 1)
+                for sub in itertools.combinations(tok, size)
+            )
+        else:
+            subsumed = any(
+                j != i and groups[j] == group and n_inputs[j] < n and tokens[j] <= tok
+                for j in range(len(ruleset))
+            )
+        if not subsumed:
+            kept.append(rule)
+    return kept
+
+
 def mine_fbn_network_stage2(
     res: Dict,
     threshold_error: float = 0,
@@ -410,35 +446,10 @@ def mine_fbn_network_stage2(
     if not res:
         return {}
     
-    final_filtered_list = {}
     filtered_res = {}
     
     for target, ruleset in res.items():
-        final_filtered_list[target] = []
-        
-        # Filter out rules that are subsets of other rules.
-        # NOTE: R's mineFBNNetworkStage2 resets `processed <- c(j)` on every
-        # outer iteration (excluding only the current rule itself), so rule
-        # `j` is compared against *every* other rule in the list, not just
-        # the ones that come after it. Do the same here (don't accumulate
-        # `processed` across outer iterations).
-        for j, rule in enumerate(ruleset):
-            for k, rule2 in enumerate(ruleset):
-                if k == j:
-                    continue
-                
-                if (int(rule['numOfInput']) < int(rule2['numOfInput']) and
-                    int(rule['type']) == int(rule2['type']) and
-                    int(rule['timestep']) == int(rule2['timestep']) and
-                    all(gene in fbnnet_utils.splitExpression(rule2['input'], 2, False)
-                        for gene in fbnnet_utils.splitExpression(rule['input'], 2, False))):
-                    final_filtered_list[target].append(rule2)
-        
-        # Keep only rules not in the filtered list
-        filtered_res[target] = [
-            rule for rule in ruleset 
-            if rule not in final_filtered_list[target]
-        ]
+        filtered_res[target] = _drop_subsumed_rules(ruleset)
     
     # Filter rules based on error threshold and type
     for target in filtered_res:

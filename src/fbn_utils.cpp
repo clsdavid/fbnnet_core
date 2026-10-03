@@ -567,6 +567,10 @@ double compute_chisq(double lenTT, double lenFT, double lenTF, double lenFF) {
     // build std::vector<int> for the four counts
     std::vector<int> counts = {lenTT_int, lenFT_int, lenTF_int, lenFF_int};
 
+    // Empty table (no valid transitions, e.g. temporal > series length): expected values are all 0 and poisson_chisq would throw.
+    if (lenTT_int + lenFT_int + lenTF_int + lenFF_int == 0) {
+        return 0.0;
+    }
     double lambda_est = 2.0;  // Estimated lambda parameter
     // get result from poisson_chisq (fbn_chisq.cpp)
     // Call the Poisson chi-square function

@@ -238,6 +238,9 @@ class TestMathBindings(unittest.TestCase):
             self.assertAlmostEqual(got, ref, places=9, msg=str((a, b, c, d)))
             self.assertEqual(got > 0.05, ref > 0.05, msg=str((a, b, c, d)))
 
+    def test_compute_chisq_empty_table_does_not_raise(self):
+        self.assertEqual(fbnnet_utils.compute_chisq(0, 0, 0, 0), 0.0)
+
     def test_compute_chisq(self):
 
         result = fbnnet_utils.compute_chisq(1, 5, 3, 0)

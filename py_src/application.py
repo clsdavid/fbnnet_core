@@ -98,6 +98,7 @@ def generate_fbm_network(
     verbose: bool = False,
     max_workers: Optional[int] = None,
     chunksize: Optional[int] = None,
+    backend: str = "recursive",
 ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
     """
     Main entry point of the pipeline: mine a Fundamental Boolean Network
@@ -127,6 +128,8 @@ def generate_fbm_network(
             pool.map when use_parallel is True (default: pool.map's own
             heuristic). Tune this upward for very large gene counts to
             reduce IPC/dispatch overhead.
+        backend: "recursive" (default, C++ engine) or "tensor" (NumPy node-level
+            batching, identical results, faster on wide gene sets).
 
     Returns:
         The mined FBN network dict, or ``{"cube": ..., "network": ...}`` if
@@ -169,6 +172,7 @@ def generate_fbm_network(
         use_parallel=use_parallel,
         max_workers=max_workers,
         chunksize=chunksize,
+        backend=backend,
     )
     network = mine_fbn_network(
         cube,
