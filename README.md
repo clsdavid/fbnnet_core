@@ -50,9 +50,9 @@ against the same test network the R package's own vignette uses (see
 > interactive widget.
 >
 > **Note on discretisation:** `generate_fbm_network`'s non-boolean-data path (`binarize_time_series`)
-> supports `method="edgeDetector"` (a port of BoolNet's, `firstEdge`/`maxEdge`) and `method="kmeans"`, a
-> small dependency-free per-matrix 2-means (BoolNet instead clusters each gene over all matrices
-> concatenated). BoolNet's `scanStatistic` is not implemented.
+> supports `method="kmeans"` (the exact optimal 2-means split per gene over all matrices concatenated,
+> as BoolNet's `kmeans` finds) and `method="edgeDetector"` (`firstEdge`/`maxEdge`). BoolNet's
+> `scanStatistic` is not implemented.
 
 ## Installation
 

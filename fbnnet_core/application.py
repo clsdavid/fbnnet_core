@@ -23,31 +23,27 @@ _VALID_EDGES = ("firstEdge", "maxEdge")
 
 def _binarize_series(values: np.ndarray) -> np.ndarray:
     """
-    Binarize a single 1-D numeric series into {0, 1} using a simple
-    1-dimensional 2-means clustering (lightweight stand-in for
-    ``BoolNet::binarizeTimeSeries(method = "kmeans")`` that avoids adding a
-    hard dependency on scikit-learn).
+    Binarize a 1-D series like ``BoolNet::binarizeTimeSeries(method = "kmeans")``: the optimal
+    2-means split (minimum within-cluster sum of squares, found exactly on the sorted values),
+    smaller cluster -> 0. Values equidistant from both centres go to the lower cluster.
     """
     values = np.asarray(values, dtype=float)
-    low, high = values.min(), values.max()
-    if low == high:
+    ordered = np.sort(values)
+    n = len(ordered)
+    if n < 2 or ordered[0] == ordered[-1]:
         # Constant series: nothing to discriminate, treat as all "off".
         return np.zeros_like(values, dtype=int)
 
-    centroid_low, centroid_high = low, high
-    for _ in range(100):
-        dist_low = np.abs(values - centroid_low)
-        dist_high = np.abs(values - centroid_high)
-        assigned_high = dist_high < dist_low
-
-        new_low = values[~assigned_high].mean() if np.any(~assigned_high) else centroid_low
-        new_high = values[assigned_high].mean() if np.any(assigned_high) else centroid_high
-
-        if new_low == centroid_low and new_high == centroid_high:
-            break
-        centroid_low, centroid_high = new_low, new_high
-
-    return assigned_high.astype(int)
+    cum = np.cumsum(ordered)
+    cum_sq = np.cumsum(ordered ** 2)
+    k = np.arange(1, n)  # size of the lower cluster
+    sse_low = cum_sq[:-1] - cum[:-1] ** 2 / k
+    sse_high = (cum_sq[-1] - cum_sq[:-1]) - (cum[-1] - cum[:-1]) ** 2 / (n - k)
+    best = int(np.argmin(sse_low + sse_high))
+    k_best = best + 1
+    centre_low = cum[best] / k_best
+    centre_high = (cum[-1] - cum[best]) / (n - k_best)
+    return (values > (centre_low + centre_high) / 2).astype(int)
 
 
 def _edge_detector_series(values: np.ndarray, scaling: float = 1.0, edge: str = "firstEdge") -> np.ndarray:
@@ -78,14 +74,13 @@ def binarize_time_series(
 ) -> List[pd.DataFrame]:
     """
     Discretise raw numeric time-series data into boolean (0/1) values, one
-    gene (row) at a time.
+    gene (row) at a time, over all matrices concatenated (as BoolNet does).
 
     Args:
         timeseries_data: A list of DataFrames (genes as rows, timepoints as
             columns).
-        method: "kmeans" (per matrix) or "edgeDetector" (BoolNet's edge
-            detector; like BoolNet it thresholds each gene over all matrices
-            concatenated).
+        method: "kmeans" (optimal 2-means split) or "edgeDetector" (BoolNet's
+            edge detector).
         edge: For "edgeDetector", "firstEdge" or "maxEdge".
         scaling: For "edgeDetector" with "firstEdge", scales the edge size.
 
@@ -96,24 +91,18 @@ def binarize_time_series(
     if method not in _VALID_METHODS:
         raise ValueError(f"Unsupported discretisation method '{method}', only {_VALID_METHODS} are supported")
 
+    genes = timeseries_data[0].index
+    widths = [matrix.shape[1] for matrix in timeseries_data]
+    collated = np.hstack([matrix.loc[genes].to_numpy(dtype=float) for matrix in timeseries_data])
     if method == "edgeDetector":
-        genes = timeseries_data[0].index
-        widths = [matrix.shape[1] for matrix in timeseries_data]
-        collated = np.hstack([matrix.loc[genes].to_numpy(dtype=float) for matrix in timeseries_data])
         bins = np.vstack([_edge_detector_series(row, scaling, edge) for row in collated])
-        splits = np.cumsum(widths)[:-1]
-        return [
-            pd.DataFrame(part, index=genes, columns=matrix.columns)
-            for part, matrix in zip(np.hsplit(bins, splits), timeseries_data)
-        ]
-
-    binarized = []
-    for matrix in timeseries_data:
-        result = matrix.copy()
-        for gene in result.index:
-            result.loc[gene] = _binarize_series(result.loc[gene].to_numpy())
-        binarized.append(result.astype(int))
-    return binarized
+    else:
+        bins = np.vstack([_binarize_series(row) for row in collated])
+    splits = np.cumsum(widths)[:-1]
+    return [
+        pd.DataFrame(part, index=genes, columns=matrix.columns)
+        for part, matrix in zip(np.hsplit(bins, splits), timeseries_data)
+    ]
 
 
 def is_boolean_type_timeseries_data(timeseries_data: List[pd.DataFrame]) -> bool:

@@ -59,6 +59,17 @@ class TestBinarizeTimeSeries(unittest.TestCase):
         self.assertTrue(is_boolean_type_timeseries_data([result]))
         self.assertEqual(list(result.loc["A"]), [0, 0, 1, 1])
 
+    def test_kmeans_is_the_optimal_split_over_all_matrices_together(self):
+        first = pd.DataFrame([[0.0, 1.0, 2.0]], index=["A"], columns=["1", "2", "3"])
+        second = pd.DataFrame([[10.0, 11.0, 12.0]], index=["A"], columns=["1", "2", "3"])
+        result = binarize_time_series([first, second])
+        self.assertEqual(list(result[0].loc["A"]), [0, 0, 0])
+        self.assertEqual(list(result[1].loc["A"]), [1, 1, 1])
+
+    def test_kmeans_separates_unevenly_sized_clusters(self):
+        df = pd.DataFrame([[0.0, 0.1, 0.2, 0.3, 5.0]], index=["A"], columns=list("12345"))
+        self.assertEqual(list(binarize_time_series([df]).pop().loc["A"]), [0, 0, 0, 0, 1])
+
     def test_constant_series_becomes_all_zero(self):
         df = pd.DataFrame([[5.0, 5.0, 5.0]], index=["A"], columns=["1", "2", "3"])
         result = binarize_time_series([df])[0]
