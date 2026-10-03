@@ -17,7 +17,8 @@ from .general_utils import check_numeric, check_probability_type_data
 
 logger = logging.getLogger(__name__)
 
-_VALID_METHODS = ("kmeans",)
+_VALID_METHODS = ("kmeans", "edgeDetector")
+_VALID_EDGES = ("firstEdge", "maxEdge")
 
 
 def _binarize_series(values: np.ndarray) -> np.ndarray:
@@ -49,7 +50,32 @@ def _binarize_series(values: np.ndarray) -> np.ndarray:
     return assigned_high.astype(int)
 
 
-def binarize_time_series(timeseries_data: List[pd.DataFrame], method: str = "kmeans") -> List[pd.DataFrame]:
+def _edge_detector_series(values: np.ndarray, scaling: float = 1.0, edge: str = "firstEdge") -> np.ndarray:
+    """Port of BoolNet's `edgeDetector`: threshold the series at an edge of its sorted values."""
+    values = np.asarray(values, dtype=float)
+    if edge not in _VALID_EDGES:
+        raise ValueError(f"'edge' must be one of {_VALID_EDGES}")
+
+    sorted_values = np.sort(values)
+    distance = np.diff(sorted_values)
+    if edge == "firstEdge":
+        threshold = scaling * (sorted_values[-1] - sorted_values[0]) / (len(values) - 1)
+        above = np.flatnonzero(distance > threshold)
+        index = int(above[0]) if above.size else None
+    else:
+        index = int(np.argmax(distance))
+
+    if index is None:
+        return np.zeros_like(values, dtype=int)
+    return (values >= sorted_values[index + 1]).astype(int)
+
+
+def binarize_time_series(
+    timeseries_data: List[pd.DataFrame],
+    method: str = "kmeans",
+    edge: str = "firstEdge",
+    scaling: float = 1.0,
+) -> List[pd.DataFrame]:
     """
     Discretise raw numeric time-series data into boolean (0/1) values, one
     gene (row) at a time.
@@ -57,7 +83,11 @@ def binarize_time_series(timeseries_data: List[pd.DataFrame], method: str = "kme
     Args:
         timeseries_data: A list of DataFrames (genes as rows, timepoints as
             columns).
-        method: Discretisation method. Only "kmeans" is currently supported.
+        method: "kmeans" (per matrix) or "edgeDetector" (BoolNet's edge
+            detector; like BoolNet it thresholds each gene over all matrices
+            concatenated).
+        edge: For "edgeDetector", "firstEdge" or "maxEdge".
+        scaling: For "edgeDetector" with "firstEdge", scales the edge size.
 
     Returns:
         A new list of DataFrames with the same shape/index/columns, but with
@@ -65,6 +95,17 @@ def binarize_time_series(timeseries_data: List[pd.DataFrame], method: str = "kme
     """
     if method not in _VALID_METHODS:
         raise ValueError(f"Unsupported discretisation method '{method}', only {_VALID_METHODS} are supported")
+
+    if method == "edgeDetector":
+        genes = timeseries_data[0].index
+        widths = [matrix.shape[1] for matrix in timeseries_data]
+        collated = np.hstack([matrix.loc[genes].to_numpy(dtype=float) for matrix in timeseries_data])
+        bins = np.vstack([_edge_detector_series(row, scaling, edge) for row in collated])
+        splits = np.cumsum(widths)[:-1]
+        return [
+            pd.DataFrame(part, index=genes, columns=matrix.columns)
+            for part, matrix in zip(np.hsplit(bins, splits), timeseries_data)
+        ]
 
     binarized = []
     for matrix in timeseries_data:
@@ -110,7 +151,7 @@ def generate_fbm_network(
         timeseries_data: A single DataFrame or a list of DataFrames, each with
             genes as rows and timepoints as columns.
         method: Discretisation method used if the data is not already boolean
-            (only "kmeans" is currently supported).
+            ("kmeans" or "edgeDetector"; see ``binarize_time_series``).
         max_k: The maximum depth the Orchard Cube can mine into.
         use_parallel: If True, run the network inference algorithm in
             parallel.

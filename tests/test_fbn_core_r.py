@@ -651,6 +651,38 @@ class TestGetProbabilitiesTemporal(unittest.TestCase):
         self.assertTrue(getBestFitP["FF_c"] == 0)
 
 
+class TestGetProbabilitiesBasicMeasuresRParity(unittest.TestCase):
+    """
+    The `basic_measures` count assertions of R's test-getgeneprababilities.R and
+    test-getgeneprobabilitiestemporal.R (R names lenTT/lenTF/lenFT/lenFF map to
+    count_cond_<cond>_target_<target> here).
+    """
+
+    # (target, condition, fixed state, temporal, best fit, counts in R's order:
+    #  target_T, target_F, lenTT, lenTF, lenFT, lenFF, cond_T, cond_F)
+    CASES = {
+        "getgeneprababilities CycD<-p27 t1": ("CycD", "p27", None, 1, "BestFitP", (5, 4, 4, 1, 4, 0, 8, 1)),
+        "getgeneprababilities CycE<-E2F fixed t1": ("CycE", "E2F", {"p27": 1, "CycD": 0}, 1, "BestFitP", (1, 8, 1, 0, 2, 0, 3, 0)),
+        "temporal CycD<-p27 t2": ("CycD", "p27", None, 2, "BestFitP", (5, 4, 4, 1, 4, 0, 8, 1)),
+        "temporal p27<-CycD t2": ("p27", "CycD", None, 2, "BestFitP", (4, 2, 4, 0, 0, 2, 4, 2)),
+        "temporal p27<-CycE t2 (N)": ("p27", "CycE", None, 2, "BestFitN", (7, 2, 1, 6, 1, 1, 2, 7)),
+        "temporal CycE<-E2F fixed t2": ("CycE", "E2F", {"p27": 1, "CycD": 0}, 2, "BestFitP", (1, 5, 0, 0, 2, 0, 2, 0)),
+    }
+    KEYS = (
+        "target_T_count", "target_F_count",
+        "count_cond_T_target_T", "count_cond_F_target_T", "count_cond_T_target_F", "count_cond_F_target_F",
+        "cond_T_count", "cond_F_count",
+    )
+
+    def test_basic_measures_counts_match_r(self):
+        for name, (target, cond, fixed, temporal, best_fit, expected) in self.CASES.items():
+            with self.subTest(case=name):
+                result = fbnnet_core.getGeneProbabilities(
+                    setupdata(), fixed, [target], [cond], temporal, True
+                )
+                basic = result[best_fit]["basic_measures"]
+                self.assertEqual(tuple(basic[key] for key in self.KEYS), expected)
+
 
 if __name__ == "__main__":
 

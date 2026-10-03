@@ -1,5 +1,6 @@
 import os
 import unittest
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -66,7 +67,34 @@ class TestBinarizeTimeSeries(unittest.TestCase):
     def test_rejects_unsupported_method(self):
         df = pd.DataFrame([[0.0, 1.0]], index=["A"], columns=["1", "2"])
         with self.assertRaises(ValueError):
-            binarize_time_series([df], method="edgeDetector")
+            binarize_time_series([df], method="scanStatistic")
+
+    def test_edge_detector_first_edge_and_max_edge(self):
+        df = pd.DataFrame([[0, 5, 6, 7, 20, 21]], index=["A"], columns=list("123456"))
+        first = binarize_time_series([df], method="edgeDetector")[0]
+        self.assertEqual(list(first.loc["A"]), [0, 1, 1, 1, 1, 1])
+        maximum = binarize_time_series([df], method="edgeDetector", edge="maxEdge")[0]
+        self.assertEqual(list(maximum.loc["A"]), [0, 0, 0, 0, 1, 1])
+
+    def test_edge_detector_unsorted_constant_and_scaling(self):
+        df = pd.DataFrame([[10, 1, 3, 2], [5, 5, 5, 5]], index=["A", "B"], columns=list("1234"))
+        result = binarize_time_series([df], method="edgeDetector")[0]
+        self.assertEqual(list(result.loc["A"]), [1, 0, 0, 0])
+        self.assertEqual(list(result.loc["B"]), [0, 0, 0, 0])
+        scaled = pd.DataFrame([[0, 1, 2, 3, 100]], index=["A"], columns=list("12345"))
+        self.assertEqual(list(binarize_time_series([scaled], method="edgeDetector", scaling=0.1)[0].loc["A"]), [0, 0, 0, 0, 1])
+
+    def test_edge_detector_thresholds_over_all_matrices_together(self):
+        first = pd.DataFrame([[0, 1]], index=["A"], columns=["1", "2"])
+        second = pd.DataFrame([[2, 30]], index=["A"], columns=["1", "2"])
+        result = binarize_time_series([first, second], method="edgeDetector")
+        self.assertEqual(list(result[0].loc["A"]), [0, 0])
+        self.assertEqual(list(result[1].loc["A"]), [0, 1])
+
+    def test_edge_detector_rejects_unknown_edge(self):
+        df = pd.DataFrame([[0.0, 1.0, 2.0]], index=["A"], columns=["1", "2", "3"])
+        with self.assertRaises(ValueError):
+            binarize_time_series([df], method="edgeDetector", edge="lastEdge")
 
 
 class TestGenerateFbmNetwork(unittest.TestCase):
@@ -153,6 +181,27 @@ class TestGenerateFbmNetworkRealYeastTimeSeries(unittest.TestCase):
     def test_kmeans_verbose_true(self):
         network = generate_fbm_network(self.yeast_time_series, method="kmeans", max_k=4, verbose=True)
         self.assertIn("genes", network)
+
+    def test_default_method(self):
+        network = generate_fbm_network(self.yeast_time_series)
+        self.assertIn("genes", network)
+
+    def test_edge_detector_network_only_true_and_false(self):
+        network = generate_fbm_network(self.yeast_time_series, method="edgeDetector")
+        self.assertIn("interactions", network)
+        result = generate_fbm_network(self.yeast_time_series, method="edgeDetector", network_only=False)
+        self.assertIn("cube", result)
+        self.assertIn("network", result)
+
+    def test_no_warnings_for_any_r_test_application_call(self):
+        calls = (
+            {}, {"verbose": True}, {"method": "kmeans"}, {"method": "edgeDetector"}, {"network_only": False},
+        )
+        for kwargs in calls:
+            with self.subTest(kwargs=kwargs):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error")
+                    generate_fbm_network(self.yeast_time_series, **kwargs)
 
 
 if __name__ == "__main__":

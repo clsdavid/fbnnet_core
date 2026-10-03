@@ -278,6 +278,57 @@ class TestFBNTreeBuild(unittest.TestCase):
 
         print(cube)
 
+
+# Column-major vectors of the three 4 genes x 6 time points samples that R's
+# test-buildProbabilityTreeOnTargetGene.R builds with matrix(..., byrow = FALSE).
+R_TREE_TEST_SAMPLES = [
+    [1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0],
+    [1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1],
+    [1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+]
+
+
+def setupdata_r_tree():
+    genes_input = ["CycD", "p27", "CycE", "E2F"]
+    testseries = [
+        fbnnet_matrix.FBNMatrix(
+            np.array(values, dtype=np.float64).reshape(4, 6, order="F"),
+            genes_input, [str(j + 1) for j in range(6)],
+        )
+        for values in R_TREE_TEST_SAMPLES
+    ]
+    current_states = [
+        fbnnet_core.extract_gene_state_from_time_series_cube(testseries, temporal)
+        for temporal in (1, 2, 3)
+    ]
+    return {
+        "currentStates": current_states,
+        "previousStates": current_states,
+        "currentStates_c": current_states,
+        "previousStates_c": current_states,
+        "total_samples": len(testseries),
+        "rownames": genes_input,
+        "total_timepoints": sum(mat.matrix_t().shape[1] for mat in testseries),
+        "testseries": testseries,
+    }
+
+
+class TestFBNTreeRParity(unittest.TestCase):
+    """R's test-buildProbabilityTreeOnTargetGene.R on its own 6 time point data:
+    every gene, maxK=4, temporal 1..3 must build a tree without error."""
+
+    def test_build_tree_for_every_gene_and_temporal(self):
+        main_params = setupdata_r_tree()
+        genes_input = main_params["rownames"]
+        for gene in genes_input:
+            for temporal in (1, 2, 3):
+                with self.subTest(gene=gene, temporal=temporal):
+                    cube = fbnnet_tree.buildProbabilityTreeOnTargetGene(
+                        [gene], main_params, genes_input, None, None, 4, temporal
+                    )
+                    self.assertIsNotNone(cube)
+
+
 if __name__ == "__main__":
 
     unittest.main()
