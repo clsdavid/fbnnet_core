@@ -8,7 +8,7 @@ timeseries <- Leukeamia_Timeseries
 genes <- rownames(timeseries[[1]])
 stopifnot(length(timeseries) == 26, length(genes) == 285)
 
-maxK <- 3; temporal <- 1
+maxK <- 2; temporal <- 1
 cube <- constructFBNCube(target_genes = genes, conditional_genes = genes, timeseriesCube = timeseries,
                          maxK = maxK, temporal = temporal, useParallel = TRUE)
 

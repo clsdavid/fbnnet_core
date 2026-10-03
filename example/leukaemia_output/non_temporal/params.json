@@ -136,9 +136,9 @@
     "function": "constructFBNCube / construct_fbn_cube",
     "target_genes": "all",
     "conditional_genes": "all",
-    "maxK": 3,
+    "maxK": 2,
     "temporal": 1,
-    "backend": "tensor"
+    "backend": "recursive"
   },
   "mining": {
     "function": "mineFBNNetwork / mine_fbn_network",
@@ -151,9 +151,9 @@
   "result": {
     "genes": 285,
     "genes_with_rules": 284,
-    "rules": 2803,
-    "seconds_cube": 32.7,
-    "seconds_mining": 26.7
+    "rules": 2788,
+    "seconds_cube": 18.7,
+    "seconds_mining": 3.5
   },
   "environment": {
     "python": "3.12.3",
@@ -161,6 +161,6 @@
     "pandas": "3.0.6",
     "scipy": "1.18.1",
     "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
-    "git_commit": "679a2374ec3c32285227fff0b4ed3ad8445e4c89"
+    "git_commit": "e439178cd870e6e5f50ba9ac47bf2e26c9900a8f"
   }
 }
