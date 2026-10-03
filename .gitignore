@@ -7,3 +7,5 @@ tests/__pycache__/
 py/__pycache__/
 .temp
 .temp/
+py_src/__pycache__/
+py_src/__pycache__
