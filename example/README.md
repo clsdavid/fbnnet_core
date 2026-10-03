@@ -90,3 +90,50 @@ Searching for attractors from all 32 initial states (seed 42) finds **4 attracto
 points (basins of 5 and 1 states) and two period-3 cycles (empty recorded basins — a quirk that
 matches the original R implementation's `searchForAttractors`, which also does not record a basin
 for a start state whose trajectory joins an already-discovered attractor's path mid-way through).
+
+## Leukaemia network (`data/Leukeamia_Timeseries.rda`) — parameters and comparison with R
+
+`leukaemia_network_pipeline.py` mines a network from the real leukaemia time series and writes every
+parameter it used (`params.json`) plus a ready-to-run R script (`reproduce_in_R.R`) so the same experiment
+can be run with the R package and diffed.
+
+```bash
+python example/leukaemia_network_pipeline.py --scenario non_temporal   # vs FBM_Leukeamia_Networks.rda
+python example/leukaemia_network_pipeline.py --scenario temporal       # vs Leukeamia_Networks.rda
+# in R, from the output folder:   Rscript reproduce_in_R.R
+python example/leukaemia_network_pipeline.py --scenario non_temporal --compare-csv <folder>/r_rules.csv
+diff <folder>/r_network.txt <folder>/python_network.txt    # R's print vs Python's print
+```
+
+`python_network.txt` is the mined network printed in R's `print.FundamentalBooleanNetwork` format;
+`reproduce_in_R.R` writes `r_network.txt` from R's own `print()`. `reference_<name>.txt` is the stored
+R-package network rendered with the same printer, so `diff reference_*.txt python_network.txt` works without running R.
+
+**Data.** 26 samples × 285 genes, 2–3 time points each (0/6/8/24 h), already 0/1, so no discretisation is
+applied. All 26 samples are distinct, so `FBNDataReduction` removes none. The `.rda` is read with the
+pure-Python `rdata` package (`pyreadr` returns nothing for it).
+
+**Stored reference networks** (the R package does not record the parameters used to make them, so these
+are inferred from the rules):
+
+| File(s) | Rules | Timesteps | Inputs / rule | Inferred `temporal` |
+|---|---|---|---|---|
+| `FBM_Leukeamia_Networks.rda`, `fbm_leukeamia_network.rda` | 2758 | 1 | 1–3 | 1 |
+| `Leukeamia_Networks.rda`, `TFBM_Leukeamia_Networks.rda` | 2775 | 1, 2 | 1–3 | 2 |
+
+**Parameters used** (R's defaults, spelled out): `maxK = 3`, `temporal = 1` or `2`,
+`threshold_confidence = 1`, `threshold_error = 0`, `threshold_support = 1e-5`, `maxFBNRules = 5`,
+all genes as targets and conditional genes. `maxK` is the least certain: R's rules use at most 3 inputs,
+but a larger `maxK` could also produce that.
+
+**Result.** The Python network matches R's stored one only partly: 89.6 % of R's rules are identical for the
+non-temporal network and 87.5 % for the temporal one (support is equal on every shared rule). Every rule on
+*both* sides is valid on the data (confidence 1, support equal to the value recomputed from the data), so
+the two are different selections from the same pool of valid rules. Investigated and **ruled out** as the
+cause: the support threshold, genes without rules, duplicate-sample removal, the Fisher p-value
+implementation, the rule ranking and the per-gene cap. The first level of the tree is where they differ:
+R's pool lacks single-gene rules that Python accepts (Fisher p between 0.016 and 0.049).
+A partial lead: replacing the Fisher `p <= 0.05` test by an uncorrected Pearson chi-square test with
+`p <= 0.0125` reproduces R's decision on all kept rules and raises the match to 91.2 % / 90.9 %, but does not
+close the gap, so it is **not** confirmed as the cause. Running `reproduce_in_R.R` and comparing
+`r_root_pool.csv` with `python_root_pool.csv` shows exactly which first-level genes differ.
