@@ -197,7 +197,7 @@ class TestReconstructTimeseriesAndAttractorsVignette(unittest.TestCase):
         # Python's 0-based index 1), matching
         # FBNNetwork.Graph.DrawAttractor(network, attractor, 2).
         index = 1 if len(attractor["Attractors"]) > 1 else 0
-        ax = draw_attractor(attractor, index=index)
+        ax = draw_attractor(self.network, attractor, index=index)
         self.assertIsNotNone(ax)
 
 

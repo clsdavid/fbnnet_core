@@ -41,7 +41,7 @@ from fbnnet_core.boolnet import load_network
 from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
 from fbnnet_core.application import generate_fbm_network
 from fbnnet_core.attractor import search_for_attractors
-from fbnnet_core.network_graph import draw_static_network, plot_network, draw_attractor
+from fbnnet_core.network_graph import fbn_network_graph, plot_network, draw_attractor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -90,16 +90,14 @@ def main():
         fh.write("\n".join(summary_lines) + "\n")
     print(f"Saved mined network summary to {summary_path}")
 
-    # 5. Render the mined network: the full gene -> gene overview, plus a
-    # zoomed-in gene -> rule -> gene view of what regulates Gene1.
-    ax = draw_static_network(fbn_network, figsize=(8, 6))
-    ax.figure.savefig(os.path.join(HERE, "mined_network_graph.png"), dpi=150)
+    # 5. Render the mined network (genes, activator/inhibitor rules and their inputs), plus a
+    # zoomed-in view of what Gene1 regulates.
+    fbn_network_graph(fbn_network).save(os.path.join(HERE, "mined_network_graph.png"), dpi=150)
     print(f"Saved network graph to {os.path.join(HERE, 'mined_network_graph.png')}")
 
-    ax_rules = plot_network(
-        fbn_network, target_genes=["Gene1"], direction="forward", max_deep=1, show_rule_nodes=True
+    plot_network(fbn_network, target_genes=["Gene1"], type="forward_1a", expand_level=1).save(
+        os.path.join(HERE, "mined_network_graph_gene1_forward.png"), dpi=150
     )
-    ax_rules.figure.savefig(os.path.join(HERE, "mined_network_graph_gene1_forward.png"), dpi=150)
     print(f"Saved Gene1 forward rule-graph to {os.path.join(HERE, 'mined_network_graph_gene1_forward.png')}")
 
     # 6. Search for attractors (seeded for reproducibility) and render the first one.
@@ -110,8 +108,7 @@ def main():
     print(f"Found {len(cycles)} attractor(s); cycle lengths: {[len(c) for c in cycles]}; "
           f"basin sizes: {[len(b) for b in basins]}")
 
-    ax2 = draw_attractor(attractors, index=0, figsize=(8, 4))
-    ax2.figure.savefig(os.path.join(HERE, "attractor_0.png"), dpi=150)
+    draw_attractor(fbn_network, attractors, index=0).save(os.path.join(HERE, "attractor_0.png"), dpi=150)
     print(f"Saved attractor drawing to {os.path.join(HERE, 'attractor_0.png')}")
 
 

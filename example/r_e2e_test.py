@@ -129,8 +129,7 @@ def unittest_fbn_process_for_multiple_files():
     cube = construct_fbn_cube(genes, genes, training_series, max_k=4, temporal=1, use_parallel=False)
     mined_network = mine_fbn_network(cube, genes)
     print(mined_network)
-    ax = plot_network(mined_network)
-    ax.figure.savefig(os.path.join(HERE, "quicktest_mined_network.png"))
+    plot_network(mined_network).save(os.path.join(HERE, "quicktest_mined_network.png"))
 
     result_series = reconstruct_timeseries(
         mined_network, initial_states, transition_type="synchronous", max_timepoints=43, use_parallel=False,
@@ -287,8 +286,7 @@ def unittest_fbn_process_for_multiple_files_with_short_timeseries():
 
     print("Estimated network")
     print(mined_network)
-    ax = plot_network(mined_network)
-    ax.figure.savefig(os.path.join(HERE, "short_timeseries_mined_network.png"))
+    plot_network(mined_network).save(os.path.join(HERE, "short_timeseries_mined_network.png"))
 
     print(
         "SKIPPED: R's benchmark section additionally compares against "
@@ -420,8 +418,7 @@ def unittest_fbn_process_for_multiple_files_cellcycle(parallel=True):
     print(attractors)
     # R's drawAttractor(attractors, 2) is 1-based ("the 2nd attractor");
     # draw_attractor's `index` is 0-based, so subtract 1.
-    ax = draw_attractor(attractors, index=1)
-    ax.figure.savefig(os.path.join(HERE, "cellcycle_attractor_2.png"))
+    draw_attractor(mined_network, attractors, index=1).save(os.path.join(HERE, "cellcycle_attractor_2.png"))
 
     print("********* test unittest_fbn_process_for_multiple_files_cellcycle End *********\n")
     return report

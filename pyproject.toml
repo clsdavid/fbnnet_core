@@ -46,6 +46,9 @@ Homepage = "https://github.com/clsdavid/fbnnet_core"
 [tool.setuptools]
 packages = ["fbnnet_core"]
 
+[tool.setuptools.package-data]
+fbnnet_core = ["datasets/*.json.gz"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
