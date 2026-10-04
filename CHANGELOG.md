@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.5
+
+Release pipeline fixes.
+
+- Fisher exact p-value: a result that is mathematically 0.05 is no longer rounded above the cutoff on Apple ARM.
+- Wheels are built with `cibuildwheel` 2.23 (the pinned `packaging` of 2.21 broke `setuptools>=77`).
+- Linux wheels are built on `manylinux_2_28`, so the test environment installs pandas and pillow from wheels.
+
 ## v1.1.4
 
 R-faithful network graphs, bundled data sets and a rewritten README.
