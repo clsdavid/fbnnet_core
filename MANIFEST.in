@@ -1,5 +1,7 @@
 include LICENSE README.md CHANGELOG.md
 recursive-include src *.cpp *.h
+recursive-include fbnnet_core/datasets *.json.gz
+recursive-include tools *.py
 recursive-include tests *.py
 include example.bn example_fbn.csv
 recursive-include data *.rda
