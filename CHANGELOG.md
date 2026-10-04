@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.2
+
+Release test.
+
 ## v1.1.1
 
 Enhanced FBN Graph presentation.
