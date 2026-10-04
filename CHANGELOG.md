@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.1
+
+Enhanced FBN Graph presentation.
+
 ## v1.1.0
 
 Initial PyPI distribution of the Python FBNNet port.
