@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.6
+
+Licensing.
+
+- Code ported from the R package stays MIT (the copyright notice now includes the R package's).
+- The new tensor mining backend (`tensor_mining.py`, `batched_counts.py`) is AGPL-3.0-or-later; see `LICENSE`.
+- Earlier tags (up to v1.1.5) were published entirely under MIT.
+
 ## v1.1.5
 
 Release pipeline fixes.
