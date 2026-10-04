@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Leshi Chen
 """
 Phase 3 foundation (see .temp/parallel_improvement_plan.md section 6.2): a
 vectorized NumPy reimplementation of _utils.matchCount, batched over

@@ -1,4 +1,4 @@
-include LICENSE README.md CHANGELOG.md
+include LICENSE LICENSE-AGPL-3.0.txt README.md CHANGELOG.md
 recursive-include src *.cpp *.h
 recursive-include fbnnet_core/datasets *.json.gz
 recursive-include tools *.py

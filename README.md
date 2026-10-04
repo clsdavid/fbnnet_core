@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/fbnnet-core.svg)](https://pypi.org/project/fbnnet-core/)
 [![Python](https://img.shields.io/pypi/pyversions/fbnnet-core.svg)](https://pypi.org/project/fbnnet-core/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT%20%2B%20AGPL--3.0-blue.svg)](#copyright-and-licensing)
 
 FBNNet turns time-series expression measurements (microarray or RNA-seq) into an easy-to-read network that tells you
 which genes switch other genes **on** (activation), which switch them **off** (inhibition), and how long a gene
@@ -523,7 +523,10 @@ If you use this package, please cite:
 
 This package and the underlying concepts were originally proposed and developed by Leshi Chen
 (<https://doi.org/10.3389/fphys.2018.01328>) under the supervision of Don Kulasiri and Sandhya Samarasinghe during PhD
-study at Lincoln University, New Zealand. The package is released under the [MIT License](LICENSE).
+study at Lincoln University, New Zealand.
+
+* The package, including everything ported from the R package, is released under the [MIT License](LICENSE).
+* The tensor-based mining backend (`backend="tensor"`: `fbnnet_core/tensor_mining.py` and `fbnnet_core/batched_counts.py`) is a newer addition and is licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt). Use of this backend must comply with the AGPL; a commercial licence is available from the author.
 
 The original R package is available at <https://github.com/clsdavid/FBNNet2_public>. Questions and bug reports are
 welcome in the [issue tracker](https://github.com/clsdavid/fbnnet_core/issues).

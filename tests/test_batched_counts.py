@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Leshi Chen
 """
 Validates fbnnet_core.batched_counts.batched_match_counts (Phase 3 foundation
 kernel, see .temp/parallel_improvement_plan.md section 6.2) produces results

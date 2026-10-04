@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2025 Leshi Chen
 """
 Phase 3 "node-level candidate-gene batching" backend (see
 .temp/parallel_improvement_plan.md section 6, and the follow-up scope
