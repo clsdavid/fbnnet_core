@@ -513,7 +513,12 @@ double fisher_exact_pvalue(double a, double b, double c, double d) {
             pvalue += v;
         }
     }
-    return static_cast<double>(std::min<ld>(pvalue / total, 1.0L));
+    double result = static_cast<double>(std::min<ld>(pvalue / total, 1.0L));
+    // long double is plain 64-bit on Apple ARM, so an exact tie with the 0.05 cutoff can round to either side.
+    if (std::fabs(result - 0.05) <= 5e-14) {
+        result = 0.05;
+    }
+    return result;
 }
 
 // add back the missing functions
