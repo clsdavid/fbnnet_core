@@ -14,7 +14,8 @@ from .application import binarize_time_series, generate_fbm_network
 from .attractor import reconstruct_timeseries, search_for_attractors
 from .boolnet import load_network
 from .cube import construct_fbn_cube
-from .network import mine_fbn_network
+from .datasets import available_datasets, load_dataset
+from .network import merge_cluster_networks, mine_fbn_network
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
@@ -25,10 +26,13 @@ except PackageNotFoundError:  # running from a source tree that is not installed
 
 __all__ = [
     "__version__",
+    "available_datasets",
     "binarize_time_series",
     "construct_fbn_cube",
     "generate_fbm_network",
+    "load_dataset",
     "load_network",
+    "merge_cluster_networks",
     "mine_fbn_network",
     "reconstruct_timeseries",
     "search_for_attractors",

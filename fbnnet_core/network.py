@@ -94,6 +94,48 @@ def mine_fbn_network_with_cores(
     logger.info("Leave mine_fbn_network_with_cores zone")
     return final_result
 
+def merge_cluster_networks(
+    clustered_fbn_cube: List[Dict],
+    threshold_error: float = 0,
+    max_fbn_rules: int = 5
+) -> Dict:
+    """
+    Merge the rules mined from several gene clusters into one network.
+
+    Args:
+        clustered_fbn_cube: A list with one entry per cluster; each entry is a dict with the keys
+            'NetworkCores' (the result of search_fbn_core for that cluster) and 'Genes'
+        threshold_error: Threshold of error rate
+        max_fbn_rules: Maximum rules per type (Activation and Inhibition) per gene
+
+    Returns:
+        A FundamentalBooleanNetwork containing the rules of all clusters (rules that
+        are found in more than one cluster are only kept once)
+    """
+    if not isinstance(clustered_fbn_cube, (list, tuple)) or not clustered_fbn_cube or not all(
+        isinstance(cluster, dict) and "NetworkCores" in cluster and "Genes" in cluster for cluster in clustered_fbn_cube
+    ):
+        raise ValueError("clustered_fbn_cube must be a list of clusters with 'NetworkCores' and 'Genes'")
+
+    genes = list(clustered_fbn_cube[0]["Genes"])
+    network_cores = {gene: list(entries) for gene, entries in clustered_fbn_cube[0]["NetworkCores"].items()}
+
+    for cluster in clustered_fbn_cube[1:]:
+        for gene in cluster["Genes"]:
+            if gene not in genes:
+                genes.append(gene)
+        for gene, entries in cluster["NetworkCores"].items():
+            if gene not in network_cores:
+                network_cores[gene] = list(entries)
+                continue
+            known = {entry.get("identity") for entry in network_cores[gene]}
+            for entry in entries:
+                if entry.get("identity") not in known:
+                    network_cores[gene].append(entry)
+
+    return mine_fbn_network_with_cores(network_cores, genes, threshold_error, max_fbn_rules)
+
+
 def search_fbn_core(
     fbn_gene_cube: Dict,
     genes: List[str],
