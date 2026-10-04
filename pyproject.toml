@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fbnnet-core"
-version = "1.1.4"
+version = "1.1.5"
 description = "Fundamental Boolean Network (FBN) inference of gene regulatory networks from time series, with a C++ core"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -57,3 +57,7 @@ build = "cp310-* cp311-* cp312-* cp313-*"
 skip = "*-musllinux_* *_i686"
 test-extras = ["test"]
 test-command = "pytest {project}/tests -q"
+
+# Recent pandas/pillow/scipy wheels need glibc 2.28+; with manylinux2014 the test install compiles them from source.
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
