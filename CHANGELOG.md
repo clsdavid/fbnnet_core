@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.7
+
+Dependency maintenance.
+
+- `pillow>=13.0` is now required on Python 3.11+ (pulled in by matplotlib); earlier versions have known CVEs. Pillow 13 does not support Python 3.10, so 3.10 installs may still resolve to a vulnerable Pillow 12.x.
+- The build requires `setuptools>=84.1` (fixes GHSA-xmj3-9gf7-h52w).
+- Release workflows use the current GitHub Actions majors (`checkout` v7, `setup-python` v7, `upload-artifact` v7, `download-artifact` v8) and build wheels with `cibuildwheel` 4.3.
+- Verified against numpy 2.5, pandas 3.1, scipy 1.18, networkx 3.7, matplotlib 3.11, pybind11 3.1.
+
 ## v1.1.6
 
 Licensing.
