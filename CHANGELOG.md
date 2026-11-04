@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `mine_fbn_network(use_parallel=True)` now emits a `UserWarning` (rule mining is single-process; parallelism applies to cube construction). `generate_fbm_network` no longer triggers it.
+- README documents `max_workers`, `chunksize` and `backend`.
+- New tests check that parallel runs and the `tensor` backend give results identical to the sequential `recursive` engine.
+
 ## v1.1.7
 
 Dependency maintenance.

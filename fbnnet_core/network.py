@@ -1,5 +1,6 @@
 import itertools
 import logging
+import warnings
 from typing import List, Dict, Any, Optional
 from .general_utils import dissolve, check_probability_type_data, check_numeric
 from .network_utils import convert_mined_result_to_fbn_network, remove_duplicates
@@ -22,7 +23,8 @@ def mine_fbn_network(
     Args:
         fbn_gene_cube: A pre constructed Orchard cube
         genes: The target genes in the output
-        use_parallel: An option turns on parallel processing
+        use_parallel: Not supported for this stage: rule mining always runs in one process and a
+            True value only emits a warning (parallelism applies to construct_fbn_cube)
         threshold_confidence: Threshold of confidence (between 0 and 1)
         threshold_error: Threshold of error rate (between 0 and 1)
         threshold_support: Threshold of support (between 0 and 1)
@@ -151,7 +153,7 @@ def search_fbn_core(
     Args:
         fbn_gene_cube: The orchard cube
         genes: Target genes
-        use_parallel: Whether to use parallel processing
+        use_parallel: Not supported: a True value is ignored and emits a warning
         threshold_confidence: Confidence threshold
         threshold_error: Error threshold
         threshold_support: Support threshold
@@ -162,7 +164,12 @@ def search_fbn_core(
     """
     if use_parallel:
         use_parallel = False
-        logger.info("The parallel for network is not supported")
+        warnings.warn(
+            "use_parallel is not supported when mining the network from a cube; "
+            "running in a single process. Pass use_parallel to construct_fbn_cube instead.",
+            UserWarning,
+            stacklevel=3,
+        )
     
     logger.info(f"Enter search_fbn_core zone: use_parallel={use_parallel}")
     

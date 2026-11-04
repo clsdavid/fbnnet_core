@@ -179,7 +179,10 @@ network = generate_fbm_network(
 | `threshold_support` | Minimum fraction of observations that must support a rule (0–1). | `0.00001` |
 | `max_fbn_rules` | Largest number of activation and of inhibition rules kept per gene. | `5` |
 | `method` | How raw values are converted to on/off: `"kmeans"` or `"edgeDetector"`. | `"kmeans"` |
-| `use_parallel` | Spread the work over several CPU cores. | `False` |
+| `use_parallel` | Build the rule cube (the slow step) on several CPU cores. Needs the `fork` start method (Linux, macOS); elsewhere it runs on one core with a warning in the log. Rule mining afterwards always uses one core. | `False` |
+| `max_workers` | Number of worker processes when `use_parallel=True`. | all cores but one |
+| `chunksize` | Genes handed to a worker at a time. Raise it for thousands of genes to cut dispatch overhead. | automatic |
+| `backend` | `"recursive"` is the C++ engine. `"tensor"` gives identical results and is faster on wide gene sets (licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing)). | `"recursive"` |
 
 Small examples finish in a fraction of a second. The leukaemia study (285 genes, 26 patients) takes a few minutes.
 

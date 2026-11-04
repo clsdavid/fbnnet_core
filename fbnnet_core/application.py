@@ -142,8 +142,9 @@ def generate_fbm_network(
         method: Discretisation method used if the data is not already boolean
             ("kmeans" or "edgeDetector"; see ``binarize_time_series``).
         max_k: The maximum depth the Orchard Cube can mine into.
-        use_parallel: If True, run the network inference algorithm in
-            parallel.
+        use_parallel: If True, build the Orchard Cube (the expensive stage)
+            across several worker processes. Rule mining from the cube always
+            runs in a single process.
         max_deep_temporal: Maximum temporal space for the Temporal FBN model.
         threshold_confidence: Confidence threshold (0-1) to filter FBN rules.
         threshold_error: Error-rate threshold (0-1) to filter FBN rules.
@@ -207,7 +208,8 @@ def generate_fbm_network(
     network = mine_fbn_network(
         cube,
         genes=genes,
-        use_parallel=use_parallel,
+        # Rule mining is single-process; only the cube stage above uses use_parallel.
+        use_parallel=False,
         threshold_confidence=threshold_confidence,
         threshold_error=threshold_error,
         threshold_support=threshold_support,
