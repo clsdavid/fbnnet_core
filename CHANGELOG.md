@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `download_hgu133plus2_annotation` fetches `hgu133plus2.sqlite` and `org.Hs.eg.sqlite` from the Bioconductor packages (no R, no conversion); README documents the manual download. The annotation is not bundled because of its size.
+- `load_hgu133plus2_annotation` reads the SQLite files of the Bioconductor packages `hgu133plus2.db` and `org.Hs.eg.db` (no R needed); a path to `hgu133plus2.sqlite`, or the environment variable `FBNNET_HGU133PLUS2_DB`, can be used wherever an annotation is accepted.
+- New `fbnnet_core.bioinformatics` module with the tools of the R `FBNBioinformatics.R` / `sample_FBN.R`: `convert_affy_raw_data_into_normalized_structure_data`, `get_related_affy_raw_data`, `normalize_timeseries_raw_data`, `convert_into_sample_timeseries`, `reorder_sample_timeseries`, `identify_differentially_expressed_genes`, `get_specific_expressed_genes`, `convert_timeseries_probeset_name_to_gene_name`, `map_probeset_names`, `map_to_gene_name_with_hgu133plus2_db`, `convert_probeset_to_gene` and `dissolve`.
+- New `fbnnet_core.geo` module: `download_genome_data_exprs` (R `downloadGenomeDataExprs`, series matrix from NCBI GEO) and `download_geo_raw_files` (fetch and unpack a series' `*_RAW.tar`). New `map_probeset_names` (R `mapProbesetNames`). README states that CEL files are not shipped and where to download them.
+- New `fbnnet_core.cel_import` module (and `python -m fbnnet_core.cel_import`): converts raw Affymetrix CEL files plus a text CDF into time series for `generate_fbm_network` / `construct_fbn_cube`, following the R `FBNBioinformatics` pipeline (quantile normalisation + median polish, sample grouping by file name, differentially-expressed probe set selection, probe set to gene mapping with the bundled DAVID list, binarisation).
 - `mine_fbn_network(use_parallel=True)` now emits a `UserWarning` (rule mining is single-process; parallelism applies to cube construction). `generate_fbm_network` no longer triggers it.
 - README documents `max_workers`, `chunksize` and `backend`.
 - New tests check that parallel runs and the `tensor` backend give results identical to the sequential `recursive` engine.

@@ -1,4 +1,6 @@
 """Parallel execution and mining backends must not change results."""
+import os
+import time
 import unittest
 import warnings
 
@@ -56,6 +58,32 @@ class TestParallelAndBackends(unittest.TestCase):
                 sequential = self.build(backend=backend)
                 parallel = self.build(backend=backend, use_parallel=True, max_workers=2, chunksize=1)
                 self.assertEqual(sequential, parallel)
+
+    @requires_fork
+    def test_cellcycle_wall_clock(self):
+        # Informational benchmark: prints timings, asserts only result parity.
+        path = os.path.join(os.path.dirname(__file__), "..", "example", "cellcycle.bn")
+        network = load_network(path)
+        genes = list(network["genes"])
+        series = generateBoolNetTimeseries(
+            network, generateAllCombinationBinary(genes)[:64], 12, transition_type="synchronous"
+        )
+        samples = [
+            pd.DataFrame(mat, index=genes, columns=[str(j + 1) for j in range(mat.shape[1])])
+            for mat in series
+        ]
+        timings = {}
+        cubes = {}
+        for label, kwargs in (("sequential", {}), ("parallel", {"use_parallel": True})):
+            start = time.perf_counter()
+            cubes[label] = construct_fbn_cube(genes, genes, samples, max_k=2, temporal=1, **kwargs)
+            timings[label] = time.perf_counter() - start
+        print(
+            f"cellcycle ({len(genes)} genes, {cube_module.DEFAULT_MAX_WORKERS} workers): "
+            f"sequential {timings['sequential']:.2f}s, parallel {timings['parallel']:.2f}s, "
+            f"speedup {timings['sequential'] / timings['parallel']:.2f}x"
+        )
+        self.assertEqual(cubes["sequential"], cubes["parallel"])
 
     def test_single_worker_runs_sequentially(self):
         self.assertEqual(self.build(), self.build(use_parallel=True, max_workers=1))
