@@ -612,31 +612,37 @@ py::dict getGeneProbabilities_basic(py::dict& main_parameters_in_ref,
 }
 
 //Advantage methods:
-py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures) {
-    // Extract information
-    double cond_T_count = basic_measures["cond_T_count"].cast<double>();
-    double cond_F_count = basic_measures["cond_F_count"].cast<double>();
-    double target_T_count = basic_measures["target_T_count"].cast<double>();
-    double target_F_count = basic_measures["target_F_count"].cast<double>();
-    double cond_T_count_c = basic_measures["cond_T_count_c"].cast<double>();
-    double cond_F_count_c = basic_measures["cond_F_count_c"].cast<double>();
+namespace {
 
-    int time_step = basic_measures["timestep"].cast<int>();
-    
-    // Condition counts
-    double lenTT = basic_measures["count_cond_T_target_T"].cast<double>();
-    double lenTF = basic_measures["count_cond_F_target_T"].cast<double>();
-    double lenFT = basic_measures["count_cond_T_target_F"].cast<double>();
-    double lenFF = basic_measures["count_cond_F_target_F"].cast<double>();
+// Every value getAdvancedMeasures reports, computed without touching Python so that the dict and
+// the batched entry points share exactly the same arithmetic.
+struct AdvancedResult {
+    double confidence_TT, confidence_TF, confidence_FT, confidence_FF;
+    double counter_confidence_TT, counter_confidence_TF, counter_confidence_FT, counter_confidence_FF;
+    double condition_T_support, condition_F_support, target_T_support, target_F_support;
+    bool isNegativeCorrelated, isPositiveCorrelated;
+    double supportTT, supportFT, supportTF, supportFF;
+    bool signal_sign_T_is_TF;  // "TT" when false
+    bool signal_sign_F_is_FF;  // "FT" when false
+    int time_step;
+    double bestFitP, bestFitN;
+    bool is_Essential;
+    double error_activator, error_inhibitor, signal_activator, signal_inhibitor;
+    double pickT_support, pickF_support;
+    double pickT_causality_test, pickF_causality_test;
+    double pickT_confidenceCounter, pickF_confidenceCounter;
+    double pickT_all_confidence, pickF_all_confidence;
+    double pickT_max_confidence, pickF_max_confidence;
+    double p_value, chiSQ, pickT_mutualInfo, pickF_mutualInfo;
+};
 
-    double total_calculated_timepoints = basic_measures["total_calculated_timepoints"].cast<double>();
-    
-    // Condition counter counts
-    double lenTT_c = basic_measures["count_cond_T_target_T_c"].cast<double>();
-    double lenTF_c = basic_measures["count_cond_F_target_T_c"].cast<double>();
-    double lenFT_c = basic_measures["count_cond_T_target_F_c"].cast<double>();
-    double lenFF_c = basic_measures["count_cond_F_target_F_c"].cast<double>();
-
+AdvancedResult computeAdvancedMeasures(
+    double cond_T_count, double cond_F_count, double target_T_count, double target_F_count,
+    double cond_T_count_c, double cond_F_count_c, int time_step,
+    double lenTT, double lenTF, double lenFT, double lenFF,
+    double total_calculated_timepoints,
+    double lenTT_c, double lenTF_c, double lenFT_c, double lenFF_c)
+{
     double condition_T_support = dround(cond_T_count / total_calculated_timepoints, 5);
     double condition_F_support = dround(cond_F_count / total_calculated_timepoints, 5);
     double target_T_support = dround(target_T_count / total_calculated_timepoints, 5);
@@ -672,14 +678,6 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
         counter_confidence_FF = dround(lenFF_c / cond_F_count_c, 5);
     }
 
-    // Create contingency table for counter Fisher test, named pTable_c, type is py::array_t<double> and the shape is (2, 2), elements are lenTT_c, lenTF_c, lenFT_c and lenFF_c.
-    py::array_t<double> pTable_c = py::array_t<double>({2, 2});
-    auto pTable_c_buf = pTable_c.mutable_unchecked<2>();
-    pTable_c_buf(0, 0) = lenTT_c;
-    pTable_c_buf(0, 1) = lenTF_c;
-    pTable_c_buf(1, 0) = lenFT_c;
-    pTable_c_buf(1, 1) = lenFF_c;
- 
     // Fisher test
     // py::print("process fisher test");
     double p_value = fisher_exact_pvalue(lenTT, lenTF, lenFT, lenFF);
@@ -891,57 +889,187 @@ py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures)
     if (std::isinf(bestFitN) || isReallyNA(bestFitN))
         bestFitN = 99999;
 
-    // Prepare result dictionary
+    AdvancedResult r;
+    r.confidence_TT = confidence_TT;
+    r.confidence_TF = confidence_TF;
+    r.confidence_FT = confidence_FT;
+    r.confidence_FF = confidence_FF;
+    r.counter_confidence_TT = counter_confidence_TT;
+    r.counter_confidence_TF = counter_confidence_TF;
+    r.counter_confidence_FT = counter_confidence_FT;
+    r.counter_confidence_FF = counter_confidence_FF;
+    r.condition_T_support = condition_T_support;
+    r.condition_F_support = condition_F_support;
+    r.target_T_support = target_T_support;
+    r.target_F_support = target_F_support;
+    r.isNegativeCorrelated = isNegativeCorrelated;
+    r.isPositiveCorrelated = isPositiveCorrelated;
+    r.supportTT = supportTT;
+    r.supportFT = supportFT;
+    r.supportTF = supportTF;
+    r.supportFF = supportFF;
+    r.signal_sign_T_is_TF = (signal_sign_T == "TF");
+    r.signal_sign_F_is_FF = (signal_sign_F == "FF");
+    r.time_step = time_step;
+    r.bestFitP = bestFitP;
+    r.bestFitN = bestFitN;
+    r.is_Essential = is_Essential;
+    r.error_activator = error_activator;
+    r.error_inhibitor = error_inhibitor;
+    r.signal_activator = signal_activator;
+    r.signal_inhibitor = signal_inhibitor;
+    r.pickT_support = pickT_support;
+    r.pickF_support = pickF_support;
+    r.pickT_causality_test = pickT_causality_test;
+    r.pickF_causality_test = pickF_causality_test;
+    r.pickT_confidenceCounter = pickT_confidenceCounter;
+    r.pickF_confidenceCounter = pickF_confidenceCounter;
+    r.pickT_all_confidence = pickT_all_confidence;
+    r.pickF_all_confidence = pickF_all_confidence;
+    r.pickT_max_confidence = pickT_max_confidence;
+    r.pickF_max_confidence = pickF_max_confidence;
+    r.p_value = p_value;
+    r.chiSQ = chiSQ;
+    r.pickT_mutualInfo = pickT_mutualInfo;
+    r.pickF_mutualInfo = pickF_mutualInfo;
+    return r;
+}
+
+}  // namespace
+
+py::dict getAdvancedMeasures(py::dict& basic_measures, bool show_basic_measures) {
+    AdvancedResult r = computeAdvancedMeasures(
+        basic_measures["cond_T_count"].cast<double>(),
+        basic_measures["cond_F_count"].cast<double>(),
+        basic_measures["target_T_count"].cast<double>(),
+        basic_measures["target_F_count"].cast<double>(),
+        basic_measures["cond_T_count_c"].cast<double>(),
+        basic_measures["cond_F_count_c"].cast<double>(),
+        basic_measures["timestep"].cast<int>(),
+        basic_measures["count_cond_T_target_T"].cast<double>(),
+        basic_measures["count_cond_F_target_T"].cast<double>(),
+        basic_measures["count_cond_T_target_F"].cast<double>(),
+        basic_measures["count_cond_F_target_F"].cast<double>(),
+        basic_measures["total_calculated_timepoints"].cast<double>(),
+        basic_measures["count_cond_T_target_T_c"].cast<double>(),
+        basic_measures["count_cond_F_target_T_c"].cast<double>(),
+        basic_measures["count_cond_T_target_F_c"].cast<double>(),
+        basic_measures["count_cond_F_target_F_c"].cast<double>());
+
     py::dict result;
-    
-    // Add all results to the dictionary
-    result["TT"] = confidence_TT;
-    result["TF"] = confidence_TF;
-    result["FT"] = confidence_FT;
-    result["FF"] = confidence_FF;
-    result["TT_c"] = counter_confidence_TT;
-    result["TF_c"] = counter_confidence_TF;
-    result["FT_c"] = counter_confidence_FT;
-    result["FF_c"] = counter_confidence_FF;
-    result["conditionT"] = condition_T_support;
-    result["conditionF"] = condition_F_support;
-    result["targetT"] = target_T_support;
-    result["targetF"] = target_F_support;
-    result["isNegativeCorrelated"] = isNegativeCorrelated;
-    result["isPositiveCorrelated"] = isPositiveCorrelated;
-    result["supportTT"] = supportTT;
-    result["supportFT"] = supportFT;
-    result["supportTF"] = supportTF;
-    result["supportFF"] = supportFF;
-    result["signal_sign_T"] = signal_sign_T;
-    result["signal_sign_F"] = signal_sign_F;
-    result["timestep"] = time_step;
-    result["bestFitP"] = bestFitP;
-    result["bestFitN"] = bestFitN;
-    result["is_essential_gene"] = is_Essential;
-    result["Noise_P"] = error_activator;
-    result["Noise_N"] = error_inhibitor;
-    result["Signal_P"] = signal_activator;
-    result["Signal_N"] = signal_inhibitor;
-    result["pickT_support"] = pickT_support;
-    result["pickF_support"] = pickF_support;
-    result["pickT_causality_test"] = pickT_causality_test;
-    result["pickF_causality_test"] = pickF_causality_test;
-    result["pickT_confidenceCounter"] = pickT_confidenceCounter;
-    result["pickF_confidenceCounter"] = pickF_confidenceCounter;
-    result["pickT_all_confidence"] = pickT_all_confidence;
-    result["pickF_all_confidence"] = pickF_all_confidence;
-    result["pickT_max_confidence"] = pickT_max_confidence;
-    result["pickF_max_confidence"] = pickF_max_confidence;
+    result["TT"] = r.confidence_TT;
+    result["TF"] = r.confidence_TF;
+    result["FT"] = r.confidence_FT;
+    result["FF"] = r.confidence_FF;
+    result["TT_c"] = r.counter_confidence_TT;
+    result["TF_c"] = r.counter_confidence_TF;
+    result["FT_c"] = r.counter_confidence_FT;
+    result["FF_c"] = r.counter_confidence_FF;
+    result["conditionT"] = r.condition_T_support;
+    result["conditionF"] = r.condition_F_support;
+    result["targetT"] = r.target_T_support;
+    result["targetF"] = r.target_F_support;
+    result["isNegativeCorrelated"] = r.isNegativeCorrelated;
+    result["isPositiveCorrelated"] = r.isPositiveCorrelated;
+    result["supportTT"] = r.supportTT;
+    result["supportFT"] = r.supportFT;
+    result["supportTF"] = r.supportTF;
+    result["supportFF"] = r.supportFF;
+    result["signal_sign_T"] = r.signal_sign_T_is_TF ? "TF" : "TT";
+    result["signal_sign_F"] = r.signal_sign_F_is_FF ? "FF" : "FT";
+    result["timestep"] = r.time_step;
+    result["bestFitP"] = r.bestFitP;
+    result["bestFitN"] = r.bestFitN;
+    result["is_essential_gene"] = r.is_Essential;
+    result["Noise_P"] = r.error_activator;
+    result["Noise_N"] = r.error_inhibitor;
+    result["Signal_P"] = r.signal_activator;
+    result["Signal_N"] = r.signal_inhibitor;
+    result["pickT_support"] = r.pickT_support;
+    result["pickF_support"] = r.pickF_support;
+    result["pickT_causality_test"] = r.pickT_causality_test;
+    result["pickF_causality_test"] = r.pickF_causality_test;
+    result["pickT_confidenceCounter"] = r.pickT_confidenceCounter;
+    result["pickF_confidenceCounter"] = r.pickF_confidenceCounter;
+    result["pickT_all_confidence"] = r.pickT_all_confidence;
+    result["pickF_all_confidence"] = r.pickF_all_confidence;
+    result["pickT_max_confidence"] = r.pickT_max_confidence;
+    result["pickF_max_confidence"] = r.pickF_max_confidence;
     if (show_basic_measures) {
         result["basic_measures"] = basic_measures;
     }
-    result["p_value"] = p_value;
-    result["chiSQ_value"] = chiSQ;
-    result["pickT_mutualInfo"] = pickT_mutualInfo;
-    result["pickF_mutualInfo"] = pickF_mutualInfo;
-
+    result["p_value"] = r.p_value;
+    result["chiSQ_value"] = r.chiSQ;
+    result["pickT_mutualInfo"] = r.pickT_mutualInfo;
+    result["pickF_mutualInfo"] = r.pickF_mutualInfo;
     return result;
+}
+
+// Advanced measures of many count rows at once. `counts` is an (n, 8) int64 array with the columns
+// count_cond_T_target_T, count_cond_F_target_T, count_cond_T_target_F, count_cond_F_target_F and the
+// same four for the counter condition ("_c"); the node constants are shared by all rows. Returns a
+// dict of 1-D arrays named like the keys of getAdvancedMeasures (the two signal signs are returned
+// as bool arrays signal_sign_T_is_TF / signal_sign_F_is_FF). Identical arithmetic to
+// getAdvancedMeasures, without one Python dict per row.
+py::dict getAdvancedMeasuresBatch(
+    py::array_t<int64_t, py::array::c_style | py::array::forcecast> counts,
+    double target_T_count, double target_F_count, double total_calculated_timepoints, int time_step)
+{
+    if (counts.ndim() != 2 || counts.shape(1) != 8) {
+        throw std::invalid_argument("counts must have shape (n, 8)");
+    }
+    const py::ssize_t n = counts.shape(0);
+    auto in = counts.unchecked<2>();
+
+    py::dict out;
+#define FBN_DOUBLE_FIELDS(X) \
+    X(TT, confidence_TT) X(TF, confidence_TF) X(FT, confidence_FT) X(FF, confidence_FF) \
+    X(TT_c, counter_confidence_TT) X(TF_c, counter_confidence_TF) X(FT_c, counter_confidence_FT) \
+    X(FF_c, counter_confidence_FF) X(conditionT, condition_T_support) X(conditionF, condition_F_support) \
+    X(targetT, target_T_support) X(targetF, target_F_support) \
+    X(supportTT, supportTT) X(supportFT, supportFT) X(supportTF, supportTF) X(supportFF, supportFF) \
+    X(bestFitP, bestFitP) X(bestFitN, bestFitN) X(Noise_P, error_activator) X(Noise_N, error_inhibitor) \
+    X(Signal_P, signal_activator) X(Signal_N, signal_inhibitor) \
+    X(pickT_support, pickT_support) X(pickF_support, pickF_support) \
+    X(pickT_causality_test, pickT_causality_test) X(pickF_causality_test, pickF_causality_test) \
+    X(pickT_confidenceCounter, pickT_confidenceCounter) X(pickF_confidenceCounter, pickF_confidenceCounter) \
+    X(pickT_all_confidence, pickT_all_confidence) X(pickF_all_confidence, pickF_all_confidence) \
+    X(pickT_max_confidence, pickT_max_confidence) X(pickF_max_confidence, pickF_max_confidence) \
+    X(p_value, p_value) X(chiSQ_value, chiSQ) \
+    X(pickT_mutualInfo, pickT_mutualInfo) X(pickF_mutualInfo, pickF_mutualInfo)
+#define FBN_BOOL_FIELDS(X) \
+    X(isNegativeCorrelated, isNegativeCorrelated) X(isPositiveCorrelated, isPositiveCorrelated) \
+    X(is_essential_gene, is_Essential) \
+    X(signal_sign_T_is_TF, signal_sign_T_is_TF) X(signal_sign_F_is_FF, signal_sign_F_is_FF)
+
+#define FBN_DECLARE_DOUBLE(key, member) py::array_t<double> arr_##key(n); double* ptr_##key = arr_##key.mutable_data();
+#define FBN_DECLARE_BOOL(key, member) py::array_t<bool> arr_##key(n); bool* ptr_##key = arr_##key.mutable_data();
+    FBN_DOUBLE_FIELDS(FBN_DECLARE_DOUBLE)
+    FBN_BOOL_FIELDS(FBN_DECLARE_BOOL)
+
+    for (py::ssize_t i = 0; i < n; i++) {
+        const double tt = static_cast<double>(in(i, 0)), ft = static_cast<double>(in(i, 1));
+        const double tf = static_cast<double>(in(i, 2)), ff = static_cast<double>(in(i, 3));
+        const double tt_c = static_cast<double>(in(i, 4)), ft_c = static_cast<double>(in(i, 5));
+        const double tf_c = static_cast<double>(in(i, 6)), ff_c = static_cast<double>(in(i, 7));
+        AdvancedResult r = computeAdvancedMeasures(
+            tt + tf, ft + ff, target_T_count, target_F_count, tt_c + tf_c, ft_c + ff_c, time_step,
+            tt, ft, tf, ff, total_calculated_timepoints, tt_c, ft_c, tf_c, ff_c);
+#define FBN_STORE(key, member) ptr_##key[i] = r.member;
+        FBN_DOUBLE_FIELDS(FBN_STORE)
+        FBN_BOOL_FIELDS(FBN_STORE)
+#undef FBN_STORE
+    }
+
+#define FBN_PUT(key, member) out[#key] = arr_##key;
+    FBN_DOUBLE_FIELDS(FBN_PUT)
+    FBN_BOOL_FIELDS(FBN_PUT)
+#undef FBN_PUT
+#undef FBN_DECLARE_DOUBLE
+#undef FBN_DECLARE_BOOL
+#undef FBN_DOUBLE_FIELDS
+#undef FBN_BOOL_FIELDS
+    return out;
 }
 
 py::dict getGeneProbabilities_advanced(py::dict& geneProbabilities_basic, bool show_basic_measures)
@@ -1077,6 +1205,14 @@ PYBIND11_MODULE(_core, m) {
 
     m.def("get_basic_measures", &getBasicMeasures, "Calculate basic measures for FBN analysis");
     m.def("getGeneProbabilities_basic", &getGeneProbabilities_basic, "A function to get gene probabilities");
+
+    m.def("getAdvancedMeasuresBatch", &getAdvancedMeasuresBatch,
+        "Advanced FBN measures of many (n, 8) count rows sharing the node constants; returns a dict of arrays",
+        py::arg("counts"),
+        py::arg("target_T_count"),
+        py::arg("target_F_count"),
+        py::arg("total_calculated_timepoints"),
+        py::arg("time_step"));
 
     m.def("getAdvancedMeasures", &getAdvancedMeasures, "Calculate advanced FBN measures",
         py::arg("basic_measures"),

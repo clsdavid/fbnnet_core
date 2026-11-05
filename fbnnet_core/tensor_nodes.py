@@ -11,13 +11,14 @@ the results identical but changes how they are computed:
 * The 0/1 indicator matrices of every temporal step are built once (`prepare`) as ``float32`` and
   shared by forked workers copy-on-write, instead of being rebuilt as ``float64`` at every node.
 * The eight contingency counts of all candidates come from one small matrix product per step.
-* Candidates with identical count tuples give identical measures, so `getAdvancedMeasures` is called
-  once per distinct tuple (counts are bounded by the number of columns, so tuples repeat a lot).
+* Candidates with identical count tuples give identical measures, so the measures are computed once
+  per distinct tuple (counts are bounded by the number of columns, so tuples repeat a lot), in one
+  call of the C++ `getAdvancedMeasuresBatch`, which returns arrays instead of one dict per tuple.
 * The essential-gene / correlation filters and the best-fit choice across temporal steps are applied
   to arrays, and result dicts are only assembled for the genes that pass.
 
-The measures themselves still come from the C++ function, so the output is bit-identical to the
-recursive engine. The counting is written against a small array interface (`xp`), so the same code
+The measures come from the same C++ arithmetic as `getAdvancedMeasures` (the dict function and the
+batch function share one implementation), so the output is bit-identical to the recursive engine. The counting is written against a small array interface (`xp`), so the same code
 can run on another array library later.
 """
 from __future__ import annotations
@@ -29,14 +30,6 @@ import numpy as np
 from . import _core
 
 CACHE_KEY = "_tensor_cache"
-_MEMO_LIMIT = 400_000
-
-# measure of one distinct count tuple -> the advanced-measures dict (kept per process)
-_advanced_memo: Dict[Tuple, Dict[str, Any]] = {}
-
-
-def clear_memo() -> None:
-    _advanced_memo.clear()
 
 
 def _slice_step(full_matrix: np.ndarray, i: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -188,24 +181,59 @@ def _unique_rows(counts: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return unique, inverse.ravel()
 
 
-def _advanced_for_rows(
-    rows: np.ndarray, constants: Dict[str, int], show_basic_measures: bool
-) -> List[Dict[str, Any]]:
-    """`getAdvancedMeasures` for distinct count rows, memoised per process."""
-    fixed = (
-        constants["target_T_count"], constants["target_F_count"], constants["total_calculated_timepoints"],
-        constants["num_of_conditional_genes"], constants["timestep"], show_basic_measures,
-    )
-    results = []
-    for row in rows.tolist():
-        key = (fixed, *row)
-        advanced = _advanced_memo.get(key)
-        if advanced is None:
-            advanced = _core.getAdvancedMeasures(_basic_measures(row, constants), show_basic_measures)
-            if len(_advanced_memo) < _MEMO_LIMIT:
-                _advanced_memo[key] = advanced
-        results.append(advanced)
-    return results
+# Keys of `getAdvancedMeasures` in the order of its result dict; the markers stand for the values that
+# are not plain array items.
+_SIGN_T, _SIGN_F, _STEP, _BASIC = "signal_sign_T", "signal_sign_F", "timestep", "basic_measures"
+_DICT_KEYS = (
+    "TT", "TF", "FT", "FF", "TT_c", "TF_c", "FT_c", "FF_c", "conditionT", "conditionF", "targetT", "targetF",
+    "isNegativeCorrelated", "isPositiveCorrelated", "supportTT", "supportFT", "supportTF", "supportFF",
+    _SIGN_T, _SIGN_F, _STEP, "bestFitP", "bestFitN", "is_essential_gene", "Noise_P", "Noise_N", "Signal_P",
+    "Signal_N", "pickT_support", "pickF_support", "pickT_causality_test", "pickF_causality_test",
+    "pickT_confidenceCounter", "pickF_confidenceCounter", "pickT_all_confidence", "pickF_all_confidence",
+    "pickT_max_confidence", "pickF_max_confidence", _BASIC, "p_value", "chiSQ_value", "pickT_mutualInfo",
+    "pickF_mutualInfo",
+)
+
+
+class _LazyMeasures:
+    """The `getAdvancedMeasures` dicts of the distinct count rows of one step, built on first access.
+
+    Only the few candidates that survive the node filters ever need their dict, so the arrays returned
+    by `getAdvancedMeasuresBatch` are turned into dicts on demand (and cached, so that candidates with
+    the same counts share one dict, as before).
+    """
+
+    def __init__(self, arrays: Dict[str, np.ndarray], rows: np.ndarray, constants: Dict[str, int],
+                 show_basic_measures: bool):
+        self._arrays = arrays
+        self._rows = rows
+        self._constants = constants
+        self._show_basic_measures = show_basic_measures
+        self._cache: Dict[int, Dict[str, Any]] = {}
+
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        index = int(index)
+        entry = self._cache.get(index)
+        if entry is None:
+            entry = self._cache[index] = self._build(index)
+        return entry
+
+    def _build(self, i: int) -> Dict[str, Any]:
+        arrays = self._arrays
+        entry: Dict[str, Any] = {}
+        for key in _DICT_KEYS:
+            if key == _SIGN_T:
+                entry[key] = "TF" if arrays["signal_sign_T_is_TF"].item(i) else "TT"
+            elif key == _SIGN_F:
+                entry[key] = "FF" if arrays["signal_sign_F_is_FF"].item(i) else "FT"
+            elif key == _STEP:
+                entry[key] = self._constants["timestep"]
+            elif key == _BASIC:
+                if self._show_basic_measures:
+                    entry[key] = _basic_measures(self._rows[i].tolist(), self._constants)
+            else:
+                entry[key] = arrays[key].item(i)
+        return entry
 
 
 def _step_measures(
@@ -226,15 +254,17 @@ def _step_measures(
         "timestep": time_step,
     }
     unique, inverse = _unique_rows(counted["counts"])
-    advanced = _advanced_for_rows(unique, constants, show_basic_measures)
-    objects = np.empty(len(advanced), dtype=object)
-    for k, entry in enumerate(advanced):
-        objects[k] = entry
-    numeric = np.array(
-        [[a["bestFitP"], a["bestFitN"], a["timestep"], a["is_essential_gene"],
-          a["isPositiveCorrelated"], a["isNegativeCorrelated"]] for a in advanced],
-        dtype=np.float64,
-    ).reshape(len(advanced), 6)
+    arrays = _core.getAdvancedMeasuresBatch(
+        np.ascontiguousarray(unique, dtype=np.int64),
+        constants["target_T_count"], constants["target_F_count"],
+        constants["total_calculated_timepoints"], time_step,
+    )
+    numeric = np.stack([
+        arrays["bestFitP"], arrays["bestFitN"],
+        np.full(len(unique), time_step, dtype=np.float64),
+        arrays["is_essential_gene"], arrays["isPositiveCorrelated"], arrays["isNegativeCorrelated"],
+    ], axis=1).astype(np.float64, copy=False)
+    objects = _LazyMeasures(arrays, unique, constants, show_basic_measures)
     return {"objects": objects, "numeric": numeric, "inverse": inverse}
 
 
