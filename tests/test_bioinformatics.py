@@ -1,4 +1,5 @@
 """Ports of R/FBNBioinformatics.R and R/sample_FBN.R (see fbnnet_core.bioinformatics)."""
+import contextlib
 import os
 import sqlite3
 import tempfile
@@ -309,12 +310,12 @@ REAL_CHIP_DB = Path(__file__).resolve().parents[1] / "data" / "testdata" / "HG-U
 def write_annotation_databases(folder: Path) -> Path:
     """Tiny hgu133plus2.sqlite + org.Hs.eg.sqlite with the schema of the Bioconductor packages."""
     chip = folder / "hgu133plus2.sqlite"
-    with sqlite3.connect(chip) as db:
+    with contextlib.closing(sqlite3.connect(chip)) as db, db:  # closed (Windows cannot delete open files)
         db.execute("CREATE TABLE probes (probe_id VARCHAR(80), gene_id VARCHAR(10), is_multiple SMALLINT)")
         db.executemany("INSERT INTO probes VALUES (?, ?, ?)", [
             ("p1", "100", 0), ("p2", "100", 0), ("p3", "200", 1), ("p3", "300", 1), ("p4", None, 0), ("p5", "400", 0),
         ])
-    with sqlite3.connect(folder / "org.Hs.eg.sqlite") as db:
+    with contextlib.closing(sqlite3.connect(folder / "org.Hs.eg.sqlite")) as db, db:
         db.execute("CREATE TABLE genes (_id INTEGER PRIMARY KEY, gene_id VARCHAR(10))")
         db.execute("CREATE TABLE gene_info (_id INTEGER, gene_name VARCHAR(255), symbol VARCHAR(80))")
         db.execute("CREATE TABLE unigene (_id INTEGER, unigene_id VARCHAR(20))")
@@ -347,7 +348,7 @@ class TestHgu133plus2Database(unittest.TestCase):
         self.assertTrue(pd.isna(table.loc[5, "UNIGENE"]))
 
     def test_recent_org_database_without_unigene_table(self):
-        with sqlite3.connect(self.folder / "org.Hs.eg.sqlite") as db:
+        with contextlib.closing(sqlite3.connect(self.folder / "org.Hs.eg.sqlite")) as db, db:
             db.execute("DROP TABLE unigene")
         table = bio.load_hgu133plus2_annotation(self.chip)
         self.assertEqual(table["SYMBOL"].dropna().tolist(), ["ONE", "ONE", "TWO", "THREE", "FOUR"])

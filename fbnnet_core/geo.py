@@ -168,7 +168,7 @@ def download_geo_raw_files(accession: str, dest_dir: PathLike, extract: bool = T
                     shutil.copyfileobj(source, out, length=1 << 20)
             files.append(target)
     archive.unlink()
-    return sorted(files)
+    return sorted(files, key=lambda path: path.name)  # Path ordering is case-insensitive on Windows only
 
 
 BIOCONDUCTOR_ANNOTATION = "https://bioconductor.org/packages/release/data/annotation/src/contrib/"
