@@ -80,6 +80,9 @@ pip install fbnnet-core
   until then `pip` compiles the extensions and needs the Microsoft C++ Build Tools (or use WSL). Parallel runs use the
   `spawn` start method there, so guard scripts with `if __name__ == "__main__":`.
 * `numpy`, `pandas`, `scipy`, `networkx` and `matplotlib` are installed automatically.
+* Pillow (used by matplotlib to save images) is deliberately not pinned, so fbnnet-core does not conflict with packages
+  that limit it. Versions before 13 have known security advisories; if your environment allows it, install
+  `pip install "fbnnet-core[secure]"` (Pillow 13 or newer, Python 3.11+).
 
 Check the installation:
 

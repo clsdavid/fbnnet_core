@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fbnnet-core"
-version = "1.2.0"
+version = "1.2.1"
 description = "Fundamental Boolean Network (FBN) inference of gene regulatory networks from time series, with a C++ core"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,11 +33,13 @@ dependencies = [
     "scipy>=1.11",
     "networkx>=3.0",
     "matplotlib>=3.8",
-    # matplotlib pulls in pillow; versions before 13 have known CVEs (pillow 13 needs Python 3.11+).
-    "pillow>=13.0; python_version >= '3.11'",
 ]
 
 [project.optional-dependencies]
+# Pillow comes in through matplotlib and is not used directly, so it is not pinned (a hard pin conflicts with packages
+# such as gradio or streamlit that cap it). Pillow before 13 has known CVEs; this extra asks for the fixed release
+# (Pillow 13 needs Python 3.11+).
+secure = ["pillow>=13.0; python_version >= '3.11'"]
 # Limits every worker of use_parallel=True to one BLAS thread (about 25% faster on many cores).
 parallel = ["threadpoolctl>=3"]
 # pyreadr/rdata read the R datasets in data/ (tests and examples only).

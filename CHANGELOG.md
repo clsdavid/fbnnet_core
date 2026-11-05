@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.1
+
+Dependency hotfix.
+
+- **Pillow is no longer a hard requirement.** v1.1.7 and v1.2.0 required `pillow>=13.0` on Python 3.11+. fbnnet-core never
+  imports Pillow; it only arrives through matplotlib, and the pin made pip force Pillow 13 into environments with packages
+  that cap it below 13, for example: `gradio 6.6.0 requires pillow<13.0`, `streamlit 1.54.0 requires pillow<13` and
+  `trackio 0.16.1 requires pillow<12.0.0`, each reported as "... but you have pillow 13.0.0 which is incompatible".
+- New opt-in extra `secure`: `pip install "fbnnet-core[secure]"` asks for Pillow 13 or newer (Python 3.11+). Pillow before 13
+  has known security advisories, so install it where your other packages allow it.
+- If v1.2.0 already pulled Pillow 13 into an environment, upgrading to v1.2.1 does not downgrade it; reinstall the Pillow
+  version your other packages need (for example `pip install "pillow<13"`).
+
 ## v1.2.0
 
 Genome-scale mining (the whole 21,180-gene GSE2677 network in 14.5 minutes), a much faster default engine, rule mining
