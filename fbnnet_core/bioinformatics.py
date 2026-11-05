@@ -556,7 +556,11 @@ def get_related_affy_raw_data(
     """
     from .cel_import import read_pm_intensities
 
-    files = sorted(Path(cell_directory).glob("*.CEL")) + sorted(Path(cell_directory).glob("*.cel"))
+    # One listing with a case-insensitive extension: on Windows a "*.CEL" and a "*.cel" glob match the same files.
+    files = sorted(
+        (path for path in Path(cell_directory).iterdir() if path.is_file() and path.suffix.lower() == ".cel"),
+        key=lambda path: (path.suffix != ".CEL", path.name),
+    )
     if not files:
         raise ValueError(f"No .CEL files in {cell_directory}")
     names, counts, intensities = read_pm_intensities(files, cdf_path, workers)
