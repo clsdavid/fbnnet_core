@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .cube import construct_fbn_cube
-from .network import mine_fbn_network
+from .network import mine_fbn_network, mine_fbn_network_from_timeseries
 from .general_utils import check_numeric, check_probability_type_data
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ def generate_fbm_network(
     verbose: bool = False,
     max_workers: Optional[int] = None,
     chunksize: Optional[int] = None,
-    backend: str = "recursive",
+    backend: str = "auto",
 ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
     """
     Main entry point of the pipeline: mine a Fundamental Boolean Network
@@ -142,8 +142,8 @@ def generate_fbm_network(
         method: Discretisation method used if the data is not already boolean
             ("kmeans" or "edgeDetector"; see ``binarize_time_series``).
         max_k: The maximum depth the Orchard Cube can mine into.
-        use_parallel: If True, run the network inference algorithm in
-            parallel.
+        use_parallel: If True, build the Orchard Cube (the expensive stage) and
+            mine the rules across several worker processes.
         max_deep_temporal: Maximum temporal space for the Temporal FBN model.
         threshold_confidence: Confidence threshold (0-1) to filter FBN rules.
         threshold_error: Error-rate threshold (0-1) to filter FBN rules.
@@ -158,8 +158,8 @@ def generate_fbm_network(
             pool.map when use_parallel is True (default: pool.map's own
             heuristic). Tune this upward for very large gene counts to
             reduce IPC/dispatch overhead.
-        backend: "recursive" (default, C++ engine) or "tensor" (NumPy node-level
-            batching, identical results, faster on wide gene sets).
+        backend: "auto" (default, currently "tensor"), "tensor" (NumPy node-level
+            batching, identical results, much faster) or "recursive" (C++ engine).
 
     Returns:
         The mined FBN network dict, or ``{"cube": ..., "network": ...}`` if
@@ -192,6 +192,26 @@ def generate_fbm_network(
 
     genes = list(timeseries_data[0].index)
 
+    if network_only:
+        # The cube is never materialised: workers mine each target's rules and return only those.
+        log("Run generate_fbm_network, mining the rules of every target as its cube entry is built")
+        network = mine_fbn_network_from_timeseries(
+            genes,
+            timeseries_data,
+            max_k=max_k,
+            temporal=max_deep_temporal,
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+            chunksize=chunksize,
+            backend=backend,
+            threshold_confidence=threshold_confidence,
+            threshold_error=threshold_error,
+            threshold_support=threshold_support,
+            max_fbn_rules=max_fbn_rules,
+        )
+        log("Leave generate_fbm_network zone")
+        return network
+
     log("Run generate_fbm_network with a single cube")
     cube = construct_fbn_cube(
         target_genes=genes,
@@ -212,9 +232,9 @@ def generate_fbm_network(
         threshold_error=threshold_error,
         threshold_support=threshold_support,
         max_fbn_rules=max_fbn_rules,
+        max_workers=max_workers,
+        chunksize=chunksize,
     )
 
     log("Leave generate_fbm_network zone")
-    if network_only:
-        return network
     return {"cube": cube, "network": network}

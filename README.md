@@ -76,7 +76,9 @@ pip install fbnnet-core
 ```
 
 * Python 3.10 – 3.13 on **Linux** and **macOS** (ready-made packages are provided; no compiler needed).
-* On Windows, use the Windows Subsystem for Linux (WSL).
+* **Windows** (64-bit): the test suite runs on Windows in CI. Ready-made packages are built from the next release on;
+  until then `pip` compiles the extensions and needs the Microsoft C++ Build Tools (or use WSL). Parallel runs use the
+  `spawn` start method there, so guard scripts with `if __name__ == "__main__":`.
 * `numpy`, `pandas`, `scipy`, `networkx` and `matplotlib` are installed automatically.
 
 Check the installation:
@@ -157,6 +159,115 @@ Values may be raw expression levels or already on/off (0/1) values. Raw values a
 automatically; choose the method with `method="kmeans"` (default, finds the best on/off split for every gene) or
 `method="edgeDetector"` (looks for the steepest change between time points).
 
+**Starting from Affymetrix CEL files?** The CEL files are **not included** in this package or repository because
+of their size (the leukaemia series GSE2677 alone is about 1 GB). Download them from NCBI GEO yourself, either from the
+series page (for example [GSE35635](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE35635), the series used in
+the R package's documentation) or with `download_geo_raw_files`, which fetches and unpacks the `*_RAW.tar` archive of a
+series (the leukaemia study used GSE2677; note that some series, such as GSE35635, were measured on Agilent arrays and
+contain no CEL files):
+
+```python
+from fbnnet_core import download_geo_raw_files, download_genome_data_exprs
+
+download_geo_raw_files("GSE2677", "GSE2677_RAW")            # CEL files, about 1 GB
+exprs = download_genome_data_exprs("GSE35635")              # small: already normalised probes x samples matrix
+```
+
+`download_genome_data_exprs` is the counterpart of R's `downloadGenomeDataExprs` (`GEOquery::getGEO(..., GSEMatrix = TRUE)`):
+it returns the series' normalised expression matrix (probes as rows, samples as columns, sample titles in
+`exprs.attrs["titles"]`); use `platform="GPL570"` to pick a platform when a series has several. You also need the array's
+text `.cdf` file (for HG-U133 Plus 2: `HG-U133_Plus_2.cdf`, from Affymetrix/Thermo Fisher).
+
+`fbnnet_core.cel_import` then follows the R package's pipeline
+(`R/FBNBioinformatics.R`) with no Bioconductor needed: it reads a folder of text (version 3) `.CEL` files and the array's
+text `.cdf`, normalises (quantile normalisation, log2, median polish, i.e. RMA without background correction), groups the
+arrays into samples and orders them by time, and returns one table per sample. Files are grouped by name, for example
+`B-ALL-13-0h.CEL`, `B-ALL-13-8h.CEL`, `B-ALL-13-24h.CEL`; use `sample_pattern` for other naming.
+
+```python
+from fbnnet_core.cel_import import cel_to_timeseries
+
+# the childhood leukaemia study: probe sets that change by >= 0.7 (log2) in at least 7 samples, as gene symbols
+samples = cel_to_timeseries(
+    "GSE2677_RAW", "HG-U133_Plus_2.cdf",
+    differential=dict(cutoff_induction=0.7, cutoff_repression=0.7, majority=7),
+    map_genes=True,
+)
+network = generate_fbm_network(samples, max_k=2)
+```
+
+Leave out `differential` to keep every probe set (genome-wide, about 54,600 genes on the HG-U133 Plus 2 array), and leave
+out `map_genes` to keep probe-set names. `map_genes=True` drops unmapped probe sets and averages probe sets of the same
+gene, using the bundled `DAVID_Gene_List` (pass `mapping=` for another annotation). `n_genes=N` keeps the N most
+variable genes. The same conversion is available on the command line:
+`python -m fbnnet_core.cel_import GSE2677_RAW HG-U133_Plus_2.cdf out.npz --differential 0.7 0.7 7 --map-genes`
+(read it back with `load_timeseries`). On Windows and macOS, run such scripts under `if __name__ == "__main__":`.
+
+The individual steps of the R workflow are available too, so the study can be followed step by step
+(`fbnnet_core.bioinformatics`, see [Coming from the R package?](#coming-from-the-r-package)):
+
+```python
+from fbnnet_core import (
+    convert_affy_raw_data_into_normalized_structure_data, identify_differentially_expressed_genes,
+    convert_timeseries_probeset_name_to_gene_name, binarize_time_series,
+)
+
+series = convert_affy_raw_data_into_normalized_structure_data("GSE2677_RAW", "HG-U133_Plus_2.cdf")  # sample -> probe sets x time
+found = identify_differentially_expressed_genes(series, cutoff_induction=0.7, cutoff_repression=0.7, majority=7)
+probesets = list(found["DifferentialMappings"])                       # induced or repressed in any comparison
+genes = convert_timeseries_probeset_name_to_gene_name({k: v.loc[probesets] for k, v in series.items()})["convert_data"]
+samples = binarize_time_series(list(genes.values()))
+```
+
+`identify_differentially_expressed_genes` returns, for every comparison of two time points (`2To1`, `3To1`, `3To2`, ...),
+the induced and repressed probe sets with their M values and gene symbols. `get_specific_expressed_genes` keeps the
+genes present in every sample, and `map_probeset_names(probesets)` returns `{probeset: [symbols]}` (your own annotation
+first, then `DAVID_Gene_List`, `"N/A"` if neither knows the probe set).
+
+**Probe set annotation (`hgu133plus2.db`).** R maps probe sets to gene symbols with the Bioconductor package
+`hgu133plus2.db`. Its data are not included in this package because of their size (about 6 MB for the chip database and
+about 420 MB for the `org.Hs.eg.db` database that holds the symbols and gene names), so download them once. Both packages
+already contain ready-made SQLite files, so **no conversion is needed and R is not required**:
+
+```python
+from fbnnet_core import download_hgu133plus2_annotation
+
+download_hgu133plus2_annotation("annotation")     # about 100 MB download; writes hgu133plus2.sqlite and org.Hs.eg.sqlite
+```
+
+This takes the latest release from Bioconductor and extracts the two files into the folder (existing files are kept).
+Doing it by hand is the same: download the source packages
+[hgu133plus2.db](https://bioconductor.org/packages/release/data/annotation/html/hgu133plus2.db.html) and
+[org.Hs.eg.db](https://bioconductor.org/packages/release/data/annotation/html/org.Hs.eg.db.html) (the `.tar.gz` under
+"Package source"), unpack them and copy `inst/extdata/hgu133plus2.sqlite` and `inst/extdata/org.Hs.eg.sqlite` into one
+folder. With R installed you can instead run `BiocManager::install(c("hgu133plus2.db", "org.Hs.eg.db"))` and find the files
+in `system.file("extdata", package = "hgu133plus2.db")` and `system.file("extdata", package = "org.Hs.eg.db")`. The data are
+licensed under Artistic-2.0 by their authors.
+
+The chip definition for reading CEL files (`HG-U133_Plus_2.cdf`, a text file) is a separate download: the "HG-U133_Plus_2
+Library Files" on Thermo Fisher's
+[GeneChip array library files](https://www.thermofisher.com/us/en/home/life-science/microarray-analysis/microarray-data-analysis/genechip-array-library-files.html)
+page (the Bioconductor `hgu133plus2cdf` package is an R object and cannot be used here).
+
+Pass the path of `hgu133plus2.sqlite` wherever an annotation is accepted, or set it once with the environment variable
+`FBNNET_HGU133PLUS2_DB`; keep `org.Hs.eg.sqlite` in the same folder:
+
+```python
+from fbnnet_core import load_hgu133plus2_annotation, map_probeset_names, convert_timeseries_probeset_name_to_gene_name
+
+db = "annotation/hgu133plus2.sqlite"
+table = load_hgu133plus2_annotation(db)                         # PROBEID, SYMBOL, ENTREZID, GENENAME, UNIGENE
+map_probeset_names(["1007_s_at", "1053_at"], db)                # {'1007_s_at': ['DDR1'], '1053_at': ['RFC2']}
+genes = convert_timeseries_probeset_name_to_gene_name(series, annotation=db)["convert_data"]
+```
+
+(`UNIGENE` is empty with current `org.Hs.eg.db` releases, which dropped the retired UniGene table.)
+
+Without an annotation the bundled `DAVID_Gene_List` is used, which is also what R falls back to. On the leukaemia data
+it reproduces the R results better than the 2015 `hgu133plus2.db` snapshot: the genes found at the study's settings
+(0.7, 7 of 13 samples) are all in the bundled R result with the DAVID list, and 22 of 25 with `hgu133plus2.db`. This is
+because R's own `convert_probeset_to_gene` has a typo that makes it return nothing, so R ends up using the DAVID list.
+
 ### 2. Infer the network
 
 ```python
@@ -179,7 +290,15 @@ network = generate_fbm_network(
 | `threshold_support` | Minimum fraction of observations that must support a rule (0–1). | `0.00001` |
 | `max_fbn_rules` | Largest number of activation and of inhibition rules kept per gene. | `5` |
 | `method` | How raw values are converted to on/off: `"kmeans"` or `"edgeDetector"`. | `"kmeans"` |
-| `use_parallel` | Spread the work over several CPU cores. | `False` |
+| `use_parallel` | Build the rule cube (the slow step) and mine the rules on several CPU cores. Uses `fork` where available (Linux, macOS) and `spawn` otherwise (Windows); see the note below. | `False` |
+| `max_workers` | Number of worker processes when `use_parallel=True`. For the best speed install `pip install fbnnet_core[parallel]` (limits each worker to one BLAS thread), or set `OPENBLAS_NUM_THREADS=1` and `OMP_NUM_THREADS=1`. | all cores but one |
+| `chunksize` | Genes handed to a worker at a time. Raise it for thousands of genes to cut dispatch overhead. | automatic |
+| `backend` | `"auto"` picks `"tensor"`, which gives identical results to `"recursive"` (the C++ engine) and was never slower in the benchmarks (6-14x faster beyond a few hundred genes). The tensor engine is licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing); `"recursive"` selects the MIT-licensed C++ engine instead. | `"auto"` |
+
+With `use_parallel=True` on a platform that uses `spawn` (Windows, or anywhere `FBNNET_START_METHOD=spawn` is set), every worker
+re-imports your script, so put the code that starts the run under `if __name__ == "__main__":`. The environment
+variable `FBNNET_START_METHOD` (`fork` or `spawn`) overrides the choice. Each spawned worker rebuilds its data from the
+time series, which costs a little start-up time and memory per worker.
 
 Small examples finish in a fraction of a second. The leukaemia study (285 genes, 26 patients) takes a few minutes.
 
@@ -505,9 +624,21 @@ The names follow the R package in `snake_case`:
 | `searchForAttractors` | `search_for_attractors` |
 | `reconstructTimeseries` / `generateSimilaryReport` | `reconstruct_timeseries` / `generate_similary_report` |
 | `data("FBM_Leukeamia_Networks")` | `load_dataset("FBM_Leukeamia_Networks")` |
+| `downloadGenomeDataExprs` | `download_genome_data_exprs` (and `download_geo_raw_files` for the CEL archive) |
+| `convertAffyRawDataIntoNormalizedStructureData` | `convert_affy_raw_data_into_normalized_structure_data` |
+| `getRelatedAffyRawData` / `normalizeTimesereisRawData` | `get_related_affy_raw_data` / `normalize_timeseries_raw_data` |
+| `convertIntoSampleTimeSeries` / `reorderSampleTimeSeries` | `convert_into_sample_timeseries` / `reorder_sample_timeseries` |
+| `identifyDifferentiallyExpressedGenes` | `identify_differentially_expressed_genes` |
+| `getSpecificExpressedGenes` | `get_specific_expressed_genes` |
+| `convertTimeseriesProbsetNameToGeneName` | `convert_timeseries_probeset_name_to_gene_name` |
+| `mapProbesetNames` / `mapToGeneNameWithhgu133plus2Db` | `map_probeset_names` / `map_to_gene_name_with_hgu133plus2_db` |
 
 Arguments are also in `snake_case`: `regulationType` becomes `regulation_type`, `maxDeep` becomes `max_deep`, and
-`next_level_mix_type` is unchanged. The pictures use the same colours, shapes, legends and titles as the R widgets.
+`next_level_mix_type` is unchanged. The bioinformatics tools (`fbnnet_core.bioinformatics`) return `dict`s of
+`DataFrame`s where R returns lists of matrices. Three things differ from R: GCRMA and MAS5 normalisation are not available (RMA runs without its background-correction
+step), results are returned rather than written to an `output` folder unless you pass `output_dir`, and the annotation
+is read from the SQLite files of the Bioconductor packages instead of through R (see below).
+The pictures use the same colours, shapes, legends and titles as the R widgets.
 Time series are `pandas` tables with genes in rows, like the R matrices.
 
 ## Citation
@@ -525,8 +656,14 @@ This package and the underlying concepts were originally proposed and developed 
 (<https://doi.org/10.3389/fphys.2018.01328>) under the supervision of Don Kulasiri and Sandhya Samarasinghe during PhD
 study at Lincoln University, New Zealand.
 
-* The package, including everything ported from the R package, is released under the [MIT License](LICENSE).
-* The tensor-based mining backend (`backend="tensor"`: `fbnnet_core/tensor_mining.py` and `fbnnet_core/batched_counts.py`) is a newer addition and is licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt). Use of this backend must comply with the AGPL; a commercial licence is available from the author.
+* The package, including everything ported from the R package, is released under the [MIT License](LICENSE), except for the files listed next.
+* These files are licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt) (see their `SPDX-License-Identifier`
+  headers and the list in [LICENSE](LICENSE)): the tensor mining backend (`backend="tensor"`:
+  `fbnnet_core/tensor_mining.py`, `fbnnet_core/tensor_nodes.py`, `fbnnet_core/batched_counts.py`) and the R-pipeline tools
+  `fbnnet_core/bioinformatics.py`, `fbnnet_core/cel_import.py` and `fbnnet_core/geo.py`, plus the tests of the tensor
+  backend. Use of these files must comply with the AGPL; a commercial licence is available from the author.
+  Note that `import fbnnet_core` imports the three tools modules and that the default `backend="auto"` uses the tensor
+  engine; `backend="recursive"` keeps the mining itself on the MIT-licensed C++ engine.
 
 The original R package is available at <https://github.com/clsdavid/FBNNet2_public>. Questions and bug reports are
 welcome in the [issue tracker](https://github.com/clsdavid/fbnnet_core/issues).

@@ -1,5 +1,74 @@
 # Changelog
 
+## v1.2.0
+
+Genome-scale mining (the whole 21,180-gene GSE2677 network in 14.5 minutes), a much faster default engine, rule mining
+in parallel, Windows support, and the R bioinformatics / CEL tools. **Please read "Licensing" and "Upgrade notes".**
+
+### Licensing
+
+- The package stays MIT, **except** these files, which carry an `SPDX-License-Identifier: AGPL-3.0-or-later` header and are
+  listed in `LICENSE`: `fbnnet_core/tensor_mining.py`, `fbnnet_core/tensor_nodes.py`, `fbnnet_core/batched_counts.py`,
+  `fbnnet_core/bioinformatics.py`, `fbnnet_core/cel_import.py`, `fbnnet_core/geo.py` and the tests of the tensor backend. A
+  commercial licence for them is available from the author. `tensor_nodes.py`, `bioinformatics.py`, `cel_import.py` and
+  `geo.py` are new in this release, so this is the first release that ships them under the AGPL.
+- **This matters for the defaults**: `backend="auto"` (new default, see below) uses the AGPL tensor engine, and
+  `import fbnnet_core` imports `bioinformatics`, `cel_import` and `geo`. `backend="recursive"` keeps the *mining* on the
+  MIT-licensed C++ engine, but it does not remove the AGPL modules from the package. If you distribute software or run a
+  network service built on fbnnet-core, check that you can comply with the AGPL or ask for a commercial licence.
+- The compiled extensions (`src/*.cpp`, including the new `getAdvancedMeasuresBatch` in `fbn_core.cpp`) remain MIT.
+- Earlier tags up to v1.1.5 were published entirely under MIT; v1.1.6 added the AGPL tensor backend (see below).
+
+### Upgrade notes
+
+- **The default backend changed**: `construct_fbn_cube` and `generate_fbm_network` now use `backend="auto"`, which selects
+  `"tensor"` (identical results; 11x faster than `"recursive"` on the 285-gene leukaemia data and 46-200x at 2,000-8,000 genes). Pass `backend="recursive"` for the previous engine.
+- **`generate_fbm_network(network_only=True)` (the default) no longer builds the cube**; the network is identical, but
+  nothing holds the cube any more (`network_only=False` still returns it). Code that patches or wraps `construct_fbn_cube`
+  inside `generate_fbm_network` will not see calls in the default mode.
+- **`use_parallel=True` now also parallelises the rule mining**, and the `UserWarning` that `mine_fbn_network(use_parallel=True)`
+  used to emit is gone. `mine_fbn_network`, `search_fbn_core`, `mine_fbn_network_with_cores` and `mine_fbn_network_stage2` gained
+  `max_workers` / `chunksize` (and, for the last two, `use_parallel`) as trailing keyword arguments.
+- **Compiled extension change**: reinstall (or rebuild with `python setup.py build_ext --inplace`) when working from a
+  source checkout; the new Python code needs `_core.getAdvancedMeasuresBatch`.
+- On platforms where parallel runs use `spawn` (Windows, or `FBNNET_START_METHOD=spawn`), scripts must guard their entry
+  point with `if __name__ == "__main__":`. The private `_FORK_AVAILABLE` flags were removed (use
+  `fbnnet_core._parallel.start_method()`).
+- Numerics: results are identical between the backends and to the previous build (checked on 120,000 measure rows and in
+  parity tests). On Windows the Fisher exact test uses `long double`, which is 64-bit with MSVC (80-bit on Linux x86), so
+  p-values can differ in the last digits there.
+- `download_geo_raw_files` returns files in case-sensitive name order on every platform; `get_related_affy_raw_data` lists
+  each `.CEL` file once on case-insensitive file systems.
+
+### Performance and scale
+
+- **Streaming pipeline**: `generate_fbm_network(network_only=True)` (the default) no longer builds the whole Orchard cube. New `mine_fbn_network_from_timeseries` has every worker build one target's cube entry, mine and filter its rules and return only those; the network is identical to `mine_fbn_network(construct_fbn_cube(...))` (parity tests for temporal depths, thresholds, backends, fork and spawn). On GSE2677 (64 random targets, 15 workers): 8,000 genes 6.8 s -> 3.3 s, parent memory 1.2 GB -> 0.12 GB; 21,180 genes 22.1 -> 7.7 s, 2.5 GB -> 0.18 GB; 54,613 probe sets 93.8 -> 27.6 s, 6.6 GB -> 0.34 GB. `network_only=False` still returns the cube. New `tools/benchmark_pipeline.py` measures this. `run_cube_targets` (new, used by `construct_fbn_cube`) accepts a per-target `postprocess`.
+- The serial pre-filter of the target genes, which is quadratic in the gene count (about 20 minutes for 21,000 targets), now runs inside the workers for the tensor backend (`tensor_nodes.has_essential_candidate`, same decision as `filterTargetGenesByConditionGenes`; differential tests). With it a complete `generate_fbm_network` over all 21,180 mapped genes of GSE2677 (13 samples x 3 time points, `max_k=2`, 15 workers) finishes in 14.5 minutes with 521 MB of parent memory (210,892 rules).
+- Faster `tensor` backend (compiled extension change, rebuild required): new `_core.getAdvancedMeasuresBatch` computes the advanced measures of many count rows in one call and returns arrays; `getAdvancedMeasures` and the batch function now share one C++ implementation (bit-identical, checked on 120,000 rows against the previous build), and the per-row Python dicts are only built for the genes that survive a node. About 2x faster on a real-data-like shape (8,000 genes, 13 samples x 3 time points: 17.9 s -> 8.5 s for 40 targets); unchanged for wide data where the Fisher/chi-square work dominates.
+- `backend="tensor"` evaluates each tree node columnar (new `fbnnet_core.tensor_nodes`: shared float32 indicator matrices built once before forking, one matrix product per step, measures computed once per distinct count tuple) and the recursive tree no longer rebuilds the unprocessed-gene lists at every gene; results are identical (`gene_probabilities_measurements_reference` keeps the old implementation for differential tests).
+- `use_parallel` now also applies to rule mining: `mine_fbn_network` / `search_fbn_core` (and so `generate_fbm_network`) mine the target genes in forked workers and accept `max_workers` / `chunksize`. The rule search and the per-gene removal of subsumed rules both run in the workers (`mine_fbn_network_with_cores` / `mine_fbn_network_stage2` take the same options). The result is identical; mining a 2,500-gene synthetic cube went from 20.3 s to 9.8 s with 8 workers (the rule search alone from 21.9 s to 6.3 s at 3,000 genes). The "use_parallel is not supported" warning is gone.
+- Workers use one BLAS thread when the optional `threadpoolctl` is installed (`pip install fbnnet_core[parallel]`; about 25% faster at 54k genes with 15 workers), otherwise set `OPENBLAS_NUM_THREADS=1`.
+- **Default backend changed**: `construct_fbn_cube` and `generate_fbm_network` now take `backend="auto"`, which selects `"tensor"` (identical cubes; never slower in the benchmarks, 6-14x faster beyond a few hundred genes). Pass `backend="recursive"` for the previous behaviour. Note that the tensor backend is AGPL-licensed (see README, "Copyright and licensing").
+
+### Windows and parallel runs
+
+- **Windows support**: the C++ extensions build with MSVC and the whole test suite passes on `windows-latest` (Python 3.10, 3.12, 3.13) in CI; the release workflow now runs the tests on Windows and builds a Windows AMD64 wheel. Fixes found on the way: `download_geo_raw_files` returns files in case-sensitive name order, `get_related_affy_raw_data` no longer lists every `.CEL` file twice on case-insensitive file systems, portable `py::ssize_t` in the C++ code. Note: the Fisher exact test uses `long double`, which is 64-bit with MSVC (80-bit on Linux x86), so p-values can differ in the last digits on Windows.
+- `use_parallel` works with the `spawn` start method (Windows) instead of silently running on one core: new `fbnnet_core._parallel` picks `fork` when available, else `spawn`, and workers rebuild their state from the time series. Covers the cube, the rule mining and `reconstruct_timeseries`. `FBNNET_START_METHOD=fork|spawn` overrides the choice (CI runs the parallel tests with `spawn`). Scripts must guard the entry point with `if __name__ == "__main__":` on those platforms. The private `_FORK_AVAILABLE` flags were removed.
+
+### New tools
+
+- New `tools/benchmark_cube.py`: benchmark harness for `construct_fbn_cube` (sequential/parallel x recursive/tensor on random targets, parity check, survivor statistics, per-target time distribution, cost-model fits and a full-run extrapolation; synthetic, bundled, `.npz` and CEL data).
+- New `fbnnet_core.bioinformatics` module with the tools of the R `FBNBioinformatics.R` / `sample_FBN.R`: `convert_affy_raw_data_into_normalized_structure_data`, `get_related_affy_raw_data`, `normalize_timeseries_raw_data`, `convert_into_sample_timeseries`, `reorder_sample_timeseries`, `identify_differentially_expressed_genes`, `get_specific_expressed_genes`, `convert_timeseries_probeset_name_to_gene_name`, `map_probeset_names`, `map_to_gene_name_with_hgu133plus2_db`, `convert_probeset_to_gene` and `dissolve`.
+- New `fbnnet_core.geo` module: `download_genome_data_exprs` (R `downloadGenomeDataExprs`, series matrix from NCBI GEO) and `download_geo_raw_files` (fetch and unpack a series' `*_RAW.tar`). New `map_probeset_names` (R `mapProbesetNames`). README states that CEL files are not shipped and where to download them.
+- New `fbnnet_core.cel_import` module (and `python -m fbnnet_core.cel_import`): converts raw Affymetrix CEL files plus a text CDF into time series for `generate_fbm_network` / `construct_fbn_cube`, following the R `FBNBioinformatics` pipeline (quantile normalisation + median polish, sample grouping by file name, differentially-expressed probe set selection, probe set to gene mapping with the bundled DAVID list, binarisation).
+- `load_hgu133plus2_annotation` reads the SQLite files of the Bioconductor packages `hgu133plus2.db` and `org.Hs.eg.db` (no R needed); a path to `hgu133plus2.sqlite`, or the environment variable `FBNNET_HGU133PLUS2_DB`, can be used wherever an annotation is accepted.
+- `download_hgu133plus2_annotation` fetches `hgu133plus2.sqlite` and `org.Hs.eg.sqlite` from the Bioconductor packages (no R, no conversion); README documents the manual download. The annotation is not bundled because of its size.
+
+### Documentation and tests
+
+- README documents `max_workers`, `chunksize` and `backend`.
+- New tests check that parallel runs and the `tensor` backend give results identical to the sequential `recursive` engine.
+
 ## v1.1.7
 
 Dependency maintenance.

@@ -27,7 +27,11 @@ licensed under the GNU Affero General Public License v3.0 or later
 (see LICENSE-AGPL-3.0.txt), Copyright (c) 2025 Leshi Chen:
 
     fbnnet_core/tensor_mining.py
+    fbnnet_core/tensor_nodes.py
     fbnnet_core/batched_counts.py
+    fbnnet_core/bioinformatics.py
+    fbnnet_core/cel_import.py
+    fbnnet_core/geo.py
     tests/test_tensor_mining.py
     tests/test_batched_counts.py
 
