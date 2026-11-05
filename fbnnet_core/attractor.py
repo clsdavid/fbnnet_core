@@ -3,7 +3,6 @@ Port of R/attractor_FBN.R and the attractor-related parts of R/modelling_FBN.R:
 searchForAttractors, getFBMSuccessor, isSatisfied, randomSelection,
 getProbabilityFromFunctionInput and networkFixUpdate.
 """
-import multiprocessing
 import os
 import random
 from typing import Any, Dict, List, Optional, Tuple
@@ -11,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from . import _utils
 
+from . import _parallel
 from .data_utils import generateAllCombinationBinary
 from .fbn_types import FBMAttractors
 from .network_app import _as_gene_value_dict
@@ -18,11 +18,23 @@ from .network_app import _as_gene_value_dict
 # "cores - 1" convention: leave one core free for the OS/orchestrator process.
 DEFAULT_MAX_WORKERS = max(1, (os.cpu_count() or 2) - 1)
 
-_FORK_AVAILABLE = "fork" in multiprocessing.get_all_start_methods()
-
-# Populated in the parent process right before a fork-context Pool is created;
-# forked workers inherit it via copy-on-write memory, so it is never pickled.
+# Inputs of the pool workers: inherited through fork, or pickled once per spawned worker.
 _reconstruct_worker_state: Dict[str, Any] = {}
+
+
+def _reconstruct_worker_init(fbn_network, genes, transition_type, max_timepoints) -> None:
+    global _reconstruct_worker_state
+    _reconstruct_worker_state = {
+        "fbn_network": fbn_network,
+        "genes": genes,
+        "transition_type": transition_type,
+        "max_timepoints": max_timepoints,
+    }
+
+
+def _reconstruct_worker_clear() -> None:
+    global _reconstruct_worker_state
+    _reconstruct_worker_state = {}
 
 
 def is_satisfied(gene_state: Dict[str, int], expression_tokens: List[str]) -> bool:
@@ -232,7 +244,7 @@ def transition_states(
 
 
 def _reconstruct_worker(initial_state: Dict[str, int]) -> np.ndarray:
-    """Runs in a forked worker process; reads shared state via COW memory."""
+    """Runs in a worker process; reads the state set by `_reconstruct_worker_init`."""
     state = _reconstruct_worker_state
     return transition_states(
         initial_state, state["fbn_network"], state["genes"],
@@ -287,33 +299,23 @@ def reconstruct_timeseries(
     genes = fbn_network['genes']
     n_workers = max(1, min(max_workers or DEFAULT_MAX_WORKERS, len(initial_states)))
 
-    if not use_parallel or not _FORK_AVAILABLE or n_workers <= 1:
-        if use_parallel and not _FORK_AVAILABLE:
-            import logging
-            logging.getLogger(__name__).warning(
-                "multiprocessing 'fork' start method unavailable on this platform; "
-                "falling back to sequential execution."
-            )
+    method = _parallel.start_method()
+    if use_parallel and method is None:
+        import logging
+        logging.getLogger(__name__).warning(
+            "No usable multiprocessing start method; falling back to sequential execution."
+        )
+    if not use_parallel or method is None or n_workers <= 1:
         return [
             transition_states(state, fbn_network, genes, transition_type, max_timepoints)
             for state in initial_states
         ]
 
-    global _reconstruct_worker_state
-    _reconstruct_worker_state = {
-        "fbn_network": fbn_network,
-        "genes": genes,
-        "transition_type": transition_type,
-        "max_timepoints": max_timepoints,
-    }
-    try:
-        ctx = multiprocessing.get_context("fork")
-        with ctx.Pool(processes=n_workers) as pool:
-            results = pool.map(_reconstruct_worker, initial_states, chunksize=chunksize)
-    finally:
-        _reconstruct_worker_state = {}
-
-    return results
+    args = (fbn_network, genes, transition_type, max_timepoints)
+    return _parallel.pool_map(
+        _reconstruct_worker, initial_states, n_workers, chunksize,
+        _reconstruct_worker_init, args, args, _reconstruct_worker_clear,
+    )
 
 
 def network_fix_update(network: Dict, fix_genes: List[str], values: List[int]) -> Dict:

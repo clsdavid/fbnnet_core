@@ -47,7 +47,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from . import _core
+from . import _core, tensor_nodes
 
 
 def _slice_step(full_matrix: np.ndarray, i: int):
@@ -231,6 +231,26 @@ def gene_probabilities_measurements(
     temporal: int,
     show_basic_measures: bool = False,
 ) -> "dict":
+    """Equivalent of _tree.getGeneProbabilities_measurements for all `genes` at once.
+
+    Uses the columnar implementation in :mod:`fbnnet_core.tensor_nodes` (float32 indicator matrices,
+    one matrix product per step, `getAdvancedMeasures` once per distinct count tuple). The original
+    per-candidate implementation is kept as `gene_probabilities_measurements_reference`.
+    """
+    if not genes:
+        return {}
+    cache = tensor_nodes.prepare(main_parameters, temporal)
+    return tensor_nodes.node_measurements(cache, target_gene, genes, fixed_state, temporal, show_basic_measures)
+
+
+def gene_probabilities_measurements_reference(
+    main_parameters: Dict[str, Any],
+    target_gene: str,
+    genes: List[str],
+    fixed_state: Dict[str, int],
+    temporal: int,
+    show_basic_measures: bool = False,
+) -> "dict":
     """
     Vectorized equivalent of _tree.getGeneProbabilities_measurements:
     tries every gene in `genes` as the next conditional gene (batched), then
@@ -309,17 +329,15 @@ def build_probability_tree_on_target_gene(
     )
 
     new_genes = list(measurements.keys())
-    unprocessed_genes = list(new_genes)
+    position = {g: i for i, g in enumerate(new_genes)}
 
-    if max_k > len(unprocessed_genes):
-        max_k = len(unprocessed_genes)
+    if max_k > len(new_genes):
+        max_k = len(new_genes)
 
     result: Dict[str, Any] = {}
 
-    for gene in new_genes:
+    for index, gene in enumerate(new_genes):
         pmax_k = max_k
-
-        unprocessed_genes = [g for g in unprocessed_genes if g != gene]
 
         new_matched_genes_t: Dict[str, int] = {}
         new_matched_genes_f: Dict[str, int] = {}
@@ -370,16 +388,21 @@ def build_probability_tree_on_target_gene(
             find_negative_regulate = find_negative_regulate or best_fit_n == 0
             pmax_k -= 1
 
+            # The genes still unprocessed are the ones after this gene (earlier ones were removed one by
+            # one in the original); filtering out the fixed genes is only needed if one of them is among them.
+            unprocessed_genes = new_genes[index + 1:]
             excluded_subgenes = set(input_genes)
+            if any(position.get(g, -1) > index for g in excluded_subgenes):
+                unprocessed_genes = [g for g in unprocessed_genes if g not in excluded_subgenes]
 
-            next_genes_t = [g for g in unprocessed_genes if g not in excluded_subgenes]
+            next_genes_t = unprocessed_genes
             if next_genes_t and is_essential_gene_p and (best_fit_p > 0 or best_fit_n > 0):
                 subresult_t = build_probability_tree_on_target_gene(
                     target_gene, main_parameters, next_genes_t, new_matched_genes_t, [exp_t],
                     pmax_k, temporal, show_basic_measures, find_positive_regulate, find_negative_regulate,
                 )
 
-            next_genes_f = [g for g in unprocessed_genes if g not in excluded_subgenes]
+            next_genes_f = unprocessed_genes
             if next_genes_f and is_essential_gene_n and (best_fit_p > 0 or best_fit_n > 0):
                 subresult_f = build_probability_tree_on_target_gene(
                     target_gene, main_parameters, next_genes_f, new_matched_genes_f, [exp_f],

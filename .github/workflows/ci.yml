@@ -24,6 +24,12 @@ jobs:
       - run: python -m pytest "$GITHUB_WORKSPACE/tests" -q
         shell: bash
         working-directory: ${{ runner.temp }}
+      # The spawn start method is the only one on Windows ; exercise it here too.
+      - run: python -m pytest "$GITHUB_WORKSPACE/tests/test_parallel_backends.py" -q
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        env:
+          FBNNET_START_METHOD: spawn
 
   sdist:
     runs-on: ubuntu-latest

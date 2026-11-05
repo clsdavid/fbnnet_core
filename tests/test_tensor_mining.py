@@ -102,5 +102,42 @@ class TestTensorMining(unittest.TestCase):
                             self.assertEqual(ref_n[k], got_n[k], f"N key={k} gene={gene} temporal={temporal}")
 
 
+class TestTensorNodesAgainstReference(unittest.TestCase):
+    """The columnar node evaluation must equal the per-candidate reference on noisy random data."""
+
+    def test_matches_reference_with_fixed_genes_and_basic_measures(self):
+        import numpy as np
+        from fbnnet_core import tensor_mining
+
+        rng = np.random.default_rng(7)
+        genes = [f"G{i}" for i in range(40)]
+        data = (rng.random((6, 40, 12)) < 0.45).astype(int)
+        data[:, 1, 1:] = data[:, 2, :-1] & (1 - data[:, 3, :-1])
+        series = [
+            pd.DataFrame(m, index=genes, columns=[str(j + 1) for j in range(m.shape[1])]) for m in data
+        ]
+        for temporal in (1, 2, 3):
+            main_parameters = convert_df_main_parameters(series, temporal=temporal)
+            for fixed_state in ({}, {"G2": 1}, {"G2": 1, "G3": 0}):
+                for show_basic in (False, True):
+                    for target in ("G1", "G7"):
+                        candidates = [g for g in genes if g != target and g not in fixed_state]
+                        with self.subTest(temporal=temporal, fixed=fixed_state, basic=show_basic, target=target):
+                            ref = tensor_mining.gene_probabilities_measurements_reference(
+                                main_parameters, target, candidates, fixed_state, temporal, show_basic
+                            )
+                            got = gene_probabilities_measurements(
+                                main_parameters, target, candidates, fixed_state, temporal, show_basic
+                            )
+                            self.assertEqual(list(ref.keys()), list(got.keys()))
+                            self.assertEqual(ref, got)
+
+    def test_empty_candidates(self):
+        main_parameters = convert_df_main_parameters(
+            [pd.DataFrame([[0, 1, 0], [1, 0, 1]], index=["A", "B"], columns=["1", "2", "3"])], temporal=1
+        )
+        self.assertEqual(gene_probabilities_measurements(main_parameters, "A", [], {}, 1), {})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,9 @@
-import multiprocessing
 import os
 from typing import List, Dict, Any, Optional
 import numpy as np
 import pandas as pd
 import logging
+from . import _parallel
 from . import _tree
 from . import _core
 from . import _matrix
@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 # "cores - 1" convention: leave one core free for the OS/orchestrator process.
 DEFAULT_MAX_WORKERS = max(1, (os.cpu_count() or 2) - 1)
 
-_FORK_AVAILABLE = "fork" in multiprocessing.get_all_start_methods()
-
 # Populated in the parent process right before a fork-context Pool is created.
 # Forked workers inherit this via copy-on-write memory, so the (potentially
 # unpicklable) pybind11 main_parameters object is never pickled across the
@@ -25,32 +23,69 @@ _FORK_AVAILABLE = "fork" in multiprocessing.get_all_start_methods()
 _cube_worker_state: Dict[str, Any] = {}
 
 
+def _cube_worker_init(main_parameters, timeseries_cube, conditional_genes, max_k, temporal, backend) -> None:
+    """Sets the worker state; under spawn (main_parameters is None) rebuilds it from the data."""
+    global _cube_worker_state
+    if main_parameters is None:
+        main_parameters = convert_df_main_parameters(timeseries_cube, temporal)
+        if backend == "tensor":
+            from . import tensor_nodes
+
+            tensor_nodes.prepare(main_parameters, temporal)
+    _cube_worker_state = {
+        "conditional_genes": conditional_genes,
+        "max_k": max_k,
+        "temporal": temporal,
+        "main_parameters": main_parameters,
+        "backend": backend,
+    }
+
+
+def _cube_worker_clear() -> None:
+    global _cube_worker_state
+    _cube_worker_state = {}
+
+
 def _cube_worker(gene: str) -> Any:
-    """Runs in a forked worker process; reads shared state via COW memory."""
+    """Runs in a worker process; reads the state set by `_cube_worker_init`."""
     state = _cube_worker_state
-    process_fn = _process_cube_algorithm_for_backend(state.get("backend", "recursive"))
+    process_fn = _process_cube_algorithm_for_backend(state.get("backend", "auto"))
     return process_fn(
         gene, state["conditional_genes"], state["max_k"], state["temporal"],
         state["main_parameters"], None, None,
     )
 
 
+BACKENDS = ("auto", "recursive", "tensor")
+
+
+def resolve_backend(backend: str) -> str:
+    """Maps 'auto' to a concrete backend and rejects unknown names.
+
+    The tensor backend was never slower than the recursive one in the benchmarks (5 to 54,613
+    genes, tools/benchmark_cube.py) and is 6-14x faster beyond a few hundred genes, so 'auto'
+    selects it. This is the single place to refine the choice.
+    """
+    if backend not in BACKENDS:
+        raise ValueError(f"Unknown backend '{backend}'; expected one of {', '.join(repr(b) for b in BACKENDS)}")
+    return "tensor" if backend == "auto" else backend
+
+
 def _process_cube_algorithm_for_backend(backend: str):
     """Returns the process_cube_algorithm callable for the requested backend.
 
-    'recursive' (default) is the original, ground-truth C++ engine
+    'recursive' is the original, ground-truth C++ engine
     (_tree.process_cube_algorithm). 'tensor' is the Phase 3 node-level
     candidate-gene batching backend (fbnnet_core/tensor_mining.py) - same
     recursion/branching control flow, but the per-node "try every candidate
     gene" loop is vectorized with NumPy. Validated byte-identical against
     the recursive backend (tests/test_tensor_mining.py).
     """
+    backend = resolve_backend(backend)
     if backend == "recursive":
         return _tree.process_cube_algorithm
-    if backend == "tensor":
-        from .tensor_mining import process_cube_algorithm as tensor_process_cube_algorithm
-        return tensor_process_cube_algorithm
-    raise ValueError(f"Unknown backend '{backend}'; expected 'recursive' or 'tensor'")
+    from .tensor_mining import process_cube_algorithm as tensor_process_cube_algorithm
+    return tensor_process_cube_algorithm
 
 def convert_df_main_parameters(timeseries_cube: List[pd.DataFrame], temporal: int = 1) -> Dict[str, Any]:
     """ Convert a list of pandas DataFrames into a main parameters dictionary for FBN cube construction.
@@ -106,7 +141,7 @@ def construct_fbn_cube(target_genes: List[str],
                       use_parallel: bool = False,
                       max_workers: Optional[int] = None,
                       chunksize: Optional[int] = None,
-                      backend: str = "recursive") -> Dict[str, Any]:
+                      backend: str = "auto") -> Dict[str, Any]:
     """
     Create an FBN cube (Python implementation)
     
@@ -135,8 +170,8 @@ def construct_fbn_cube(target_genes: List[str],
         use_parallel is True (default: pool.map's own heuristic). Tune this
         upward for very large gene counts to reduce IPC/dispatch overhead.
     backend : str, optional
-        'recursive' (default) uses the original compiled C++ mining engine
-        (_tree.process_cube_algorithm). 'tensor' uses the Phase 3
+        'auto' (default) selects 'tensor'. 'recursive' uses the original compiled
+        C++ mining engine (_tree.process_cube_algorithm). 'tensor' uses the Phase 3
         node-level candidate-gene batching backend (fbnnet_core/tensor_mining.py),
         a NumPy reimplementation validated byte-identical to 'recursive' but
         vectorized across candidate genes at each tree node.
@@ -210,14 +245,16 @@ def construct_fbn_cube(target_genes: List[str],
     #     "total_timepoints": total_timepoints,
     #     "testseries": reduced_cube
     # }
-    if backend not in ("recursive", "tensor"):
-        raise ValueError(f"Unknown backend '{backend}'; expected 'recursive' or 'tensor'")
+    backend = resolve_backend(backend)
 
     main_parameters = convert_df_main_parameters(timeseries_cube, temporal)
     target_genes = _tree.filterTargetGenesByConditionGenes(target_genes, main_parameters, conditional_genes, None, temporal)
     # Process each target gene
     if use_parallel:
-        res = do_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers, chunksize, backend)
+        res = do_parallel_work(
+            target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers, chunksize, backend,
+            timeseries_cube,
+        )
     else:
         res = do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, backend)
     
@@ -246,12 +283,14 @@ def do_parallel_work(target_genes: List[str],
                      main_parameters: Dict[str, Any],
                      max_workers: Optional[int] = None,
                      chunksize: Optional[int] = None,
-                     backend: str = "recursive") -> List[Dict[str, Any]]:
-    """Process genes in parallel using separate OS processes (fork), not threads.
+                     backend: str = "auto",
+                     timeseries_cube: Optional[List[pd.DataFrame]] = None) -> List[Dict[str, Any]]:
+    """Process genes in parallel using separate OS processes, not threads.
 
-    The pybind11-based main_parameters object is never pickled: it's stashed in a
-    module-level global before the fork-context Pool is created, so forked workers
-    inherit it via copy-on-write memory. Only the per-task gene name (a plain
+    The pybind11-based main_parameters object is never pickled. With the fork start method it is
+    stashed in a module-level global before the Pool is created, so workers inherit it via
+    copy-on-write memory. With spawn (Windows) every worker rebuilds it from
+    `timeseries_cube`, which is therefore required there. Only the per-task gene name (a plain
     string) is pickled through the task queue. This replaces an earlier
     ThreadPoolExecutor-based implementation that provided no real speedup because
     none of the pybind11 bindings release the GIL.
@@ -261,39 +300,38 @@ def do_parallel_work(target_genes: List[str],
     when mining very large gene counts if profiling shows per-task dispatch
     overhead is non-trivial relative to per-gene work.
     """
-    global _cube_worker_state
-
+    backend = resolve_backend(backend)
+    method = _parallel.start_method()
     n_workers = max(1, min(max_workers or DEFAULT_MAX_WORKERS, len(target_genes)))
-    if not _FORK_AVAILABLE or n_workers <= 1:
-        if not _FORK_AVAILABLE:
-            logger.warning(
-                "multiprocessing 'fork' start method unavailable on this platform; "
-                "falling back to sequential execution."
-            )
+    unusable = method is None or (method == "spawn" and timeseries_cube is None)
+    if unusable and n_workers > 1:
+        logger.warning(
+            "No usable multiprocessing start method (spawn also needs the time series to rebuild "
+            "the state in the workers); falling back to sequential execution."
+        )
+    if unusable or n_workers <= 1:
         return do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, backend)
 
-    _cube_worker_state = {
-        "conditional_genes": conditional_genes,
-        "max_k": max_k,
-        "temporal": temporal,
-        "main_parameters": main_parameters,
-        "backend": backend,
-    }
-    try:
-        ctx = multiprocessing.get_context("fork")
-        with ctx.Pool(processes=n_workers) as pool:
-            results = pool.map(_cube_worker, target_genes, chunksize=chunksize)
-    finally:
-        _cube_worker_state = {}
+    if method == "fork" and backend == "tensor":
+        # Build the shared indicator matrices once, so that forked workers inherit them copy-on-write.
+        from . import tensor_nodes
 
-    return results
+        tensor_nodes.prepare(main_parameters, temporal)
+
+    return _parallel.pool_map(
+        _cube_worker, target_genes, n_workers, chunksize,
+        _cube_worker_init,
+        (main_parameters, None, conditional_genes, max_k, temporal, backend),
+        (None, timeseries_cube, conditional_genes, max_k, temporal, backend),
+        _cube_worker_clear,
+    )
 
 def do_non_parallel_work(target_genes: List[str], 
                         conditional_genes: List[str], 
                         max_k: int, 
                         temporal: int, 
                         main_parameters: Dict[str, Any],
-                        backend: str = "recursive") -> List[Dict[str, Any]]:
+                        backend: str = "auto") -> List[Dict[str, Any]]:
     """Process genes sequentially"""
     process_fn = _process_cube_algorithm_for_backend(backend)
     results = []

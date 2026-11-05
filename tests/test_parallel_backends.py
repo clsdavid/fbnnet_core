@@ -3,15 +3,18 @@ import os
 import time
 import unittest
 import warnings
+from unittest import mock
 
 import pandas as pd
 
+from fbnnet_core import _parallel
 from fbnnet_core import cube as cube_module
+from fbnnet_core.attractor import reconstruct_timeseries
 from fbnnet_core import generate_fbm_network, load_network, mine_fbn_network
 from fbnnet_core.cube import construct_fbn_cube
 from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
 
-requires_fork = unittest.skipUnless(cube_module._FORK_AVAILABLE, "needs the fork start method")
+requires_parallel = unittest.skipUnless(_parallel.start_method(), "needs a multiprocessing start method")
 
 
 class TestParallelAndBackends(unittest.TestCase):
@@ -51,7 +54,7 @@ class TestParallelAndBackends(unittest.TestCase):
                     self.build(temporal=temporal, backend="tensor"),
                 )
 
-    @requires_fork
+    @requires_parallel
     def test_parallel_matches_sequential_for_both_backends(self):
         for backend in ("recursive", "tensor"):
             with self.subTest(backend=backend):
@@ -59,7 +62,7 @@ class TestParallelAndBackends(unittest.TestCase):
                 parallel = self.build(backend=backend, use_parallel=True, max_workers=2, chunksize=1)
                 self.assertEqual(sequential, parallel)
 
-    @requires_fork
+    @requires_parallel
     def test_cellcycle_wall_clock(self):
         # Informational benchmark: prints timings, asserts only result parity.
         path = os.path.join(os.path.dirname(__file__), "..", "example", "cellcycle.bn")
@@ -88,21 +91,33 @@ class TestParallelAndBackends(unittest.TestCase):
     def test_single_worker_runs_sequentially(self):
         self.assertEqual(self.build(), self.build(use_parallel=True, max_workers=1))
 
+    def test_auto_backend_resolves_to_tensor_and_is_the_default(self):
+        self.assertEqual(cube_module.resolve_backend("auto"), "tensor")
+        self.assertEqual(cube_module.resolve_backend("recursive"), "recursive")
+        reference = self.build(backend="recursive")
+        self.assertEqual(self.build(backend="auto"), reference)
+        self.assertEqual(self.build(backend="auto", use_parallel=True, max_workers=2, chunksize=1), reference)
+        self.assertEqual(self.build(), reference)
+
     def test_unknown_backend_is_rejected(self):
         with self.assertRaises(ValueError):
             self.build(backend="gpu")
         with self.assertRaises(ValueError):
             cube_module.do_non_parallel_work(self.genes[:1], self.genes, 2, 1, {}, backend="gpu")
 
-    def test_mine_fbn_network_warns_that_use_parallel_is_ignored(self):
+    @requires_parallel
+    def test_parallel_rule_mining_matches_sequential(self):
         cube = self.build()
         self.assertTrue(cube["cube"])
-        expected = mine_fbn_network(cube, use_parallel=False)
-        with self.assertWarnsRegex(UserWarning, "use_parallel is not supported"):
-            actual = mine_fbn_network(cube, use_parallel=True)
-        self.assertEqual(expected, actual)
+        expected = mine_fbn_network(cube)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            self.assertEqual(expected, mine_fbn_network(cube, use_parallel=True, max_workers=2))
+            self.assertEqual(expected, mine_fbn_network(cube, use_parallel=True, max_workers=3, chunksize=1))
+        # one worker (or no fork) runs in-process
+        self.assertEqual(expected, mine_fbn_network(cube, use_parallel=True, max_workers=1))
 
-    @requires_fork
+    @requires_parallel
     def test_generate_fbm_network_parallel_does_not_warn(self):
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
@@ -112,6 +127,47 @@ class TestParallelAndBackends(unittest.TestCase):
         sequential = generate_fbm_network(self.samples, max_k=3)
         self.assertTrue(sequential["interactions"])
         self.assertEqual(sequential, parallel)
+
+
+class TestSpawnStartMethod(TestParallelAndBackends):
+    """Everything above again with the spawn start method (the only one on Windows)."""
+
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {_parallel.START_METHOD_ENV: "spawn"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.assertEqual(_parallel.start_method(), "spawn")
+
+    def test_reconstruct_timeseries_matches_sequential(self):
+        network = generate_fbm_network(self.samples, max_k=3)
+        states = [dict(zip(self.genes, bits)) for bits in ([0, 1, 0, 1, 0], [1, 1, 0, 0, 1], [0, 0, 1, 1, 1])]
+        sequential = reconstruct_timeseries(network, states, max_timepoints=8)
+        parallel = reconstruct_timeseries(network, states, max_timepoints=8, use_parallel=True, max_workers=2)
+        for expected, actual in zip(sequential, parallel):
+            self.assertTrue((expected == actual).all())
+
+    def test_spawn_without_time_series_falls_back_to_sequential(self):
+        main_parameters = cube_module.convert_df_main_parameters(self.samples, 1)
+        with self.assertLogs("fbnnet_core.cube", level="WARNING"):
+            result = cube_module.do_parallel_work(
+                self.genes, self.genes, 2, 1, main_parameters, max_workers=2, backend="tensor"
+            )
+        expected = cube_module.do_non_parallel_work(self.genes, self.genes, 2, 1, main_parameters, "tensor")
+        self.assertEqual(result, expected)
+
+
+class TestStartMethodSelection(unittest.TestCase):
+    def test_override_and_fallback(self):
+        with mock.patch.dict(os.environ, {_parallel.START_METHOD_ENV: "spawn"}):
+            self.assertEqual(_parallel.start_method(), "spawn")
+        with mock.patch.dict(os.environ, {_parallel.START_METHOD_ENV: ""}):
+            default = _parallel.start_method()
+        with mock.patch.dict(os.environ, {_parallel.START_METHOD_ENV: "bogus"}):
+            self.assertEqual(_parallel.start_method(), default)
+        with mock.patch.object(_parallel.multiprocessing, "get_all_start_methods", return_value=["spawn"]):
+            self.assertEqual(_parallel.start_method(), "spawn")
+        with mock.patch.object(_parallel.multiprocessing, "get_all_start_methods", return_value=[]):
+            self.assertIsNone(_parallel.start_method())
 
 
 if __name__ == "__main__":

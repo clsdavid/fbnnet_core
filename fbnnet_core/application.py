@@ -128,7 +128,7 @@ def generate_fbm_network(
     verbose: bool = False,
     max_workers: Optional[int] = None,
     chunksize: Optional[int] = None,
-    backend: str = "recursive",
+    backend: str = "auto",
 ) -> Union[Dict[str, Any], Dict[str, Dict[str, Any]]]:
     """
     Main entry point of the pipeline: mine a Fundamental Boolean Network
@@ -142,9 +142,8 @@ def generate_fbm_network(
         method: Discretisation method used if the data is not already boolean
             ("kmeans" or "edgeDetector"; see ``binarize_time_series``).
         max_k: The maximum depth the Orchard Cube can mine into.
-        use_parallel: If True, build the Orchard Cube (the expensive stage)
-            across several worker processes. Rule mining from the cube always
-            runs in a single process.
+        use_parallel: If True, build the Orchard Cube (the expensive stage) and
+            mine the rules across several worker processes.
         max_deep_temporal: Maximum temporal space for the Temporal FBN model.
         threshold_confidence: Confidence threshold (0-1) to filter FBN rules.
         threshold_error: Error-rate threshold (0-1) to filter FBN rules.
@@ -159,8 +158,8 @@ def generate_fbm_network(
             pool.map when use_parallel is True (default: pool.map's own
             heuristic). Tune this upward for very large gene counts to
             reduce IPC/dispatch overhead.
-        backend: "recursive" (default, C++ engine) or "tensor" (NumPy node-level
-            batching, identical results, faster on wide gene sets).
+        backend: "auto" (default, currently "tensor"), "tensor" (NumPy node-level
+            batching, identical results, much faster) or "recursive" (C++ engine).
 
     Returns:
         The mined FBN network dict, or ``{"cube": ..., "network": ...}`` if
@@ -208,12 +207,13 @@ def generate_fbm_network(
     network = mine_fbn_network(
         cube,
         genes=genes,
-        # Rule mining is single-process; only the cube stage above uses use_parallel.
-        use_parallel=False,
+        use_parallel=use_parallel,
         threshold_confidence=threshold_confidence,
         threshold_error=threshold_error,
         threshold_support=threshold_support,
         max_fbn_rules=max_fbn_rules,
+        max_workers=max_workers,
+        chunksize=chunksize,
     )
 
     log("Leave generate_fbm_network zone")

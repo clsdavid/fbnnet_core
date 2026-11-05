@@ -288,10 +288,15 @@ network = generate_fbm_network(
 | `threshold_support` | Minimum fraction of observations that must support a rule (0–1). | `0.00001` |
 | `max_fbn_rules` | Largest number of activation and of inhibition rules kept per gene. | `5` |
 | `method` | How raw values are converted to on/off: `"kmeans"` or `"edgeDetector"`. | `"kmeans"` |
-| `use_parallel` | Build the rule cube (the slow step) on several CPU cores. Needs the `fork` start method (Linux, macOS); elsewhere it runs on one core with a warning in the log. Rule mining afterwards always uses one core. | `False` |
+| `use_parallel` | Build the rule cube (the slow step) and mine the rules on several CPU cores. Uses `fork` where available (Linux, macOS) and `spawn` otherwise (Windows); see the note below. | `False` |
 | `max_workers` | Number of worker processes when `use_parallel=True`. | all cores but one |
 | `chunksize` | Genes handed to a worker at a time. Raise it for thousands of genes to cut dispatch overhead. | automatic |
-| `backend` | `"recursive"` is the C++ engine. `"tensor"` gives identical results and is faster on wide gene sets (licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing)). | `"recursive"` |
+| `backend` | `"auto"` picks `"tensor"`, which gives identical results to `"recursive"` (the C++ engine) and was never slower in the benchmarks (6-14x faster beyond a few hundred genes). `"tensor"` is licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing); pass `"recursive"` to avoid it. | `"auto"` |
+
+With `use_parallel=True` on a platform that uses `spawn` (Windows, or anywhere `FBNNET_START_METHOD=spawn` is set), every worker
+re-imports your script, so put the code that starts the run under `if __name__ == "__main__":`. The environment
+variable `FBNNET_START_METHOD` (`fork` or `spawn`) overrides the choice. Each spawned worker rebuilds its data from the
+time series, which costs a little start-up time and memory per worker.
 
 Small examples finish in a fraction of a second. The leukaemia study (285 genes, 26 patients) takes a few minutes.
 
@@ -650,7 +655,7 @@ This package and the underlying concepts were originally proposed and developed 
 study at Lincoln University, New Zealand.
 
 * The package, including everything ported from the R package, is released under the [MIT License](LICENSE).
-* The tensor-based mining backend (`backend="tensor"`: `fbnnet_core/tensor_mining.py` and `fbnnet_core/batched_counts.py`) is a newer addition and is licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt). Use of this backend must comply with the AGPL; a commercial licence is available from the author.
+* The tensor-based mining backend (`backend="tensor"`: `fbnnet_core/tensor_mining.py`, `fbnnet_core/tensor_nodes.py` and `fbnnet_core/batched_counts.py`) is a newer addition and is licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt). Use of this backend must comply with the AGPL; a commercial licence is available from the author. The default `backend="auto"` selects it, so pass `backend="recursive"` to stay on the MIT-licensed C++ engine.
 
 The original R package is available at <https://github.com/clsdavid/FBNNet2_public>. Questions and bug reports are
 welcome in the [issue tracker](https://github.com/clsdavid/fbnnet_core/issues).
