@@ -76,7 +76,9 @@ pip install fbnnet-core
 ```
 
 * Python 3.10 – 3.13 on **Linux** and **macOS** (ready-made packages are provided; no compiler needed).
-* On Windows, use the Windows Subsystem for Linux (WSL).
+* **Windows** (64-bit): the test suite runs on Windows in CI. Ready-made packages are built from the next release on;
+  until then `pip` compiles the extensions and needs the Microsoft C++ Build Tools (or use WSL). Parallel runs use the
+  `spawn` start method there, so guard scripts with `if __name__ == "__main__":`.
 * `numpy`, `pandas`, `scipy`, `networkx` and `matplotlib` are installed automatically.
 
 Check the installation:

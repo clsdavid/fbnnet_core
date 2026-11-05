@@ -44,3 +44,17 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
+  windows-wheel:
+    # Dry run of the release build: the same cibuildwheel step as publish.yml, for one Python version.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pypa/cibuildwheel@v4.3
+        env:
+          CIBW_ARCHS: AMD64
+          CIBW_BUILD: cp312-*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-windows-cp312
+          path: wheelhouse/*.whl
+          if-no-files-found: error
