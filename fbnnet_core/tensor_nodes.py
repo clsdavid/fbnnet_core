@@ -268,20 +268,8 @@ def _step_measures(
     return {"objects": objects, "numeric": numeric, "inverse": inverse}
 
 
-def node_measurements(
-    cache: Dict[str, Any],
-    target_gene: str,
-    genes: Sequence[str],
-    fixed_state: Dict[str, int],
-    temporal: int,
-    show_basic_measures: bool = False,
-) -> Dict[str, Dict[str, Any]]:
-    """Columnar equivalent of `tensor_mining.gene_probabilities_measurements` (same result)."""
-    n = len(genes)
-    if n == 0:
-        return {}
-    steps = [_step_measures(cache, target_gene, genes, fixed_state, s, show_basic_measures) for s in range(temporal)]
-
+def _pick_best_steps(steps: List[Dict[str, Any]], n: int, temporal: int):
+    """Per candidate, the temporal step with the best fit for the P and N rules, and whether it is essential."""
     rows = np.arange(n)
     # (steps, candidates, 6): bestFitP, bestFitN, timestep, essential, positively and negatively correlated
     table = np.stack([s["numeric"][s["inverse"]] for s in steps])
@@ -299,6 +287,41 @@ def node_measurements(
 
     ess_p = table[pick_p, rows, 3] > 0
     ess_n = table[pick_n, rows, 3] > 0
+    return table, inverse, pick_p, pick_n, ess_p, ess_n
+
+
+def has_essential_candidate(
+    cache: Dict[str, Any], target_gene: str, genes: Sequence[str], temporal: int
+) -> bool:
+    """True when some gene of `genes` shows an essential relationship with `target_gene`.
+
+    Equivalent to ``_tree.filterTargetGenesByConditionGenes`` keeping the target, but evaluated for all
+    candidates at once (that C++ filter tries the genes one by one and is quadratic in the gene count).
+    """
+    n = len(genes)
+    if n == 0:
+        return False
+    steps = [_step_measures(cache, target_gene, genes, {}, s, False) for s in range(temporal)]
+    *_, ess_p, ess_n = _pick_best_steps(steps, n, temporal)
+    return bool((ess_p | ess_n).any())
+
+
+def node_measurements(
+    cache: Dict[str, Any],
+    target_gene: str,
+    genes: Sequence[str],
+    fixed_state: Dict[str, int],
+    temporal: int,
+    show_basic_measures: bool = False,
+) -> Dict[str, Dict[str, Any]]:
+    """Columnar equivalent of `tensor_mining.gene_probabilities_measurements` (same result)."""
+    n = len(genes)
+    if n == 0:
+        return {}
+    steps = [_step_measures(cache, target_gene, genes, fixed_state, s, show_basic_measures) for s in range(temporal)]
+
+    rows = np.arange(n)
+    table, inverse, pick_p, pick_n, ess_p, ess_n = _pick_best_steps(steps, n, temporal)
     keep = ess_p | ess_n
 
     # The chosen dict of every candidate is identified by its temporal step.

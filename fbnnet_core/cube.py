@@ -23,7 +23,8 @@ DEFAULT_MAX_WORKERS = max(1, (os.cpu_count() or 2) - 1)
 _cube_worker_state: Dict[str, Any] = {}
 
 
-def _cube_worker_init(main_parameters, timeseries_cube, conditional_genes, max_k, temporal, backend) -> None:
+def _cube_worker_init(main_parameters, timeseries_cube, conditional_genes, max_k, temporal, backend,
+                      postprocess=None, check_essential=False) -> None:
     """Sets the worker state; under spawn (main_parameters is None) rebuilds it from the data."""
     global _cube_worker_state
     if main_parameters is None:
@@ -38,6 +39,8 @@ def _cube_worker_init(main_parameters, timeseries_cube, conditional_genes, max_k
         "temporal": temporal,
         "main_parameters": main_parameters,
         "backend": backend,
+        "postprocess": postprocess,
+        "check_essential": check_essential,
     }
 
 
@@ -46,13 +49,28 @@ def _cube_worker_clear() -> None:
     _cube_worker_state = {}
 
 
+def _mine_target(gene, conditional_genes, max_k, temporal, main_parameters, backend, postprocess, check_essential):
+    """The cube entry of one target (None when `check_essential` finds no essential candidate gene),
+    passed through `postprocess` when given."""
+    result = None
+    skip = False
+    if check_essential:
+        from . import tensor_nodes
+
+        cache = tensor_nodes.prepare(main_parameters, temporal)
+        skip = not tensor_nodes.has_essential_candidate(cache, gene, conditional_genes, temporal)
+    if not skip:
+        process_fn = _process_cube_algorithm_for_backend(backend)
+        result = process_fn(gene, conditional_genes, max_k, temporal, main_parameters, None, None)
+    return postprocess(result) if postprocess is not None else result
+
+
 def _cube_worker(gene: str) -> Any:
     """Runs in a worker process; reads the state set by `_cube_worker_init`."""
     state = _cube_worker_state
-    process_fn = _process_cube_algorithm_for_backend(state.get("backend", "auto"))
-    return process_fn(
-        gene, state["conditional_genes"], state["max_k"], state["temporal"],
-        state["main_parameters"], None, None,
+    return _mine_target(
+        gene, state["conditional_genes"], state["max_k"], state["temporal"], state["main_parameters"],
+        state.get("backend", "auto"), state.get("postprocess"), state.get("check_essential", False),
     )
 
 
@@ -245,18 +263,10 @@ def construct_fbn_cube(target_genes: List[str],
     #     "total_timepoints": total_timepoints,
     #     "testseries": reduced_cube
     # }
-    backend = resolve_backend(backend)
-
-    main_parameters = convert_df_main_parameters(timeseries_cube, temporal)
-    target_genes = _tree.filterTargetGenesByConditionGenes(target_genes, main_parameters, conditional_genes, None, temporal)
-    # Process each target gene
-    if use_parallel:
-        res = do_parallel_work(
-            target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers, chunksize, backend,
-            timeseries_cube,
-        )
-    else:
-        res = do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, backend)
+    target_genes, res = run_cube_targets(
+        target_genes, conditional_genes, timeseries_cube, max_k, temporal,
+        use_parallel, max_workers, chunksize, backend,
+    )
     
     # Filter out None or empty results
     cube = {}
@@ -276,6 +286,53 @@ def construct_fbn_cube(target_genes: List[str],
 
 
 
+def run_cube_targets(target_genes: List[str],
+                     conditional_genes: List[str],
+                     timeseries_cube: List[pd.DataFrame],
+                     max_k: int,
+                     temporal: int,
+                     use_parallel: bool = False,
+                     max_workers: Optional[int] = None,
+                     chunksize: Optional[int] = None,
+                     backend: str = "auto",
+                     postprocess=None,
+                     filter_in_workers: bool = False) -> "tuple[List[str], List[Any]]":
+    """Mines the Orchard cube entry of every target gene; returns (the targets kept, one result per target).
+
+    Without `postprocess` each result is the cube entry ``{gene: {...}}`` (as in construct_fbn_cube).
+    With it, `postprocess(entry)` runs in the worker right after the entry is built and its return value
+    replaces the entry, so large entries never cross the process boundary. `postprocess` must be picklable
+    (a module-level function or a `functools.partial` of one) where the start method is spawn.
+
+    `filter_in_workers` (tensor backend, all genes present in the data) replaces the serial pre-filter of
+    the targets, which is quadratic in the gene count, by the same test inside the workers; targets that
+    fail it get None as their result (passed to `postprocess`), and the returned target list is then not
+    filtered.
+    """
+    backend = resolve_backend(backend)
+
+    main_parameters = convert_df_main_parameters(timeseries_cube, temporal)
+    check_essential = False
+    if filter_in_workers and backend == "tensor":
+        known = set(main_parameters["rownames"])
+        check_essential = all(g in known for g in target_genes) and all(g in known for g in conditional_genes)
+    if not check_essential:
+        target_genes = _tree.filterTargetGenesByConditionGenes(
+            target_genes, main_parameters, conditional_genes, None, temporal
+        )
+    if use_parallel:
+        res = do_parallel_work(
+            target_genes, conditional_genes, max_k, temporal, main_parameters, max_workers, chunksize, backend,
+            timeseries_cube, postprocess, check_essential,
+        )
+    else:
+        res = do_non_parallel_work(
+            target_genes, conditional_genes, max_k, temporal, main_parameters, backend, postprocess,
+            check_essential,
+        )
+    return target_genes, res
+
+
 def do_parallel_work(target_genes: List[str], 
                      conditional_genes: List[str], 
                      max_k: int, 
@@ -284,7 +341,9 @@ def do_parallel_work(target_genes: List[str],
                      max_workers: Optional[int] = None,
                      chunksize: Optional[int] = None,
                      backend: str = "auto",
-                     timeseries_cube: Optional[List[pd.DataFrame]] = None) -> List[Dict[str, Any]]:
+                     timeseries_cube: Optional[List[pd.DataFrame]] = None,
+                     postprocess=None,
+                     check_essential: bool = False) -> List[Dict[str, Any]]:
     """Process genes in parallel using separate OS processes, not threads.
 
     The pybind11-based main_parameters object is never pickled. With the fork start method it is
@@ -310,7 +369,10 @@ def do_parallel_work(target_genes: List[str],
             "the state in the workers); falling back to sequential execution."
         )
     if unusable or n_workers <= 1:
-        return do_non_parallel_work(target_genes, conditional_genes, max_k, temporal, main_parameters, backend)
+        return do_non_parallel_work(
+            target_genes, conditional_genes, max_k, temporal, main_parameters, backend, postprocess,
+            check_essential,
+        )
 
     if method == "fork" and backend == "tensor":
         # Build the shared indicator matrices once, so that forked workers inherit them copy-on-write.
@@ -321,8 +383,8 @@ def do_parallel_work(target_genes: List[str],
     return _parallel.pool_map(
         _cube_worker, target_genes, n_workers, chunksize,
         _cube_worker_init,
-        (main_parameters, None, conditional_genes, max_k, temporal, backend),
-        (None, timeseries_cube, conditional_genes, max_k, temporal, backend),
+        (main_parameters, None, conditional_genes, max_k, temporal, backend, postprocess, check_essential),
+        (None, timeseries_cube, conditional_genes, max_k, temporal, backend, postprocess, check_essential),
         _cube_worker_clear,
     )
 
@@ -331,12 +393,12 @@ def do_non_parallel_work(target_genes: List[str],
                         max_k: int, 
                         temporal: int, 
                         main_parameters: Dict[str, Any],
-                        backend: str = "auto") -> List[Dict[str, Any]]:
+                        backend: str = "auto",
+                        postprocess=None,
+                        check_essential: bool = False) -> List[Dict[str, Any]]:
     """Process genes sequentially"""
-    process_fn = _process_cube_algorithm_for_backend(backend)
-    results = []
-    for gene in target_genes:
-        results.append(
-            process_fn(gene, conditional_genes, max_k, temporal, main_parameters, None, None)
-        )
-    return results
+    _process_cube_algorithm_for_backend(backend)  # rejects unknown backends before any work
+    return [
+        _mine_target(gene, conditional_genes, max_k, temporal, main_parameters, backend, postprocess, check_essential)
+        for gene in target_genes
+    ]

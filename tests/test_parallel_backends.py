@@ -12,6 +12,7 @@ from fbnnet_core import cube as cube_module
 from fbnnet_core.attractor import reconstruct_timeseries
 from fbnnet_core import generate_fbm_network, load_network, mine_fbn_network
 from fbnnet_core.cube import construct_fbn_cube
+from fbnnet_core.network import mine_fbn_network_from_timeseries
 from fbnnet_core.data_utils import generateAllCombinationBinary, generateBoolNetTimeseries
 
 requires_parallel = unittest.skipUnless(_parallel.start_method(), "needs a multiprocessing start method")
@@ -117,6 +118,54 @@ class TestParallelAndBackends(unittest.TestCase):
         # one worker (or no fork) runs in-process
         self.assertEqual(expected, mine_fbn_network(cube, use_parallel=True, max_workers=1))
 
+    def streaming_and_cube_networks(self, samples=None, genes=None, parallel=None, **settings):
+        samples = self.samples if samples is None else samples
+        genes = self.genes if genes is None else genes
+        cube_keys = ("max_k", "temporal", "backend")
+        mine_keys = ("threshold_confidence", "threshold_error", "threshold_support", "max_fbn_rules")
+        cube = construct_fbn_cube(
+            genes, genes, samples, **{k: v for k, v in settings.items() if k in cube_keys}, **(parallel or {})
+        )
+        expected = mine_fbn_network(cube, genes=genes, **{k: v for k, v in settings.items() if k in mine_keys})
+        actual = mine_fbn_network_from_timeseries(genes, samples, **settings, **(parallel or {}))
+        return expected, actual
+
+    def test_streaming_network_equals_cube_pipeline(self):
+        for settings in (
+            {"max_k": 3},
+            {"max_k": 2, "temporal": 2},
+            {"max_k": 3, "threshold_confidence": 0.9, "threshold_error": 0.1},
+            {"max_k": 3, "max_fbn_rules": 1},
+            {"max_k": 3, "backend": "recursive"},
+        ):
+            with self.subTest(**settings):
+                expected, actual = self.streaming_and_cube_networks(**settings)
+                self.assertTrue(expected["interactions"])
+                self.assertEqual(expected, actual)
+
+    @requires_parallel
+    def test_parallel_streaming_network_equals_cube_pipeline(self):
+        parallel = {"use_parallel": True, "max_workers": 2, "chunksize": 1}
+        for settings in ({"max_k": 3}, {"max_k": 2, "temporal": 2, "threshold_error": 0.1}):
+            with self.subTest(**settings):
+                expected, actual = self.streaming_and_cube_networks(parallel=parallel, **settings)
+                self.assertEqual(expected, actual)
+
+    def test_streaming_network_on_the_bundled_leukaemia_data(self):
+        from fbnnet_core import binarize_time_series, load_dataset
+
+        samples = binarize_time_series(load_dataset("Leukeamia_Timeseries")[:12], method="kmeans")
+        genes = list(samples[0].index)[:60]
+        samples = [sample.loc[genes] for sample in samples]
+        expected, actual = self.streaming_and_cube_networks(samples, genes, max_k=2)
+        self.assertEqual(expected, actual)
+
+    def test_generate_fbm_network_returns_the_same_network_with_and_without_the_cube(self):
+        only = generate_fbm_network(self.samples, max_k=3)
+        both = generate_fbm_network(self.samples, max_k=3, network_only=False)
+        self.assertTrue(both["cube"]["cube"])
+        self.assertEqual(only, both["network"])
+
     @requires_parallel
     def test_generate_fbm_network_parallel_does_not_warn(self):
         with warnings.catch_warnings():
@@ -154,6 +203,27 @@ class TestSpawnStartMethod(TestParallelAndBackends):
             )
         expected = cube_module.do_non_parallel_work(self.genes, self.genes, 2, 1, main_parameters, "tensor")
         self.assertEqual(result, expected)
+
+
+class TestBlasLimit(unittest.TestCase):
+    def test_works_without_threadpoolctl(self):
+        import sys
+
+        with mock.patch.dict(sys.modules, {"threadpoolctl": None}):
+            _parallel._limit_blas_threads()  # must not raise
+
+    def test_limits_to_one_thread_when_threadpoolctl_is_available(self):
+        try:
+            import threadpoolctl
+        except ImportError:
+            self.skipTest("threadpoolctl is not installed")
+        try:
+            _parallel._limit_blas_threads()
+            infos = threadpoolctl.threadpool_info()
+            self.assertTrue(all(info["num_threads"] == 1 for info in infos if info["user_api"] == "blas"))
+        finally:
+            if _parallel._blas_limit is not None:
+                _parallel._blas_limit.restore_original_limits()
 
 
 class TestStartMethodSelection(unittest.TestCase):

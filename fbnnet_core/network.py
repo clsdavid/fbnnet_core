@@ -151,14 +151,96 @@ def mine_fbn_network_with_cores(
     midle_result = mine_fbn_network_stage2(
         search_fbn_core_result, threshold_error, max_fbn_rules, use_parallel, max_workers, chunksize
     )
-    final_result = convert_mined_result_to_fbn_network(midle_result, genes)
-    
-    if not final_result:
-        raise ValueError("No Network generated")
-    
-    final_result = filter_network_connections(final_result)
+    final_result = _finish_network(midle_result, genes)
     logger.info("Leave mine_fbn_network_with_cores zone")
     return final_result
+
+
+def _finish_network(stage2_result: Dict, genes: List[str]) -> Dict:
+    """Stage-2 rules -> FundamentalBooleanNetwork (shared by the cube and the streaming pipelines)."""
+    final_result = convert_mined_result_to_fbn_network(stage2_result, genes)
+
+    if not final_result:
+        raise ValueError("No Network generated")
+
+    return filter_network_connections(final_result)
+
+
+def _mine_cube_entry(entry: Any, configs: Dict, threshold_error: float, max_fbn_rules: int) -> Any:
+    """Worker side of the streaming pipeline: one target's cube entry -> (target, its final rules).
+
+    Runs the per-target steps of search_fbn_core and mine_fbn_network_stage2 on the entry, so only the
+    few selected rules, and not the cube entry itself, are sent back to the parent. None when the
+    cube has no entry for the target.
+    """
+    if not entry:
+        return None
+    gene = next(iter(entry))
+    mined = _search_target(0, [gene], {"cube": entry, "configs": configs})
+    rules = _select_rules(_drop_subsumed_rules(mined[gene]), threshold_error, max_fbn_rules) if mined else []
+    return gene, rules
+
+
+def mine_fbn_network_from_timeseries(
+    genes: List[str],
+    timeseries_cube: List[Any],
+    max_k: int = 5,
+    temporal: int = 1,
+    use_parallel: bool = False,
+    max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
+    backend: str = "auto",
+    threshold_confidence: float = 1,
+    threshold_error: float = 0,
+    threshold_support: float = 1e-5,
+    max_fbn_rules: int = 5,
+    target_genes: Optional[List[str]] = None,
+) -> Dict:
+    """
+    ``mine_fbn_network(construct_fbn_cube(target_genes, genes, timeseries_cube, ...), target_genes, ...)`` without ever
+    holding the cube: every worker builds the cube entry of one target, mines and filters its rules and
+    returns only those. The result is identical; memory and inter-process traffic stay small (the cube
+    of a genome-scale run would be tens of gigabytes), so this is what generate_fbm_network uses when
+    only the network is wanted.
+
+    Args:
+        genes: The conditional genes; also the target genes unless `target_genes` is given
+            (as in generate_fbm_network)
+        timeseries_cube: A list of binary time-series DataFrames (genes in rows, time points in columns)
+        target_genes: The genes whose rules are mined and that make up the network (default: `genes`)
+        The remaining arguments are those of construct_fbn_cube and mine_fbn_network.
+
+    Returns:
+        A FBN network object
+    """
+    import functools
+
+    from .cube import run_cube_targets
+
+    check_probability_type_data(threshold_confidence)
+    check_probability_type_data(threshold_error)
+    check_probability_type_data(threshold_support)
+    check_numeric(max_fbn_rules)
+
+    configs = {
+        'threshold_confidence': threshold_confidence,
+        'threshold_error': threshold_error,
+        'threshold_support': threshold_support,
+        'max_fbn_rules': max_fbn_rules,
+    }
+    postprocess = functools.partial(
+        _mine_cube_entry, configs=configs, threshold_error=threshold_error, max_fbn_rules=max_fbn_rules
+    )
+    target_genes = list(genes if target_genes is None else target_genes)
+    _, results = run_cube_targets(
+        target_genes, genes, timeseries_cube, max_k, temporal, use_parallel, max_workers, chunksize, backend, postprocess,
+        filter_in_workers=True,
+    )
+
+    rules_by_gene = {result[0]: result[1] for result in results if result is not None}
+    mined_genes = [gene for gene in target_genes if gene in rules_by_gene]
+    stage2_result = {gene: rules_by_gene[gene] for gene in mined_genes if rules_by_gene[gene]}
+    return _finish_network(stage2_result, mined_genes)
 
 def merge_cluster_networks(
     clustered_fbn_cube: List[Dict],
@@ -496,6 +578,44 @@ def _drop_subsumed_rules(ruleset: List[Dict]) -> List[Dict]:
     return kept
 
 
+def _select_rules(rules: List[Dict], threshold_error: float, max_fbn_rules: int) -> List[Dict]:
+    """Stage 2 for one target: keep the rules within the error threshold, the best `max_fbn_rules` per type."""
+    activators = []
+    inhibitors = []
+
+    for rule in rules:
+        if (float(rule['error']) <= threshold_error and
+            int(rule['type']) == 1):
+            rule['threshold_error'] = threshold_error
+            activators.append(rule)
+
+        if (float(rule['error']) <= threshold_error and
+            int(rule['type']) == 0):
+            rule['threshold_error'] = threshold_error
+            inhibitors.append(rule)
+
+    # Sort and limit number of rules
+    activators.sort(key=lambda x: (
+        int(x['timestep']),
+        float(x['error']),
+        int(x['numOfInput']),
+        -float(x['support'])
+    ))
+    if len(activators) > max_fbn_rules:
+        activators = activators[:max_fbn_rules]
+
+    inhibitors.sort(key=lambda x: (
+        int(x['timestep']),
+        float(x['error']),
+        int(x['numOfInput']),
+        -float(x['support'])
+    ))
+    if len(inhibitors) > max_fbn_rules:
+        inhibitors = inhibitors[:max_fbn_rules]
+
+    return activators + inhibitors
+
+
 def mine_fbn_network_stage2(
     res: Dict,
     threshold_error: float = 0,
@@ -532,42 +652,8 @@ def mine_fbn_network_stage2(
     for target, rules in zip(targets, kept):
         filtered_res[target] = rules
     
-    # Filter rules based on error threshold and type
     for target in filtered_res:
-        activators = []
-        inhibitors = []
-        
-        for rule in filtered_res[target]:
-            if (float(rule['error']) <= threshold_error and 
-                int(rule['type']) == 1):
-                rule['threshold_error'] = threshold_error
-                activators.append(rule)
-            
-            if (float(rule['error']) <= threshold_error and 
-                int(rule['type']) == 0):
-                rule['threshold_error'] = threshold_error
-                inhibitors.append(rule)
-        
-        # Sort and limit number of rules
-        activators.sort(key=lambda x: (
-            int(x['timestep']), 
-            float(x['error']), 
-            int(x['numOfInput']), 
-            -float(x['support'])
-        ))
-        if len(activators) > max_fbn_rules:
-            activators = activators[:max_fbn_rules]
-        
-        inhibitors.sort(key=lambda x: (
-            int(x['timestep']), 
-            float(x['error']), 
-            int(x['numOfInput']), 
-            -float(x['support'])
-        ))
-        if len(inhibitors) > max_fbn_rules:
-            inhibitors = inhibitors[:max_fbn_rules]
-        
-        filtered_res[target] = activators + inhibitors
+        filtered_res[target] = _select_rules(filtered_res[target], threshold_error, max_fbn_rules)
     
     # Filter out empty entries
     filtered_res = {k: v for k, v in filtered_res.items() if v}

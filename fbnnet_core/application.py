@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .cube import construct_fbn_cube
-from .network import mine_fbn_network
+from .network import mine_fbn_network, mine_fbn_network_from_timeseries
 from .general_utils import check_numeric, check_probability_type_data
 
 logger = logging.getLogger(__name__)
@@ -192,6 +192,26 @@ def generate_fbm_network(
 
     genes = list(timeseries_data[0].index)
 
+    if network_only:
+        # The cube is never materialised: workers mine each target's rules and return only those.
+        log("Run generate_fbm_network, mining the rules of every target as its cube entry is built")
+        network = mine_fbn_network_from_timeseries(
+            genes,
+            timeseries_data,
+            max_k=max_k,
+            temporal=max_deep_temporal,
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+            chunksize=chunksize,
+            backend=backend,
+            threshold_confidence=threshold_confidence,
+            threshold_error=threshold_error,
+            threshold_support=threshold_support,
+            max_fbn_rules=max_fbn_rules,
+        )
+        log("Leave generate_fbm_network zone")
+        return network
+
     log("Run generate_fbm_network with a single cube")
     cube = construct_fbn_cube(
         target_genes=genes,
@@ -217,6 +237,4 @@ def generate_fbm_network(
     )
 
     log("Leave generate_fbm_network zone")
-    if network_only:
-        return network
     return {"cube": cube, "network": network}

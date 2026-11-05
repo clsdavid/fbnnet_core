@@ -146,6 +146,57 @@ def _same_value(a, b):
     return type(a) is type(b) and a == b
 
 
+class TestEssentialCandidateFilter(unittest.TestCase):
+    """`has_essential_candidate` must keep exactly the targets `filterTargetGenesByConditionGenes` keeps."""
+
+    def check(self, series, temporals):
+        from fbnnet_core import tensor_nodes
+
+        genes = list(series[0].index)
+        for temporal in temporals:
+            main_parameters = convert_df_main_parameters(series, temporal)
+            expected = set(_tree.filterTargetGenesByConditionGenes(genes, main_parameters, genes, None, temporal))
+            cache = tensor_nodes.prepare(main_parameters, temporal)
+            actual = {g for g in genes if tensor_nodes.has_essential_candidate(cache, g, genes, temporal)}
+            with self.subTest(temporal=temporal, genes=len(genes)):
+                self.assertEqual(expected, actual)
+        return expected
+
+    def test_random_data_with_planted_rules(self):
+        import numpy as np
+
+        rng = np.random.default_rng(5)
+        data = (rng.random((8, 50, 10)) < 0.45).astype(int)
+        for target, a, b in ((1, 2, 3), (4, 5, 6), (7, 8, 9)):
+            data[:, target, 1:] = data[:, a, :-1] & (1 - data[:, b, :-1])
+        series = [
+            pd.DataFrame(m, index=[f"G{i}" for i in range(50)], columns=[str(j + 1) for j in range(10)])
+            for m in data
+        ]
+        kept = self.check(series, (1, 2, 3))
+        self.assertTrue({"G1", "G4", "G7"} <= kept)
+
+    def test_small_sample_with_rejected_targets(self):
+        import numpy as np
+
+        rng = np.random.default_rng(9)
+        data = (rng.random((4, 60, 3)) < 0.4).astype(int)  # too little data for most genes to be essential
+        series = [
+            pd.DataFrame(m, index=[f"G{i}" for i in range(60)], columns=["1", "2", "3"]) for m in data
+        ]
+        kept = self.check(series, (1,))
+        self.assertTrue(0 < len(kept) < 60)
+
+    def test_no_genes(self):
+        from fbnnet_core import tensor_nodes
+
+        main_parameters = convert_df_main_parameters(
+            [pd.DataFrame([[0, 1, 0], [1, 0, 1]], index=["A", "B"], columns=["1", "2", "3"])], temporal=1
+        )
+        cache = tensor_nodes.prepare(main_parameters, 1)
+        self.assertFalse(tensor_nodes.has_essential_candidate(cache, "A", [], 1))
+
+
 class TestAdvancedMeasuresBatch(unittest.TestCase):
     """`getAdvancedMeasuresBatch` and `getAdvancedMeasures` share one C++ implementation: identical bits."""
 

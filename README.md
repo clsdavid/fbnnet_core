@@ -289,7 +289,7 @@ network = generate_fbm_network(
 | `max_fbn_rules` | Largest number of activation and of inhibition rules kept per gene. | `5` |
 | `method` | How raw values are converted to on/off: `"kmeans"` or `"edgeDetector"`. | `"kmeans"` |
 | `use_parallel` | Build the rule cube (the slow step) and mine the rules on several CPU cores. Uses `fork` where available (Linux, macOS) and `spawn` otherwise (Windows); see the note below. | `False` |
-| `max_workers` | Number of worker processes when `use_parallel=True`. | all cores but one |
+| `max_workers` | Number of worker processes when `use_parallel=True`. For the best speed install `pip install fbnnet_core[parallel]` (limits each worker to one BLAS thread), or set `OPENBLAS_NUM_THREADS=1` and `OMP_NUM_THREADS=1`. | all cores but one |
 | `chunksize` | Genes handed to a worker at a time. Raise it for thousands of genes to cut dispatch overhead. | automatic |
 | `backend` | `"auto"` picks `"tensor"`, which gives identical results to `"recursive"` (the C++ engine) and was never slower in the benchmarks (6-14x faster beyond a few hundred genes). `"tensor"` is licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing); pass `"recursive"` to avoid it. | `"auto"` |
 

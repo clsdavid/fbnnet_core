@@ -34,6 +34,30 @@ def start_method() -> Optional[str]:
     return None
 
 
+_blas_limit = None  # keeps the threadpoolctl limit alive in the worker
+
+
+def _limit_blas_threads() -> None:
+    """Runs first in every worker: one BLAS thread per worker process.
+
+    The workers already use all cores between them; with the default thread count every worker would
+    start one BLAS thread per core as well, which measurably slows the matrix products down. Needs the
+    optional `threadpoolctl` package (without it, set OPENBLAS_NUM_THREADS=1 and OMP_NUM_THREADS=1
+    before starting Python).
+    """
+    global _blas_limit
+    try:
+        from threadpoolctl import threadpool_limits
+    except ImportError:
+        return
+    _blas_limit = threadpool_limits(limits=1)
+
+
+def _spawn_worker_start(init: Callable[..., None], args: Sequence[Any]) -> None:
+    _limit_blas_threads()
+    init(*args)
+
+
 def pool_map(
     worker: Callable[[Any], Any],
     items: Sequence[Any],
@@ -56,9 +80,11 @@ def pool_map(
     if method == "fork":
         init(*fork_args)
         try:
-            with context.Pool(processes=n_workers) as pool:
+            with context.Pool(processes=n_workers, initializer=_limit_blas_threads) as pool:
                 return pool.map(worker, items, chunksize=chunksize)
         finally:
             clear()
-    with context.Pool(processes=n_workers, initializer=init, initargs=tuple(spawn_args)) as pool:
+    with context.Pool(
+        processes=n_workers, initializer=_spawn_worker_start, initargs=(init, tuple(spawn_args))
+    ) as pool:
         return pool.map(worker, items, chunksize=chunksize)
