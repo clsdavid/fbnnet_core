@@ -5,7 +5,57 @@ from .general_utils import dissolve, check_probability_type_data, check_numeric
 from .network_utils import convert_mined_result_to_fbn_network, remove_duplicates
 from .network_app import filter_network_connections
 from . import _utils
+from . import _parallel
+from .cube import DEFAULT_MAX_WORKERS
 logger = logging.getLogger(__name__)
+
+# Inputs of the pool workers (see _run_in_pool): inherited through fork, or pickled once per spawned
+# worker; the per-task payload is only the target index.
+_pool_state: Dict[str, Any] = {}
+
+
+def _pool_init(state: Dict[str, Any]) -> None:
+    global _pool_state
+    _pool_state = state
+
+
+def _pool_clear() -> None:
+    global _pool_state
+    _pool_state = {}
+
+
+def _search_worker(index: int) -> Any:
+    state = _pool_state
+    return _search_target(index, state["genes"], {"cube": state["cube"], "configs": state["configs"]})
+
+
+def _subsumed_worker(index: int) -> Any:
+    state = _pool_state
+    return _drop_subsumed_rules(state["res"][state["targets"][index]])
+
+
+def _run_in_pool(worker, n_items: int, use_parallel: bool, max_workers: Optional[int],
+                 chunksize: Optional[int], state: Dict[str, Any]) -> List[Any]:
+    """[worker(0), ..., worker(n_items - 1)], computed in worker processes when use_parallel is True.
+
+    `worker` reads its inputs from the module state set by `_pool_init(state)`: fork workers
+    inherit it, spawn workers get it pickled once per worker. Falls back to one process when no
+    start method is usable or there is nothing to share out.
+    """
+    n_workers = max(1, min(max_workers or DEFAULT_MAX_WORKERS, n_items))
+    method = _parallel.start_method()
+    if use_parallel and method is None:
+        logger.warning("No usable multiprocessing start method; mining the rules in a single process.")
+    if use_parallel and method and n_workers > 1:
+        return _parallel.pool_map(
+            worker, range(n_items), n_workers, chunksize, _pool_init, (state,), (state,), _pool_clear
+        )
+    _pool_init(state)
+    try:
+        return [worker(i) for i in range(n_items)]
+    finally:
+        _pool_clear()
+
 
 def mine_fbn_network(
     fbn_gene_cube: Dict,
@@ -14,7 +64,9 @@ def mine_fbn_network(
     threshold_confidence: float = 1,
     threshold_error: float = 0,
     threshold_support: float = 1e-5,
-    max_fbn_rules: int = 5
+    max_fbn_rules: int = 5,
+    max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
 ) -> Dict:
     """
     Mine FBN Networks from an Orchard cube
@@ -22,11 +74,15 @@ def mine_fbn_network(
     Args:
         fbn_gene_cube: A pre constructed Orchard cube
         genes: The target genes in the output
-        use_parallel: An option turns on parallel processing
+        use_parallel: If True, mine the target genes in separate worker processes (fork, or spawn
+            where fork does not exist)
         threshold_confidence: Threshold of confidence (between 0 and 1)
         threshold_error: Threshold of error rate (between 0 and 1)
         threshold_support: Threshold of support (between 0 and 1)
         max_fbn_rules: Maximum rules per type (Activation and Inhibition) per gene
+        max_workers: Maximum number of worker processes when use_parallel is True
+            (default: cpu_count - 1)
+        chunksize: Tasks-per-worker batch size passed to pool.map (default: its own heuristic)
     
     Returns:
         A FBN network object
@@ -54,10 +110,14 @@ def mine_fbn_network(
         threshold_confidence, 
         threshold_error, 
         threshold_support, 
-        max_fbn_rules
+        max_fbn_rules,
+        max_workers,
+        chunksize,
     )
     
-    final_result = mine_fbn_network_with_cores(middle_result, genes, threshold_error, max_fbn_rules)
+    final_result = mine_fbn_network_with_cores(
+        middle_result, genes, threshold_error, max_fbn_rules, use_parallel, max_workers, chunksize
+    )
     logger.info("Leave mine_fbn_network zone")
     return final_result
 
@@ -65,7 +125,10 @@ def mine_fbn_network_with_cores(
     search_fbn_core_result: Dict,
     genes: Optional[List[str]] = None,
     threshold_error: float = 0,
-    max_fbn_rules: int = 5
+    max_fbn_rules: int = 5,
+    use_parallel: bool = False,
+    max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
 ) -> Dict:
     """
     Process the result from search_fbn_core
@@ -75,6 +138,7 @@ def mine_fbn_network_with_cores(
         genes: Genes that are involved
         threshold_error: Threshold of error rate
         max_fbn_rules: Maximum rules per type per gene
+        use_parallel, max_workers, chunksize: Run the per-gene rule filtering in forked workers
     
     Returns:
         A FBN network object
@@ -84,15 +148,99 @@ def mine_fbn_network_with_cores(
     if genes is None:
         genes = list(search_fbn_core_result.keys())
     
-    midle_result = mine_fbn_network_stage2(search_fbn_core_result, threshold_error, max_fbn_rules)
-    final_result = convert_mined_result_to_fbn_network(midle_result, genes)
-    
-    if not final_result:
-        raise ValueError("No Network generated")
-    
-    final_result = filter_network_connections(final_result)
+    midle_result = mine_fbn_network_stage2(
+        search_fbn_core_result, threshold_error, max_fbn_rules, use_parallel, max_workers, chunksize
+    )
+    final_result = _finish_network(midle_result, genes)
     logger.info("Leave mine_fbn_network_with_cores zone")
     return final_result
+
+
+def _finish_network(stage2_result: Dict, genes: List[str]) -> Dict:
+    """Stage-2 rules -> FundamentalBooleanNetwork (shared by the cube and the streaming pipelines)."""
+    final_result = convert_mined_result_to_fbn_network(stage2_result, genes)
+
+    if not final_result:
+        raise ValueError("No Network generated")
+
+    return filter_network_connections(final_result)
+
+
+def _mine_cube_entry(entry: Any, configs: Dict, threshold_error: float, max_fbn_rules: int) -> Any:
+    """Worker side of the streaming pipeline: one target's cube entry -> (target, its final rules).
+
+    Runs the per-target steps of search_fbn_core and mine_fbn_network_stage2 on the entry, so only the
+    few selected rules, and not the cube entry itself, are sent back to the parent. None when the
+    cube has no entry for the target.
+    """
+    if not entry:
+        return None
+    gene = next(iter(entry))
+    mined = _search_target(0, [gene], {"cube": entry, "configs": configs})
+    rules = _select_rules(_drop_subsumed_rules(mined[gene]), threshold_error, max_fbn_rules) if mined else []
+    return gene, rules
+
+
+def mine_fbn_network_from_timeseries(
+    genes: List[str],
+    timeseries_cube: List[Any],
+    max_k: int = 5,
+    temporal: int = 1,
+    use_parallel: bool = False,
+    max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
+    backend: str = "auto",
+    threshold_confidence: float = 1,
+    threshold_error: float = 0,
+    threshold_support: float = 1e-5,
+    max_fbn_rules: int = 5,
+    target_genes: Optional[List[str]] = None,
+) -> Dict:
+    """
+    ``mine_fbn_network(construct_fbn_cube(target_genes, genes, timeseries_cube, ...), target_genes, ...)`` without ever
+    holding the cube: every worker builds the cube entry of one target, mines and filters its rules and
+    returns only those. The result is identical; memory and inter-process traffic stay small (the cube
+    of a genome-scale run would be tens of gigabytes), so this is what generate_fbm_network uses when
+    only the network is wanted.
+
+    Args:
+        genes: The conditional genes; also the target genes unless `target_genes` is given
+            (as in generate_fbm_network)
+        timeseries_cube: A list of binary time-series DataFrames (genes in rows, time points in columns)
+        target_genes: The genes whose rules are mined and that make up the network (default: `genes`)
+        The remaining arguments are those of construct_fbn_cube and mine_fbn_network.
+
+    Returns:
+        A FBN network object
+    """
+    import functools
+
+    from .cube import run_cube_targets
+
+    check_probability_type_data(threshold_confidence)
+    check_probability_type_data(threshold_error)
+    check_probability_type_data(threshold_support)
+    check_numeric(max_fbn_rules)
+
+    configs = {
+        'threshold_confidence': threshold_confidence,
+        'threshold_error': threshold_error,
+        'threshold_support': threshold_support,
+        'max_fbn_rules': max_fbn_rules,
+    }
+    postprocess = functools.partial(
+        _mine_cube_entry, configs=configs, threshold_error=threshold_error, max_fbn_rules=max_fbn_rules
+    )
+    target_genes = list(genes if target_genes is None else target_genes)
+    _, results = run_cube_targets(
+        target_genes, genes, timeseries_cube, max_k, temporal, use_parallel, max_workers, chunksize, backend, postprocess,
+        filter_in_workers=True,
+    )
+
+    rules_by_gene = {result[0]: result[1] for result in results if result is not None}
+    mined_genes = [gene for gene in target_genes if gene in rules_by_gene]
+    stage2_result = {gene: rules_by_gene[gene] for gene in mined_genes if rules_by_gene[gene]}
+    return _finish_network(stage2_result, mined_genes)
 
 def merge_cluster_networks(
     clustered_fbn_cube: List[Dict],
@@ -136,6 +284,205 @@ def merge_cluster_networks(
     return mine_fbn_network_with_cores(network_cores, genes, threshold_error, max_fbn_rules)
 
 
+def _recursive_mining_fbn_function(
+    fbn_gene_cube_stem: Dict,
+    target_gene: str,
+    current_sub_gene: str,
+    group_by_gene: Optional[str],
+    configs: Dict,
+    find_true: bool,
+    find_false: bool
+) -> List[Dict]:
+    """Recursive function to mine FBN rules"""
+    threshold_confidence = configs['threshold_confidence']
+    threshold_error = configs['threshold_error']
+    threshold_support = configs['threshold_support']
+
+    if current_sub_gene not in fbn_gene_cube_stem:
+        return None
+
+    if group_by_gene is None:
+        group_by_gene = current_sub_gene
+
+    res = []
+    res_t = []
+    res_f = []
+
+    # Get measures at current level
+    input_genes = sorted(fbn_gene_cube_stem[current_sub_gene].get("Input", []))
+    pick_t = fbn_gene_cube_stem[current_sub_gene].get("ActivatorAndInhibitor", {}).get("Activator", None)
+    pick_f = fbn_gene_cube_stem[current_sub_gene].get("ActivatorAndInhibitor", {}).get("Inhibitor", None)
+
+    # Process activator
+    if pick_t is not None:
+        pick_t_value = float(pick_t.get("Confidence", 0))
+        pick_t_all_confidence = float(pick_t.get("all_confidence", 0))
+        pick_t_support = float(pick_t.get("support", 0))
+        pick_t_causality_test = float(pick_t.get("causality_test", 0))
+        error_activator = float(pick_t.get("Noise", 0))
+        identity_t = pick_t.get("Identity", "")
+        pick_t_type = pick_t.get("type", "")
+        timestep_t = int(pick_t.get("timestep", 1))
+        best_fit_p = float(pick_t.get("bestFitP", 0))
+    else:
+        pick_t_value = 0
+        pick_t_all_confidence = 0
+        pick_t_support = 0
+        pick_t_causality_test = 0
+        error_activator = 0
+        identity_t = ""
+        pick_t_type = ""
+        timestep_t = 1
+        best_fit_p = 0
+
+    # Process inhibitor
+    if pick_f is not None:
+        pick_f_value = float(pick_f.get("Confidence", 0))
+        pick_f_all_confidence = float(pick_f.get("all_confidence", 0))
+        pick_f_support = float(pick_f.get("support", 0))
+        pick_f_causality_test = float(pick_f.get("causality_test", 0))
+        error_inhibitor = float(pick_f.get("Noise", 0))
+        identity_f = pick_f.get("Identity", "")
+        pick_f_type = pick_f.get("type", "")
+        timestep_f = int(pick_f.get("timestep", 1))
+        best_fit_n = float(pick_f.get("bestFitN", 0))
+    else:
+        pick_f_value = 0
+        pick_f_all_confidence = 0
+        pick_f_support = 0
+        pick_f_causality_test = 0
+        error_inhibitor = 0
+        identity_f = ""
+        pick_f_type = ""
+        timestep_f = 1
+        best_fit_n = 0
+
+    # Filter rules based on thresholds
+    get_t = None
+    if (pick_t is not None and 
+        pick_t_support >= threshold_support and 
+        pick_t_causality_test >= 1 and 
+        pick_t_value >= threshold_confidence):
+        get_t = pick_t
+
+    get_f = None
+    if (pick_f is not None and 
+        pick_f_support >= threshold_support and 
+        pick_f_causality_test >= 1 and 
+        pick_f_value >= threshold_confidence):
+        get_f = pick_f
+
+    # Add rules to results if they pass thresholds
+    if get_t is not None:
+        res.append({
+            'targets': target_gene,
+            'factor': get_t['factor'],
+            'type': 1,
+            'identity': identity_t,
+            'error': round(error_activator, 5),
+            'P': round(pick_t_value, 4),
+            'support': pick_t_support,
+            'timestep': timestep_t,
+            'input': ",".join(input_genes),
+            'numOfInput': len(input_genes),
+            'causality_test': round(pick_t_causality_test, 5),
+            'GroupBy': group_by_gene,
+            'all_confidence': pick_t_all_confidence,
+            'dimensionType': pick_t_type,
+            'bestFitP': best_fit_p
+        })
+
+    if get_f is not None:
+        res.append({
+            'targets': target_gene,
+            'factor': get_f['factor'],
+            'type': 0,
+            'identity': identity_f,
+            'error': round(error_inhibitor, 5),
+            'P': round(pick_f_value, 4),
+            'support': pick_f_support,
+            'timestep': timestep_f,
+            'input': ",".join(input_genes),
+            'numOfInput': len(input_genes),
+            'causality_test': round(pick_f_causality_test, 5),
+            'GroupBy': group_by_gene,
+            'all_confidence': pick_f_all_confidence,
+            'dimensionType': pick_f_type,
+            'bestFitN': best_fit_n
+        })
+
+    # Update find flags
+    find_true = find_true or (get_t is not None)
+    find_false = find_false or (get_f is not None)
+
+    # Recursively process sub-levels if needed
+    if not (find_true and find_false):
+        # Process activator sub-genes
+        if "SubGenesT" in fbn_gene_cube_stem[current_sub_gene]:
+            fbn_gene_cube_stem_t = fbn_gene_cube_stem[current_sub_gene]["SubGenesT"]
+            next_genes_t = list(fbn_gene_cube_stem_t.keys())
+
+            for next_gene in next_genes_t:
+                sub_res = _recursive_mining_fbn_function(
+                    fbn_gene_cube_stem_t, target_gene, next_gene, 
+                    group_by_gene, configs, find_true, find_false
+                )
+                if sub_res:
+                    res_t.extend(dissolve(sub_res))
+
+        # Process inhibitor sub-genes
+        if "SubGenesF" in fbn_gene_cube_stem[current_sub_gene]:
+            fbn_gene_cube_stem_f = fbn_gene_cube_stem[current_sub_gene]["SubGenesF"]
+            next_genes_f = list(fbn_gene_cube_stem_f.keys())
+
+            for next_gene in next_genes_f:
+                sub_res = _recursive_mining_fbn_function(
+                    fbn_gene_cube_stem_f, target_gene, next_gene, 
+                    group_by_gene, configs, find_true, find_false
+                )
+                if sub_res:
+                    res_f.extend(dissolve(sub_res))
+
+    # Combine results
+    if res_t:
+        res.extend(res_t)
+    if res_f:
+        res.extend(res_f)
+
+    # Filter out None and empty results
+    res = [r for r in res if r is not None and len(r) > 0]
+    return res
+
+def _search_target(i: int, genes: List[str], env: Dict) -> List[Dict]:
+    """Internal processing loop for each gene"""
+    target_gene = genes[i]
+    res = {target_gene: []}
+
+    if not env['cube'] or target_gene not in env['cube']:
+        return []
+
+    if "SubGenes" not in env['cube'][target_gene]:
+        return []
+
+    current_stem = env['cube'][target_gene]["SubGenes"]
+    next_genes = list(current_stem.keys())
+
+    for current_gene in next_genes:
+        sub_res = _recursive_mining_fbn_function(
+            current_stem, target_gene, current_gene, 
+            None, env['configs'], False, False
+        )
+        if sub_res:
+            res[target_gene].extend(dissolve(sub_res))
+
+    # Remove duplicates
+    preresponse = remove_duplicates(dissolve(res[target_gene]))
+    if not preresponse:
+        return []
+
+    return {target_gene: preresponse}
+
+
 def search_fbn_core(
     fbn_gene_cube: Dict,
     genes: List[str],
@@ -143,7 +490,9 @@ def search_fbn_core(
     threshold_confidence: float = 1,
     threshold_error: float = 0,
     threshold_support: float = 1e-4,
-    max_fbn_rules: int = 5
+    max_fbn_rules: int = 5,
+    max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
 ) -> Dict:
     """
     Core function to search for FBN rules in the cube
@@ -151,19 +500,18 @@ def search_fbn_core(
     Args:
         fbn_gene_cube: The orchard cube
         genes: Target genes
-        use_parallel: Whether to use parallel processing
+        use_parallel: If True, mine the target genes in separate worker processes ('fork' start
+            method; otherwise one process with a log warning). The result is identical.
         threshold_confidence: Confidence threshold
         threshold_error: Error threshold
         threshold_support: Support threshold
         max_fbn_rules: Maximum rules per type per gene
+        max_workers: Maximum number of worker processes (default: cpu_count - 1)
+        chunksize: Tasks-per-worker batch size passed to pool.map (default: its own heuristic)
     
     Returns:
         Dictionary of mined rules
     """
-    if use_parallel:
-        use_parallel = False
-        logger.info("The parallel for network is not supported")
-    
     logger.info(f"Enter search_fbn_core zone: use_parallel={use_parallel}")
     
     network_configs = {
@@ -173,219 +521,16 @@ def search_fbn_core(
         'max_fbn_rules': max_fbn_rules
     }
     
-    def recursive_mining_fbn_function(
-        fbn_gene_cube_stem: Dict,
-        target_gene: str,
-        current_sub_gene: str,
-        group_by_gene: Optional[str],
-        configs: Dict,
-        find_true: bool,
-        find_false: bool
-    ) -> List[Dict]:
-        """Recursive function to mine FBN rules"""
-        threshold_confidence = configs['threshold_confidence']
-        threshold_error = configs['threshold_error']
-        threshold_support = configs['threshold_support']
-        
-        if current_sub_gene not in fbn_gene_cube_stem:
-            return None
-        
-        if group_by_gene is None:
-            group_by_gene = current_sub_gene
-        
-        res = []
-        res_t = []
-        res_f = []
-        
-        # Get measures at current level
-        input_genes = sorted(fbn_gene_cube_stem[current_sub_gene].get("Input", []))
-        pick_t = fbn_gene_cube_stem[current_sub_gene].get("ActivatorAndInhibitor", {}).get("Activator", None)
-        pick_f = fbn_gene_cube_stem[current_sub_gene].get("ActivatorAndInhibitor", {}).get("Inhibitor", None)
-        
-        # Process activator
-        if pick_t is not None:
-            pick_t_value = float(pick_t.get("Confidence", 0))
-            pick_t_all_confidence = float(pick_t.get("all_confidence", 0))
-            pick_t_support = float(pick_t.get("support", 0))
-            pick_t_causality_test = float(pick_t.get("causality_test", 0))
-            error_activator = float(pick_t.get("Noise", 0))
-            identity_t = pick_t.get("Identity", "")
-            pick_t_type = pick_t.get("type", "")
-            timestep_t = int(pick_t.get("timestep", 1))
-            best_fit_p = float(pick_t.get("bestFitP", 0))
-        else:
-            pick_t_value = 0
-            pick_t_all_confidence = 0
-            pick_t_support = 0
-            pick_t_causality_test = 0
-            error_activator = 0
-            identity_t = ""
-            pick_t_type = ""
-            timestep_t = 1
-            best_fit_p = 0
-        
-        # Process inhibitor
-        if pick_f is not None:
-            pick_f_value = float(pick_f.get("Confidence", 0))
-            pick_f_all_confidence = float(pick_f.get("all_confidence", 0))
-            pick_f_support = float(pick_f.get("support", 0))
-            pick_f_causality_test = float(pick_f.get("causality_test", 0))
-            error_inhibitor = float(pick_f.get("Noise", 0))
-            identity_f = pick_f.get("Identity", "")
-            pick_f_type = pick_f.get("type", "")
-            timestep_f = int(pick_f.get("timestep", 1))
-            best_fit_n = float(pick_f.get("bestFitN", 0))
-        else:
-            pick_f_value = 0
-            pick_f_all_confidence = 0
-            pick_f_support = 0
-            pick_f_causality_test = 0
-            error_inhibitor = 0
-            identity_f = ""
-            pick_f_type = ""
-            timestep_f = 1
-            best_fit_n = 0
-        
-        # Filter rules based on thresholds
-        get_t = None
-        if (pick_t is not None and 
-            pick_t_support >= threshold_support and 
-            pick_t_causality_test >= 1 and 
-            pick_t_value >= threshold_confidence):
-            get_t = pick_t
-        
-        get_f = None
-        if (pick_f is not None and 
-            pick_f_support >= threshold_support and 
-            pick_f_causality_test >= 1 and 
-            pick_f_value >= threshold_confidence):
-            get_f = pick_f
-        
-        # Add rules to results if they pass thresholds
-        if get_t is not None:
-            res.append({
-                'targets': target_gene,
-                'factor': get_t['factor'],
-                'type': 1,
-                'identity': identity_t,
-                'error': round(error_activator, 5),
-                'P': round(pick_t_value, 4),
-                'support': pick_t_support,
-                'timestep': timestep_t,
-                'input': ",".join(input_genes),
-                'numOfInput': len(input_genes),
-                'causality_test': round(pick_t_causality_test, 5),
-                'GroupBy': group_by_gene,
-                'all_confidence': pick_t_all_confidence,
-                'dimensionType': pick_t_type,
-                'bestFitP': best_fit_p
-            })
-        
-        if get_f is not None:
-            res.append({
-                'targets': target_gene,
-                'factor': get_f['factor'],
-                'type': 0,
-                'identity': identity_f,
-                'error': round(error_inhibitor, 5),
-                'P': round(pick_f_value, 4),
-                'support': pick_f_support,
-                'timestep': timestep_f,
-                'input': ",".join(input_genes),
-                'numOfInput': len(input_genes),
-                'causality_test': round(pick_f_causality_test, 5),
-                'GroupBy': group_by_gene,
-                'all_confidence': pick_f_all_confidence,
-                'dimensionType': pick_f_type,
-                'bestFitN': best_fit_n
-            })
-        
-        # Update find flags
-        find_true = find_true or (get_t is not None)
-        find_false = find_false or (get_f is not None)
-        
-        # Recursively process sub-levels if needed
-        if not (find_true and find_false):
-            # Process activator sub-genes
-            if "SubGenesT" in fbn_gene_cube_stem[current_sub_gene]:
-                fbn_gene_cube_stem_t = fbn_gene_cube_stem[current_sub_gene]["SubGenesT"]
-                next_genes_t = list(fbn_gene_cube_stem_t.keys())
-                
-                for next_gene in next_genes_t:
-                    sub_res = recursive_mining_fbn_function(
-                        fbn_gene_cube_stem_t, target_gene, next_gene, 
-                        group_by_gene, configs, find_true, find_false
-                    )
-                    if sub_res:
-                        res_t.extend(dissolve(sub_res))
-            
-            # Process inhibitor sub-genes
-            if "SubGenesF" in fbn_gene_cube_stem[current_sub_gene]:
-                fbn_gene_cube_stem_f = fbn_gene_cube_stem[current_sub_gene]["SubGenesF"]
-                next_genes_f = list(fbn_gene_cube_stem_f.keys())
-                
-                for next_gene in next_genes_f:
-                    sub_res = recursive_mining_fbn_function(
-                        fbn_gene_cube_stem_f, target_gene, next_gene, 
-                        group_by_gene, configs, find_true, find_false
-                    )
-                    if sub_res:
-                        res_f.extend(dissolve(sub_res))
-        
-        # Combine results
-        if res_t:
-            res.extend(res_t)
-        if res_f:
-            res.extend(res_f)
-        
-        # Filter out None and empty results
-        res = [r for r in res if r is not None and len(r) > 0]
-        return res
-    
-    def internal_loop(i: int, genes: List[str], env: Dict) -> List[Dict]:
-        """Internal processing loop for each gene"""
-        target_gene = genes[i]
-        res = {target_gene: []}
-        
-        if not env['cube'] or target_gene not in env['cube']:
-            return []
-        
-        if "SubGenes" not in env['cube'][target_gene]:
-            return []
-        
-        current_stem = env['cube'][target_gene]["SubGenes"]
-        next_genes = list(current_stem.keys())
-        
-        for current_gene in next_genes:
-            sub_res = recursive_mining_fbn_function(
-                current_stem, target_gene, current_gene, 
-                None, env['configs'], False, False
-            )
-            if sub_res:
-                res[target_gene].extend(dissolve(sub_res))
-        
-        # Remove duplicates
-        preresponse = remove_duplicates(dissolve(res[target_gene]))
-        if not preresponse:
-            return []
-        
-        return {target_gene: preresponse}
-    
     # Main processing
     if not genes or not fbn_gene_cube:
         return {}
     
-    main_parameters = {
-        'cube': fbn_gene_cube,
-        'configs': network_configs
-    }
-    
-    # Process each gene
-    results = []
-    for i in range(len(genes)):
-        gene_result = internal_loop(i, genes, main_parameters)
-        if gene_result:
-            results.append(gene_result)
+    gene_results = _run_in_pool(
+        _search_worker, len(genes), use_parallel, max_workers, chunksize,
+        {"genes": genes, "cube": fbn_gene_cube, "configs": network_configs},
+    )
+
+    results = [gene_result for gene_result in gene_results if gene_result]
     
     # Combine results
     final_result = {}
@@ -433,10 +578,51 @@ def _drop_subsumed_rules(ruleset: List[Dict]) -> List[Dict]:
     return kept
 
 
+def _select_rules(rules: List[Dict], threshold_error: float, max_fbn_rules: int) -> List[Dict]:
+    """Stage 2 for one target: keep the rules within the error threshold, the best `max_fbn_rules` per type."""
+    activators = []
+    inhibitors = []
+
+    for rule in rules:
+        if (float(rule['error']) <= threshold_error and
+            int(rule['type']) == 1):
+            rule['threshold_error'] = threshold_error
+            activators.append(rule)
+
+        if (float(rule['error']) <= threshold_error and
+            int(rule['type']) == 0):
+            rule['threshold_error'] = threshold_error
+            inhibitors.append(rule)
+
+    # Sort and limit number of rules
+    activators.sort(key=lambda x: (
+        int(x['timestep']),
+        float(x['error']),
+        int(x['numOfInput']),
+        -float(x['support'])
+    ))
+    if len(activators) > max_fbn_rules:
+        activators = activators[:max_fbn_rules]
+
+    inhibitors.sort(key=lambda x: (
+        int(x['timestep']),
+        float(x['error']),
+        int(x['numOfInput']),
+        -float(x['support'])
+    ))
+    if len(inhibitors) > max_fbn_rules:
+        inhibitors = inhibitors[:max_fbn_rules]
+
+    return activators + inhibitors
+
+
 def mine_fbn_network_stage2(
     res: Dict,
     threshold_error: float = 0,
-    max_fbn_rules: int = 5
+    max_fbn_rules: int = 5,
+    use_parallel: bool = False,
+    max_workers: Optional[int] = None,
+    chunksize: Optional[int] = None,
 ) -> Dict:
     """
     Second stage of FBN network mining
@@ -445,6 +631,8 @@ def mine_fbn_network_stage2(
         res: Result from stage 1
         threshold_error: Error threshold
         max_fbn_rules: Maximum rules per type per gene
+        use_parallel, max_workers, chunksize: Drop the subsumed rules of the target genes in
+            forked workers (same meaning as in search_fbn_core)
     
     Returns:
         Filtered FBN rules
@@ -456,45 +644,16 @@ def mine_fbn_network_stage2(
     
     filtered_res = {}
     
-    for target, ruleset in res.items():
-        filtered_res[target] = _drop_subsumed_rules(ruleset)
+    targets = list(res)
+    kept = _run_in_pool(
+        _subsumed_worker, len(targets), use_parallel, max_workers, chunksize,
+        {"res": res, "targets": targets},
+    )
+    for target, rules in zip(targets, kept):
+        filtered_res[target] = rules
     
-    # Filter rules based on error threshold and type
     for target in filtered_res:
-        activators = []
-        inhibitors = []
-        
-        for rule in filtered_res[target]:
-            if (float(rule['error']) <= threshold_error and 
-                int(rule['type']) == 1):
-                rule['threshold_error'] = threshold_error
-                activators.append(rule)
-            
-            if (float(rule['error']) <= threshold_error and 
-                int(rule['type']) == 0):
-                rule['threshold_error'] = threshold_error
-                inhibitors.append(rule)
-        
-        # Sort and limit number of rules
-        activators.sort(key=lambda x: (
-            int(x['timestep']), 
-            float(x['error']), 
-            int(x['numOfInput']), 
-            -float(x['support'])
-        ))
-        if len(activators) > max_fbn_rules:
-            activators = activators[:max_fbn_rules]
-        
-        inhibitors.sort(key=lambda x: (
-            int(x['timestep']), 
-            float(x['error']), 
-            int(x['numOfInput']), 
-            -float(x['support'])
-        ))
-        if len(inhibitors) > max_fbn_rules:
-            inhibitors = inhibitors[:max_fbn_rules]
-        
-        filtered_res[target] = activators + inhibitors
+        filtered_res[target] = _select_rules(filtered_res[target], threshold_error, max_fbn_rules)
     
     # Filter out empty entries
     filtered_res = {k: v for k, v in filtered_res.items() if v}

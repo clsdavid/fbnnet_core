@@ -220,7 +220,7 @@ int countZeros(py::array_t<double> arr) {
     auto buf = arr.request();
     double* ptr = static_cast<double*>(buf.ptr);
     int count = 0;
-    for (ssize_t i = 0; i < buf.size; ++i)
+    for (py::ssize_t i = 0; i < buf.size; ++i)
         if (ptr[i] == 0) ++count;
     return count;
 }
