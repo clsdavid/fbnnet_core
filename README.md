@@ -293,7 +293,7 @@ network = generate_fbm_network(
 | `use_parallel` | Build the rule cube (the slow step) and mine the rules on several CPU cores. Uses `fork` where available (Linux, macOS) and `spawn` otherwise (Windows); see the note below. | `False` |
 | `max_workers` | Number of worker processes when `use_parallel=True`. For the best speed install `pip install fbnnet_core[parallel]` (limits each worker to one BLAS thread), or set `OPENBLAS_NUM_THREADS=1` and `OMP_NUM_THREADS=1`. | all cores but one |
 | `chunksize` | Genes handed to a worker at a time. Raise it for thousands of genes to cut dispatch overhead. | automatic |
-| `backend` | `"auto"` picks `"tensor"`, which gives identical results to `"recursive"` (the C++ engine) and was never slower in the benchmarks (6-14x faster beyond a few hundred genes). `"tensor"` is licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing); pass `"recursive"` to avoid it. | `"auto"` |
+| `backend` | `"auto"` picks `"tensor"`, which gives identical results to `"recursive"` (the C++ engine) and was never slower in the benchmarks (6-14x faster beyond a few hundred genes). The tensor engine is licensed under the AGPL, see [Copyright and licensing](#copyright-and-licensing); `"recursive"` selects the MIT-licensed C++ engine instead. | `"auto"` |
 
 With `use_parallel=True` on a platform that uses `spawn` (Windows, or anywhere `FBNNET_START_METHOD=spawn` is set), every worker
 re-imports your script, so put the code that starts the run under `if __name__ == "__main__":`. The environment
@@ -656,8 +656,14 @@ This package and the underlying concepts were originally proposed and developed 
 (<https://doi.org/10.3389/fphys.2018.01328>) under the supervision of Don Kulasiri and Sandhya Samarasinghe during PhD
 study at Lincoln University, New Zealand.
 
-* The package, including everything ported from the R package, is released under the [MIT License](LICENSE).
-* The tensor-based mining backend (`backend="tensor"`: `fbnnet_core/tensor_mining.py`, `fbnnet_core/tensor_nodes.py` and `fbnnet_core/batched_counts.py`) is a newer addition and is licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt). Use of this backend must comply with the AGPL; a commercial licence is available from the author. The default `backend="auto"` selects it, so pass `backend="recursive"` to stay on the MIT-licensed C++ engine.
+* The package, including everything ported from the R package, is released under the [MIT License](LICENSE), except for the files listed next.
+* These files are licensed under the [GNU AGPL v3 or later](LICENSE-AGPL-3.0.txt) (see their `SPDX-License-Identifier`
+  headers and the list in [LICENSE](LICENSE)): the tensor mining backend (`backend="tensor"`:
+  `fbnnet_core/tensor_mining.py`, `fbnnet_core/tensor_nodes.py`, `fbnnet_core/batched_counts.py`) and the R-pipeline tools
+  `fbnnet_core/bioinformatics.py`, `fbnnet_core/cel_import.py` and `fbnnet_core/geo.py`, plus the tests of the tensor
+  backend. Use of these files must comply with the AGPL; a commercial licence is available from the author.
+  Note that `import fbnnet_core` imports the three tools modules and that the default `backend="auto"` uses the tensor
+  engine; `backend="recursive"` keeps the mining itself on the MIT-licensed C++ engine.
 
 The original R package is available at <https://github.com/clsdavid/FBNNet2_public>. Questions and bug reports are
 welcome in the [issue tracker](https://github.com/clsdavid/fbnnet_core/issues).
